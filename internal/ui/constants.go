@@ -18,8 +18,8 @@ const (
 	BgGreen = "\033[42m"
 	BgBlue  = "\033[44m"
 
-	// Message log dimensions
-	MessageLogHeight = 5
+	// Message log dimensions (fixed)
+	MessageLogHeight = 8
 )
 
 // Window dimensions - now variables that can be updated
@@ -30,9 +30,13 @@ var (
 
 	// Map view dimensions (left panel)
 	MapViewWidth  = 50
-	MapViewHeight = 30
+	MapViewHeight = 25
 
 	// Character panel dimensions (right panel)
 	CharPanelWidth  = 28 // 80 - 50 - 2 (separator)
-	CharPanelHeight = 30
+	CharPanelHeight = 25
+
+	// Message window dimensions (bottom panel)
+	MessageWindowHeight = 10
+	MessageLogWidth     = 80
 )

@@ -34,11 +34,13 @@ type Class struct {
 
 // Player represents the player character
 type Player struct {
-	X, Y   int
-	HP     int
-	MaxHP  int
-	Name   string
-	Symbol rune
+	X, Y    int
+	HP      int
+	MaxHP   int
+	Mana    int
+	MaxMana int
+	Name    string
+	Symbol  rune
 
 	// Character class
 	Class *Class
@@ -190,6 +192,29 @@ func (p *Player) UseSpecialAbility() (string, bool) {
 		return "You have no special abilities.", false
 	}
 
+	// Define mana costs for each ability
+	var manaCost int
+	switch p.Class.Type {
+	case Warrior:
+		manaCost = 3
+	case Wizard:
+		manaCost = 8
+	case Rogue:
+		manaCost = 5
+	case Ranger:
+		manaCost = 4
+	case Cleric:
+		manaCost = 6
+	default:
+		manaCost = 5
+	}
+
+	// Check if player has enough mana
+	if !p.UseMana(manaCost) {
+		return "Not enough mana to use your special ability.", false
+	}
+
+	// Execute the ability
 	switch p.Class.Type {
 	case Warrior:
 		// Berserk increases damage temporarily
@@ -327,16 +352,28 @@ func NewPlayer(startX, startY int, classType ClassType) *Player {
 	conBonus := (baseCon + class.ConBonus - 10) / 2
 	maxHP := 15 + conBonus
 
+	// Calculate max Mana based on class and wisdom
+	wisBonus := (baseWis + class.WisBonus - 10) / 2
+	maxMana := 10 + wisBonus
+	// Wizards and Clerics get bonus mana
+	if class.Type == Wizard {
+		maxMana += 10
+	} else if class.Type == Cleric {
+		maxMana += 5
+	}
+
 	// Add class-specific starting item if applicable
 	addClassSpecificItem(backpack, classType)
 
 	return &Player{
-		X:      startX,
-		Y:      startY,
-		HP:     maxHP,
-		MaxHP:  maxHP,
-		Name:   "Adventurer",
-		Symbol: '@',
+		X:       startX,
+		Y:       startY,
+		HP:      maxHP,
+		MaxHP:   maxHP,
+		Mana:    maxMana,
+		MaxMana: maxMana,
+		Name:    "Adventurer",
+		Symbol:  '@',
 
 		// Set class
 		Class: class,
@@ -439,5 +476,38 @@ func addClassSpecificItem(bag *Bag, classType ClassType) {
 
 	if item != nil {
 		bag.Items = append(bag.Items, item)
+	}
+}
+
+// UseMana attempts to use the specified amount of mana
+// Returns true if successful, false if not enough mana
+func (p *Player) UseMana(amount int) bool {
+	if p.Mana < amount {
+		return false
+	}
+	p.Mana -= amount
+	return true
+}
+
+// RegenerateMana regenerates mana based on wisdom
+func (p *Player) RegenerateMana() {
+	// Base regeneration
+	regenAmount := 1
+
+	// Wisdom bonus
+	wisBonus := (p.Wisdom - 10) / 2
+	if wisBonus > 0 {
+		regenAmount += wisBonus
+	}
+
+	// Class bonus
+	if p.Class.Type == Wizard {
+		regenAmount += 1
+	}
+
+	// Apply regeneration
+	p.Mana += regenAmount
+	if p.Mana > p.MaxMana {
+		p.Mana = p.MaxMana
 	}
 }

@@ -38,15 +38,14 @@ type Game struct {
 
 // NewGame creates a new game instance
 func NewGame() *Game {
-	// Create renderer without player or dungeon initially
+	// Create renderer
 	renderer := ui.NewRenderer(nil, nil)
 
 	// Add welcome message
-	renderer.AddMessage("Welcome to The Deeps! Create your character to begin.")
+	renderer.AddSystemMessage("Welcome to The Deeps! Create your character to begin.")
 
+	// Return new game
 	return &Game{
-		Player:        nil, // Will be created after character creation
-		Dungeon:       nil, // Will be created after character creation
 		CurrentFloor:  0,
 		Renderer:      renderer,
 		State:         StateCharacterCreation,
@@ -82,9 +81,10 @@ func (g *Game) StartGame() {
 	g.Player.Y = entrance.Y
 	fmt.Printf("Player placed at entrance: (%d, %d)\n", g.Player.X, g.Player.Y)
 
-	// Add game start message
-	g.Renderer.AddMessage(fmt.Sprintf("Welcome, %s the %s! Your adventure begins!",
-		g.TempName, character.GetClassName(g.TempClass)))
+	// Add game start messages
+	g.Renderer.AddSystemMessage("Game initialized successfully")
+	g.Renderer.AddGameMessage("Welcome, %s the %s! Your adventure begins!",
+		g.TempName, character.GetClassName(g.TempClass))
 
 	// Change state to playing
 	g.State = StatePlaying
@@ -129,149 +129,145 @@ func (g *Game) Run() {
 
 // handleCharacterCreationInput handles input during character creation
 func (g *Game) handleCharacterCreationInput() {
-	if g.CreationStage == 0 {
-		// Class selection stage
-		key := input.GetSingleKey()
-		fmt.Printf("Class selection key: '%s'\n", key)
+	// Get input
+	key := input.GetSingleKey()
+	fmt.Printf("Character creation input: '%s', stage: %d\n", key, g.CreationStage)
 
-		switch key {
-		case "1", "w", "W":
-			g.TempClass = character.Warrior
-			g.Renderer.AddMessage("Selected Warrior: Strong and resilient fighters.")
-			// Automatically advance to name entry
-			g.CreationStage = 1
-			g.Renderer.AddMessage("Enter your character's name:")
-			g.TempName = ""              // Initialize empty name
-			g.Renderer.CreationName = "" // Clear the creation name
-			// Force redraw to show name entry screen
-			g.Renderer.RenderGame()
-		case "2", "r", "R":
-			g.TempClass = character.Rogue
-			g.Renderer.AddMessage("Selected Rogue: Quick and stealthy adventurers.")
-			// Automatically advance to name entry
-			g.CreationStage = 1
-			g.Renderer.AddMessage("Enter your character's name:")
-			g.TempName = ""              // Initialize empty name
-			g.Renderer.CreationName = "" // Clear the creation name
-			// Force redraw to show name entry screen
-			g.Renderer.RenderGame()
-		case "3", "m", "M":
-			g.TempClass = character.Wizard
-			g.Renderer.AddMessage("Selected Wizard: Powerful wielders of arcane magic.")
-			// Automatically advance to name entry
-			g.CreationStage = 1
-			g.Renderer.AddMessage("Enter your character's name:")
-			g.TempName = ""              // Initialize empty name
-			g.Renderer.CreationName = "" // Clear the creation name
-			// Force redraw to show name entry screen
-			g.Renderer.RenderGame()
-		case "q", "Q", "escape", "\x1b":
-			g.State = StateQuit
+	// Name entry input received
+	if g.CreationStage == 1 {
+		fmt.Printf("Name entry input received: '%s'\n", key)
+
+		// Handle backspace
+		if key == "backspace" && len(g.TempName) > 0 {
+			g.TempName = g.TempName[:len(g.TempName)-1]
+			g.Renderer.CreationName = g.TempName
+			return
 		}
-	} else if g.CreationStage == 1 {
-		// Name entry stage - use GetSingleKey for better control
-		key := input.GetSingleKey()
 
-		// Debug output
-		fmt.Printf("Name entry key: '%s'\n", key)
-
-		switch key {
-		case "enter":
-			// Enter key pressed
-			fmt.Println("Enter key detected")
-			if len(g.TempName) > 0 {
-				// Name entered, start the game
-				fmt.Printf("Starting game with name: %s\n", g.TempName)
-				g.StartGame()
-				// Force a redraw after starting the game
-				g.Renderer.RenderGame()
-			} else {
-				g.Renderer.AddMessage("Please enter a name for your character.")
-			}
-		case "backspace":
-			// Remove last character
-			if len(g.TempName) > 0 {
-				g.TempName = g.TempName[:len(g.TempName)-1]
-				g.Renderer.CreationName = g.TempName // Update the creation name
-			}
-		case "escape":
-			// Go back to class selection
+		// Handle escape (go back to class selection)
+		if key == "escape" {
 			g.CreationStage = 0
-			g.Renderer.AddMessage("Choose your character class:")
-		default:
-			// Add character to name if it's a single printable character
-			if len(key) == 1 && key[0] >= 32 && key[0] <= 126 {
-				if len(g.TempName) < 20 { // Limit name length
-					g.TempName += key
-					g.Renderer.CreationName = g.TempName // Update the creation name
-				}
+			g.TempName = ""
+			g.Renderer.CreationName = ""
+			g.Renderer.AddSystemMessage("Returned to class selection")
+			return
+		}
+
+		// Handle enter (confirm name)
+		if key == "enter" || key == "" {
+			fmt.Println("Empty key detected (Enter pressed)")
+
+			// Validate name
+			if g.TempName == "" {
+				g.Renderer.AddSystemMessage("Please enter a name for your character.")
+				return
 			}
+
+			fmt.Printf("Starting game with name: %s\n", g.TempName)
+			g.StartGame()
+			return
+		}
+
+		// Add character to name if it's a valid input and not too long
+		if len(key) == 1 && len(g.TempName) < 20 {
+			g.TempName += key
+			g.Renderer.CreationName = g.TempName
+		}
+
+		return
+	}
+
+	// Class selection
+	switch key {
+	case "1": // Warrior
+		g.TempClass = character.Warrior
+		g.CreationStage = 1
+		g.Renderer.AddGameMessage("Selected Warrior: Strong and resilient fighters.")
+		g.Renderer.AddSystemMessage("Enter your character's name:")
+	case "2": // Wizard
+		g.TempClass = character.Wizard
+		g.CreationStage = 1
+		g.Renderer.AddGameMessage("Selected Wizard: Powerful wielders of arcane magic.")
+		g.Renderer.AddSystemMessage("Enter your character's name:")
+	case "3": // Rogue
+		g.TempClass = character.Rogue
+		g.CreationStage = 1
+		g.Renderer.AddGameMessage("Selected Rogue: Quick and stealthy adventurers.")
+		g.Renderer.AddSystemMessage("Enter your character's name:")
+	case "4": // Ranger
+		g.TempClass = character.Ranger
+		g.CreationStage = 1
+		g.Renderer.AddGameMessage("Selected Ranger: Skilled hunters with ranged attacks.")
+		g.Renderer.AddSystemMessage("Enter your character's name:")
+	case "5": // Cleric
+		g.TempClass = character.Cleric
+		g.CreationStage = 1
+		g.Renderer.AddGameMessage("Selected Cleric: Divine healers with protective abilities.")
+		g.Renderer.AddSystemMessage("Enter your character's name:")
+	case "escape": // Quit
+		g.Running = false
+	default:
+		// If we're at the class selection stage, remind the player
+		if g.CreationStage == 0 {
+			g.Renderer.AddSystemMessage("Choose your character class:")
 		}
 	}
 }
 
-// handlePlayingInput handles input during normal gameplay
+// handlePlayingInput handles input during gameplay
 func (g *Game) handlePlayingInput() {
+	// Get input
 	key := input.GetSingleKey()
 
-	fmt.Printf("Player input: '%s'\n", key)
+	// Debug output
+	fmt.Printf("Playing input: '%s'\n", key)
 
-	// Check for special actions first
+	// Handle input
 	switch key {
-	case "e":
-		// Check if player is on a special tile that allows level transition
-		fmt.Println("'e' key pressed, checking for level transition")
-		g.handleLevelTransition()
-		return
-	case "i":
-		g.State = StateInventory
-		g.Renderer.AddMessage("Opened inventory")
-		return
-	case "q":
-		g.State = StateQuit
-		return
+	case "up", "w", "W":
+		g.movePlayer(0, -1)
+	case "down", "s", "S":
+		g.movePlayer(0, 1)
+	case "left", "h", "H":
+		g.movePlayer(-1, 0)
+	case "right", "l", "L":
+		g.movePlayer(1, 0)
+	case "e", "E":
+		g.useStairs()
+	case "i", "I":
+		g.openInventory()
+	case "a", "A":
+		g.useSpecialAbility()
+	case "q", "Q", "escape":
+		g.Running = false
 	}
+}
 
-	// Handle movement
-	newX, newY := g.Player.X, g.Player.Y
-
-	switch key {
-	case "up", "w":
-		newY--
-	case "down", "s":
-		newY++
-	case "left", "a":
-		newX--
-	case "right", "d":
-		newX++
-	default:
-		// Unknown key, do nothing
-		return
-	}
-
-	// Check if movement is valid
-	if g.isValidMove(newX, newY) {
-		g.Player.X, g.Player.Y = newX, newY
-		fmt.Printf("Player moved to (%d, %d)\n", g.Player.X, g.Player.Y)
-
-		// Check for special tiles (just to show messages, not to transition)
-		g.checkSpecialTiles()
-	} else {
-		fmt.Printf("Invalid move to (%d, %d)\n", newX, newY)
-	}
+// openInventory opens the inventory screen
+func (g *Game) openInventory() {
+	g.State = StateInventory
+	g.Renderer.AddSystemMessage("Opened inventory")
 }
 
 // handleInventoryInput handles input in the inventory screen
 func (g *Game) handleInventoryInput() {
+	// Get input
 	key := input.GetSingleKey()
 
+	// Debug output
+	fmt.Printf("Inventory input: '%s'\n", key)
+
+	// Handle input
 	switch key {
-	case "i", "escape":
-		g.State = StatePlaying
-		g.Renderer.AddMessage("Closed inventory")
-	case "q":
-		g.State = StateQuit
+	case "i", "I", "escape":
+		g.closeInventory()
 	}
+}
+
+// closeInventory closes the inventory screen
+func (g *Game) closeInventory() {
+	g.State = StatePlaying
+	g.Renderer.AddSystemMessage("Closed inventory")
 }
 
 // handleGameOverInput handles input on the game over screen
@@ -528,4 +524,151 @@ func (g *Game) debugPrintTileTypes() {
 	// Print entrance and exit positions
 	fmt.Printf("Entrance: (%d, %d), Exit: (%d, %d)\n",
 		floor.Entrance.X, floor.Entrance.Y, floor.Exit.X, floor.Exit.Y)
+}
+
+// useStairs uses stairs at the player's position
+func (g *Game) useStairs() {
+	// Get current floor
+	currentFloor := g.Dungeon.Floors[g.CurrentFloor]
+
+	// Get tile at player position
+	tile := currentFloor.Level.Tiles[g.Player.Y][g.Player.X]
+
+	// Check if player is on stairs
+	if tile.Type == mapgen.TileExit {
+		// Check if this is the last floor
+		if g.CurrentFloor == len(g.Dungeon.Floors)-1 {
+			g.Renderer.AddGameMessage("Press 'e' to complete your adventure!")
+		} else {
+			g.Renderer.AddGameMessage("Press 'e' to descend deeper into the dungeon...")
+		}
+		g.descendStairs()
+	} else if tile.Type == mapgen.TileEntrance && g.CurrentFloor > 0 {
+		g.Renderer.AddGameMessage("Press 'e' to climb back up to the previous floor...")
+		g.ascendStairs()
+	} else {
+		g.Renderer.AddSystemMessage("You need to find stairs to change floors.")
+	}
+}
+
+// descendStairs moves the player down to the next floor
+func (g *Game) descendStairs() {
+	// Check if player is on exit stairs
+	currentFloor := g.Dungeon.Floors[g.CurrentFloor]
+	playerTile := currentFloor.Level.Tiles[g.Player.Y][g.Player.X]
+
+	if playerTile.Type != mapgen.TileExit {
+		return
+	}
+
+	// Check if this is the last floor
+	if g.CurrentFloor == len(g.Dungeon.Floors)-1 {
+		// Player has completed the dungeon!
+		g.Renderer.AddGameMessage("Congratulations! You have reached the end of the dungeon!")
+		g.State = StateGameOver
+		return
+	}
+
+	// Move to next floor
+	g.CurrentFloor++
+	g.Renderer.CurrentFloor = g.CurrentFloor
+
+	// Place player at entrance of new floor
+	entrance := g.Dungeon.Floors[g.CurrentFloor].Entrance
+	g.Player.X = entrance.X
+	g.Player.Y = entrance.Y
+
+	// Add message
+	g.Renderer.AddGameMessage("You descend deeper into the dungeon...")
+}
+
+// ascendStairs moves the player up to the previous floor
+func (g *Game) ascendStairs() {
+	// Check if player is on entrance stairs
+	currentFloor := g.Dungeon.Floors[g.CurrentFloor]
+	playerTile := currentFloor.Level.Tiles[g.Player.Y][g.Player.X]
+
+	if playerTile.Type != mapgen.TileEntrance || g.CurrentFloor == 0 {
+		return
+	}
+
+	// Move to previous floor
+	g.CurrentFloor--
+	g.Renderer.CurrentFloor = g.CurrentFloor
+
+	// Place player at exit of previous floor
+	exit := g.Dungeon.Floors[g.CurrentFloor].Exit
+	g.Player.X = exit.X
+	g.Player.Y = exit.Y
+
+	// Add message
+	g.Renderer.AddGameMessage("You climb back up to the previous floor...")
+}
+
+// movePlayer attempts to move the player in the specified direction
+func (g *Game) movePlayer(dx, dy int) {
+	// Calculate new position
+	newX := g.Player.X + dx
+	newY := g.Player.Y + dy
+
+	// Get current floor
+	currentFloor := g.Dungeon.Floors[g.CurrentFloor]
+
+	// Check if the new position is within bounds
+	if newX < 0 || newX >= currentFloor.Level.Width ||
+		newY < 0 || newY >= currentFloor.Level.Height {
+		return
+	}
+
+	// Check if the new position is walkable
+	tile := currentFloor.Level.Tiles[newY][newX]
+	if tile.Type == mapgen.TileWall || tile.Type == mapgen.TilePillar {
+		return
+	}
+
+	// Move player
+	g.Player.X = newX
+	g.Player.Y = newY
+
+	// Regenerate mana each turn
+	g.Player.RegenerateMana()
+
+	// Debug output
+	fmt.Printf("Player moved to (%d, %d)\n", g.Player.X, g.Player.Y)
+
+	// Check for special tiles
+	if tile.Type == mapgen.TileEntrance {
+		if g.CurrentFloor > 0 {
+			g.Renderer.AddGameMessage("You found stairs leading up.")
+		} else {
+			g.Renderer.AddGameMessage("This is the entrance to the dungeon.")
+		}
+	} else if tile.Type == mapgen.TileExit {
+		if g.CurrentFloor < len(g.Dungeon.Floors)-1 {
+			g.Renderer.AddGameMessage("You found stairs leading down.")
+		} else {
+			g.Renderer.AddGameMessage("You found the exit of the dungeon!")
+		}
+	}
+}
+
+// useSpecialAbility uses the player's special ability
+func (g *Game) useSpecialAbility() {
+	// Check if player exists
+	if g.Player == nil {
+		return
+	}
+
+	// Use the special ability
+	message, success := g.Player.UseSpecialAbility()
+
+	// Add appropriate message
+	if success {
+		g.Renderer.AddGameMessage(message)
+	} else {
+		g.Renderer.AddSystemMessage(message)
+	}
+
+	// Regenerate mana each turn (this would normally be in a turn processing function)
+	g.Player.RegenerateMana()
 }

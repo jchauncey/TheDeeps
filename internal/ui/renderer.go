@@ -52,9 +52,19 @@ func (r *Renderer) UpdateExploredTiles() {
 	}
 }
 
-// AddMessage adds a message to the message log
+// AddMessage adds a message to the message log (backward compatibility)
 func (r *Renderer) AddMessage(format string, args ...interface{}) {
 	r.MessageLog.AddMessage(format, args...)
+}
+
+// AddGameMessage adds a game message to the message log
+func (r *Renderer) AddGameMessage(format string, args ...interface{}) {
+	r.MessageLog.AddGameMessage(format, args...)
+}
+
+// AddSystemMessage adds a system message to the message log
+func (r *Renderer) AddSystemMessage(format string, args ...interface{}) {
+	r.MessageLog.AddSystemMessage(format, args...)
 }
 
 // RenderGame renders the current game state
@@ -122,7 +132,24 @@ func (r *Renderer) RenderGame() {
 		startY = 0
 	}
 
-	// Draw the map (left panel)
+	// Draw the game area (map and character panel)
+	r.renderGameArea(currentFloor, startX, startY, endX, endY)
+
+	// Draw the message window
+	r.renderMessageWindow()
+
+	// Draw controls
+	fmt.Println(strings.Repeat("─", WindowWidth))
+	fmt.Printf("%sControls:%s [↑↓←→] Move  [e] Use Stairs  [a] Special Ability  [i] Inventory  [q] Quit\n",
+		ColorGreen, ColorReset)
+}
+
+// renderGameArea renders the map and character panel
+func (r *Renderer) renderGameArea(currentFloor mapgen.Floor, startX, startY, endX, endY int) {
+	// Draw the top border
+	fmt.Println(strings.Repeat("─", WindowWidth))
+
+	// Draw the map and character panel
 	for y := 0; y < MapViewHeight; y++ {
 		// Draw map row
 		for x := 0; x < MapViewWidth; x++ {
@@ -182,76 +209,197 @@ func (r *Renderer) RenderGame() {
 				// Character name and class
 				fmt.Printf(" %s%s%s the %s",
 					ColorYellow, r.Player.Name, ColorReset, r.Player.Class.Name)
-			case 2:
-				// Character stats
+			case 1:
+				// Divider
+				fmt.Printf(" %s", strings.Repeat("─", CharPanelWidth-2))
+			case 3:
+				// Health label
 				fmt.Printf(" HP: %s%d/%d%s",
 					ColorRed, r.Player.HP, r.Player.MaxHP, ColorReset)
-			case 3:
-				// Strength
-				fmt.Printf(" STR: %s%d%s",
-					ColorWhite, r.Player.Strength, ColorReset)
 			case 4:
-				// Wisdom
-				fmt.Printf(" WIS: %s%d%s",
-					ColorWhite, r.Player.Wisdom, ColorReset)
+				// Health bar
+				barWidth := CharPanelWidth - 4
+				healthPercentage := float64(r.Player.HP) / float64(r.Player.MaxHP)
+				filledWidth := int(healthPercentage * float64(barWidth))
+
+				// Ensure at least one character for non-zero health
+				if r.Player.HP > 0 && filledWidth == 0 {
+					filledWidth = 1
+				}
+
+				// Choose color based on health percentage
+				healthColor := ColorRed
+				if healthPercentage > 0.7 {
+					healthColor = ColorGreen
+				} else if healthPercentage > 0.3 {
+					healthColor = ColorYellow
+				}
+
+				// Draw the bar
+				fmt.Print(" [")
+				fmt.Print(healthColor)
+				fmt.Print(strings.Repeat("█", filledWidth))
+				fmt.Print(ColorReset)
+				fmt.Print(strings.Repeat("░", barWidth-filledWidth))
+				fmt.Print("]")
 			case 5:
-				// Constitution
-				fmt.Printf(" CON: %s%d%s",
-					ColorWhite, r.Player.Constitution, ColorReset)
+				// Mana label
+				fmt.Printf(" MP: %s%d/%d%s",
+					ColorBlue, r.Player.Mana, r.Player.MaxMana, ColorReset)
 			case 6:
+				// Mana bar
+				barWidth := CharPanelWidth - 4
+				manaPercentage := float64(r.Player.Mana) / float64(r.Player.MaxMana)
+				filledWidth := int(manaPercentage * float64(barWidth))
+
+				// Ensure at least one character for non-zero mana
+				if r.Player.Mana > 0 && filledWidth == 0 {
+					filledWidth = 1
+				}
+
+				// Draw the bar
+				fmt.Print(" [")
+				fmt.Print(ColorBlue)
+				fmt.Print(strings.Repeat("█", filledWidth))
+				fmt.Print(ColorReset)
+				fmt.Print(strings.Repeat("░", barWidth-filledWidth))
+				fmt.Print("]")
+			case 8:
+				// Divider
+				fmt.Printf(" %s", strings.Repeat("─", CharPanelWidth-2))
+			case 9:
+				// Stats header
+				fmt.Printf(" %sSTATS%s", ColorCyan, ColorReset)
+			case 10:
+				// Strength
+				fmt.Printf(" STR: %s%d%s (%+d)",
+					ColorWhite, r.Player.Strength, ColorReset, (r.Player.Strength-10)/2)
+			case 11:
+				// Wisdom
+				fmt.Printf(" WIS: %s%d%s (%+d)",
+					ColorWhite, r.Player.Wisdom, ColorReset, (r.Player.Wisdom-10)/2)
+			case 12:
+				// Constitution
+				fmt.Printf(" CON: %s%d%s (%+d)",
+					ColorWhite, r.Player.Constitution, ColorReset, (r.Player.Constitution-10)/2)
+			case 13:
 				// Dexterity
-				fmt.Printf(" DEX: %s%d%s",
-					ColorWhite, r.Player.Dexterity, ColorReset)
-				// Add more character info as needed
+				fmt.Printf(" DEX: %s%d%s (%+d)",
+					ColorWhite, r.Player.Dexterity, ColorReset, (r.Player.Dexterity-10)/2)
+			case 14:
+				// Charisma
+				fmt.Printf(" CHA: %s%d%s (%+d)",
+					ColorWhite, r.Player.Charisma, ColorReset, (r.Player.Charisma-10)/2)
+			case 15:
+				// Divider
+				fmt.Printf(" %s", strings.Repeat("─", CharPanelWidth-2))
+			case 16:
+				// Equipment header
+				fmt.Printf(" %sEQUIPMENT%s", ColorCyan, ColorReset)
+			case 17:
+				// Weapon
+				fmt.Printf(" Weapon: %s (%+d)",
+					r.Player.Weapon.Name, r.Player.GetDamageValue())
+			case 18:
+				// Armor
+				fmt.Printf(" Armor: %s (%+d)",
+					r.Player.Armor.Name, r.Player.GetArmorValue())
+			case 19:
+				// Divider
+				fmt.Printf(" %s", strings.Repeat("─", CharPanelWidth-2))
+			case 20:
+				// Location header
+				fmt.Printf(" %sLOCATION%s", ColorCyan, ColorReset)
+			case 21:
+				// Floor
+				fmt.Printf(" Floor: %s%d%s",
+					ColorYellow, r.CurrentFloor+1, ColorReset)
+			case 22:
+				// Position
+				fmt.Printf(" Position: (%d, %d)",
+					r.Player.X, r.Player.Y)
+			case 23:
+				// Divider
+				fmt.Printf(" %s", strings.Repeat("─", CharPanelWidth-2))
+			case 24:
+				// Inventory header
+				fmt.Printf(" %sINVENTORY%s", ColorCyan, ColorReset)
+			case 25:
+				// Gold
+				fmt.Printf(" Gold: %s%d%s",
+					ColorYellow, r.Player.Gold, ColorReset)
+			case 26:
+				// Items
+				fmt.Printf(" Items: %d/%d",
+					len(r.Player.Bag.Items), r.Player.Bag.Capacity)
+			case 27:
+				// Divider
+				fmt.Printf(" %s", strings.Repeat("─", CharPanelWidth-2))
+			case 28:
+				// Special ability header
+				fmt.Printf(" %sSPECIAL ABILITY%s", ColorCyan, ColorReset)
+			case 29:
+				// Ability name
+				fmt.Printf(" %s", r.Player.Class.SpecialAbility)
 			}
 		}
 		fmt.Println()
 	}
 
-	// Draw message log at the bottom
+	// Draw the bottom border of the game area
 	fmt.Println(strings.Repeat("─", WindowWidth))
-	fmt.Print(ColorCyan + "MESSAGES:" + ColorReset + " ")
-	lastMessage := r.MessageLog.GetLastMessage()
-	if lastMessage != "" {
-		// Truncate message if it's too long for the window
-		if len(lastMessage) > WindowWidth-12 {
-			lastMessage = lastMessage[:WindowWidth-15] + "..."
+}
+
+// renderMessageWindow renders the message window with system and game messages
+func (r *Renderer) renderMessageWindow() {
+	// Draw message window header
+	fmt.Printf("%sMESSAGE LOG%s\n", ColorCyan, ColorReset)
+
+	// Get recent messages
+	messageCount := min(MessageWindowHeight-2, len(r.MessageLog.Messages))
+	recentMessages := r.MessageLog.GetRecentMessages(messageCount)
+
+	// Display messages with appropriate colors
+	for i := 0; i < messageCount; i++ {
+		msg := recentMessages[i]
+
+		// Format timestamp
+		timestamp := fmt.Sprintf("[%s]", msg.Timestamp)
+
+		// Format prefix based on message type
+		prefix := ""
+		if msg.Type == MessageTypeSystem {
+			prefix = ColorYellow + "[System]" + ColorReset
+		} else {
+			prefix = ColorGreen + "[Game]" + ColorReset
 		}
-		fmt.Println(lastMessage)
-	} else {
-		fmt.Println("Welcome to The Deeps!")
+
+		// Print the formatted message
+		fmt.Printf("%s %s %s\n", timestamp, prefix, msg.Text)
 	}
 
-	// Draw controls
-	fmt.Println(strings.Repeat("─", WindowWidth))
-	fmt.Printf("%sControls:%s [↑↓←→] Move  [a] Special Ability  [q] Quit\n",
-		ColorGreen, ColorReset)
+	// Fill remaining lines if needed
+	for i := messageCount; i < MessageWindowHeight-2; i++ {
+		fmt.Println()
+	}
 }
 
 // renderCharacterCreation renders the character creation screen
 func (r *Renderer) renderCharacterCreation() {
-	// Use the current window width
+	// Get terminal size
 	width := WindowWidth
 
-	// Debug output
-	fmt.Println("Rendering character creation screen")
-	if r.MessageLog != nil {
-		fmt.Printf("Message log has %d messages\n", len(r.MessageLog.Messages))
-		if len(r.MessageLog.Messages) > 0 {
-			fmt.Printf("Last message: %s\n", r.MessageLog.Messages[len(r.MessageLog.Messages)-1])
-		}
+	// Calculate padding for title
+	title := "CHARACTER CREATION"
+	padding := (width - len(title)) / 2
+	if padding < 0 {
+		padding = 0
 	}
-	fmt.Printf("Creation name: '%s'\n", r.CreationName)
-	fmt.Printf("Using window width: %d\n", width)
 
 	// Draw title
-	title := "THE DEEPS - CHARACTER CREATION"
-	fmt.Print(ColorYellow)
+	fmt.Print(ColorCyan)
 	fmt.Print(strings.Repeat("=", width))
 	fmt.Print("\n")
-
-	// Center the title
-	padding := (width - len(title)) / 2
 	fmt.Print(strings.Repeat(" ", padding))
 	fmt.Print(title)
 	fmt.Print("\n")
@@ -263,7 +411,7 @@ func (r *Renderer) renderCharacterCreation() {
 	inNameEntry := false
 	if r.MessageLog != nil && len(r.MessageLog.Messages) > 0 {
 		lastMsg := r.MessageLog.Messages[len(r.MessageLog.Messages)-1]
-		inNameEntry = strings.Contains(lastMsg, "Enter your character's name")
+		inNameEntry = strings.Contains(lastMsg.Text, "Enter your character's name")
 	}
 	fmt.Printf("In name entry stage: %v\n", inNameEntry)
 
@@ -325,23 +473,15 @@ func (r *Renderer) renderCharacterCreation() {
 		for i := len(messages) - maxMessages; i < len(messages); i++ {
 			if i >= 0 {
 				msg := messages[i]
+				// Format the message
+				formattedMsg := r.MessageLog.FormatMessage(msg)
+
 				// Truncate message if it's too long for the window
-				if len(msg) > width {
-					msg = msg[:width-3] + "..."
+				if len(formattedMsg) > width {
+					formattedMsg = formattedMsg[:width-3] + "..."
 				}
-				fmt.Println(msg)
+				fmt.Println(formattedMsg)
 			}
 		}
-	}
-
-	// Draw controls
-	fmt.Print(ColorYellow)
-	fmt.Print(strings.Repeat("-", width))
-	fmt.Print(ColorReset + "\n")
-
-	if inNameEntry {
-		fmt.Println("Controls: [Enter] Confirm Name | [Esc] Back to Class Selection")
-	} else {
-		fmt.Println("Controls: [1-5] Select Class | [Esc] Quit")
 	}
 }
