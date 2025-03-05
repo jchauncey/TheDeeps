@@ -18,7 +18,13 @@ const (
 	BgGreen = "\033[42m"
 	BgBlue  = "\033[44m"
 
-	// Window dimensions
+	// Message log dimensions
+	MessageLogHeight = 5
+)
+
+// Window dimensions - now variables that can be updated
+var (
+	// Default window dimensions
 	WindowWidth  = 80
 	WindowHeight = 40
 
@@ -29,7 +35,4 @@ const (
 	// Character panel dimensions (right panel)
 	CharPanelWidth  = 28 // 80 - 50 - 2 (separator)
 	CharPanelHeight = 30
-
-	// Message log dimensions
-	MessageLogHeight = 5
 )

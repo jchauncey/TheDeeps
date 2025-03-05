@@ -62,6 +62,14 @@ func (r *Renderer) RenderGame() {
 	// Clear the screen
 	fmt.Print("\033[H\033[2J")
 
+	// Check if terminal size has changed
+	size, err := GetTerminalSize()
+	if err == nil && (size.Width != CurrentSize.Width || size.Height != CurrentSize.Height) {
+		// Update dimensions if terminal size has changed
+		CurrentSize = size
+		UpdateUIDimensions(size)
+	}
+
 	// Debug output
 	fmt.Printf("RenderGame called - Player: %v, Dungeon: %v\n",
 		r.Player != nil, r.Dungeon != nil)
@@ -156,7 +164,7 @@ func (r *Renderer) RenderGame() {
 					case mapgen.TileRubble:
 						fmt.Print(ColorPurple + string(tile.Symbol) + ColorReset)
 					default:
-						fmt.Print(string(tile.Symbol))
+						fmt.Print(" ") // Unknown tile
 					}
 				}
 			} else {
@@ -164,90 +172,37 @@ func (r *Renderer) RenderGame() {
 			}
 		}
 
+		// Draw separator
+		fmt.Print("│")
+
 		// Draw character panel (right panel)
 		if y < CharPanelHeight {
-			fmt.Print(" │ ") // Separator
-
-			// Character panel content
 			switch y {
 			case 0:
-				// Panel header
-				title := "CHARACTER SHEET"
-				padding := (CharPanelWidth - len(title)) / 2
-				fmt.Print(ColorCyan + strings.Repeat("─", padding) + title + strings.Repeat("─", CharPanelWidth-padding-len(title)) + ColorReset)
-			case 2:
 				// Character name and class
-				fmt.Printf("%s%s the %s%s", ColorYellow, r.Player.Name, r.Player.Class.Name, ColorReset)
+				fmt.Printf(" %s%s%s the %s",
+					ColorYellow, r.Player.Name, ColorReset, r.Player.Class.Name)
+			case 2:
+				// Character stats
+				fmt.Printf(" HP: %s%d/%d%s",
+					ColorRed, r.Player.HP, r.Player.MaxHP, ColorReset)
 			case 3:
-				// HP bar
-				hpPercentage := float64(r.Player.HP) / float64(r.Player.MaxHP)
-				hpBarWidth := 20
-				hpFilled := int(float64(hpBarWidth) * hpPercentage)
-				fmt.Printf("%sHP: %d/%d %s[%s%s%s]%s",
-					ColorRed, r.Player.HP, r.Player.MaxHP, ColorReset,
-					ColorRed, strings.Repeat("■", hpFilled),
-					strings.Repeat("□", hpBarWidth-hpFilled), ColorReset)
+				// Strength
+				fmt.Printf(" STR: %s%d%s",
+					ColorWhite, r.Player.Strength, ColorReset)
+			case 4:
+				// Wisdom
+				fmt.Printf(" WIS: %s%d%s",
+					ColorWhite, r.Player.Wisdom, ColorReset)
 			case 5:
-				// Stats header
-				fmt.Print(ColorCyan + "STATS" + strings.Repeat("─", CharPanelWidth-5) + ColorReset)
+				// Constitution
+				fmt.Printf(" CON: %s%d%s",
+					ColorWhite, r.Player.Constitution, ColorReset)
 			case 6:
-				fmt.Printf("STR: %s%d%s  DEX: %s%d%s",
-					ColorYellow, r.Player.Strength, ColorReset,
-					ColorYellow, r.Player.Dexterity, ColorReset)
-			case 7:
-				fmt.Printf("CON: %s%d%s  WIS: %s%d%s",
-					ColorYellow, r.Player.Constitution, ColorReset,
-					ColorYellow, r.Player.Wisdom, ColorReset)
-			case 8:
-				fmt.Printf("CHA: %s%d%s",
-					ColorYellow, r.Player.Charisma, ColorReset)
-			case 10:
-				// Equipment header
-				fmt.Print(ColorCyan + "EQUIPMENT" + strings.Repeat("─", CharPanelWidth-9) + ColorReset)
-			case 11:
-				fmt.Printf("Weapon: %s%s%s", ColorRed, r.Player.Weapon.Name, ColorReset)
-			case 12:
-				fmt.Printf("Damage: %s%d%s", ColorRed, r.Player.GetDamageValue(), ColorReset)
-			case 13:
-				fmt.Printf("Armor: %s%s%s", ColorBlue, r.Player.Armor.Name, ColorReset)
-			case 14:
-				fmt.Printf("Defense: %s%d%s", ColorBlue, r.Player.GetArmorValue(), ColorReset)
-			case 16:
-				// Inventory header
-				fmt.Print(ColorCyan + "INVENTORY" + strings.Repeat("─", CharPanelWidth-9) + ColorReset)
-			case 17:
-				fmt.Printf("%s (%d/%d items, %d gold)",
-					r.Player.Bag.Name, len(r.Player.Bag.Items), r.Player.Bag.Capacity, r.Player.Gold)
-			default:
-				// Inventory items (starting at line 18)
-				if y >= 18 && y < 18+len(r.Player.Bag.Items) && y-18 < 5 { // Show max 5 items
-					itemIndex := y - 18
-					item := r.Player.Bag.Items[itemIndex]
-
-					// Color items by type
-					itemColor := ColorWhite
-					switch item.Type {
-					case character.ItemWeapon:
-						itemColor = ColorRed
-					case character.ItemArmor:
-						itemColor = ColorBlue
-					case character.ItemConsumable:
-						itemColor = ColorGreen
-					case character.ItemKey:
-						itemColor = ColorYellow
-					case character.ItemTreasure:
-						itemColor = ColorPurple
-					}
-
-					// Truncate item name if too long
-					itemName := item.Name
-					if len(itemName) > 20 {
-						itemName = itemName[:17] + "..."
-					}
-
-					fmt.Printf("%d. %s%s%s",
-						itemIndex+1, itemColor, itemName, ColorReset)
-				}
+				// Dexterity
+				fmt.Printf(" DEX: %s%d%s",
+					ColorWhite, r.Player.Dexterity, ColorReset)
+				// Add more character info as needed
 			}
 		}
 		fmt.Println()
@@ -258,6 +213,10 @@ func (r *Renderer) RenderGame() {
 	fmt.Print(ColorCyan + "MESSAGES:" + ColorReset + " ")
 	lastMessage := r.MessageLog.GetLastMessage()
 	if lastMessage != "" {
+		// Truncate message if it's too long for the window
+		if len(lastMessage) > WindowWidth-12 {
+			lastMessage = lastMessage[:WindowWidth-15] + "..."
+		}
 		fmt.Println(lastMessage)
 	} else {
 		fmt.Println("Welcome to The Deeps!")
@@ -271,8 +230,8 @@ func (r *Renderer) RenderGame() {
 
 // renderCharacterCreation renders the character creation screen
 func (r *Renderer) renderCharacterCreation() {
-	// Get terminal width and height
-	width := MapViewWidth + CharPanelWidth + 1
+	// Use the current window width
+	width := WindowWidth
 
 	// Debug output
 	fmt.Println("Rendering character creation screen")
@@ -283,6 +242,7 @@ func (r *Renderer) renderCharacterCreation() {
 		}
 	}
 	fmt.Printf("Creation name: '%s'\n", r.CreationName)
+	fmt.Printf("Using window width: %d\n", width)
 
 	// Draw title
 	title := "THE DEEPS - CHARACTER CREATION"
@@ -358,8 +318,19 @@ func (r *Renderer) renderCharacterCreation() {
 	fmt.Print(ColorReset + "\n")
 
 	if r.MessageLog != nil {
-		for _, msg := range r.MessageLog.Messages {
-			fmt.Println(msg)
+		// Show the last few messages that fit in the window
+		messages := r.MessageLog.Messages
+		maxMessages := min(len(messages), WindowHeight/4) // Use at most 1/4 of the window height
+
+		for i := len(messages) - maxMessages; i < len(messages); i++ {
+			if i >= 0 {
+				msg := messages[i]
+				// Truncate message if it's too long for the window
+				if len(msg) > width {
+					msg = msg[:width-3] + "..."
+				}
+				fmt.Println(msg)
+			}
 		}
 	}
 
