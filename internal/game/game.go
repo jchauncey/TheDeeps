@@ -214,7 +214,25 @@ func (g *Game) handleCharacterCreationInput() {
 func (g *Game) handlePlayingInput() {
 	key := input.GetSingleKey()
 
-	// Movement
+	fmt.Printf("Player input: '%s'\n", key)
+
+	// Check for special actions first
+	switch key {
+	case "e":
+		// Check if player is on a special tile that allows level transition
+		fmt.Println("'e' key pressed, checking for level transition")
+		g.handleLevelTransition()
+		return
+	case "i":
+		g.State = StateInventory
+		g.Renderer.AddMessage("Opened inventory")
+		return
+	case "q":
+		g.State = StateQuit
+		return
+	}
+
+	// Handle movement
 	newX, newY := g.Player.X, g.Player.Y
 
 	switch key {
@@ -226,21 +244,20 @@ func (g *Game) handlePlayingInput() {
 		newX--
 	case "right", "d":
 		newX++
-	case "i":
-		g.State = StateInventory
-		g.Renderer.AddMessage("Opened inventory")
-		return
-	case "q":
-		g.State = StateQuit
+	default:
+		// Unknown key, do nothing
 		return
 	}
 
 	// Check if movement is valid
 	if g.isValidMove(newX, newY) {
 		g.Player.X, g.Player.Y = newX, newY
+		fmt.Printf("Player moved to (%d, %d)\n", g.Player.X, g.Player.Y)
 
-		// Check for special tiles
+		// Check for special tiles (just to show messages, not to transition)
 		g.checkSpecialTiles()
+	} else {
+		fmt.Printf("Invalid move to (%d, %d)\n", newX, newY)
 	}
 }
 
@@ -297,7 +314,7 @@ func (g *Game) isValidMove(x, y int) bool {
 	return tile.Walkable
 }
 
-// checkSpecialTiles checks for special tiles at the player's position
+// checkSpecialTiles checks for special tiles at the player's position and shows appropriate messages
 func (g *Game) checkSpecialTiles() {
 	// Get current floor
 	floor := g.Dungeon.Floors[g.CurrentFloor]
@@ -305,16 +322,65 @@ func (g *Game) checkSpecialTiles() {
 	// Get tile at player position
 	tile := floor.Level.Tiles[g.Player.Y][g.Player.X]
 
+	// Debug output
+	fmt.Printf("Player at position (%d, %d) on floor %d, tile type: %d\n",
+		g.Player.X, g.Player.Y, g.CurrentFloor, tile.Type)
+
+	// Print debug information about tiles around the player
+	g.debugPrintTileTypes()
+
 	// Check for exit
 	if tile.Type == mapgen.TileExit {
+		fmt.Println("Player is on an exit tile")
+
+		// Add a message prompting the player to press 'e' to use the exit
+		if g.CurrentFloor < len(g.Dungeon.Floors)-1 {
+			g.Renderer.AddMessage("Press 'e' to descend deeper into the dungeon...")
+		} else {
+			g.Renderer.AddMessage("Press 'e' to complete your adventure!")
+		}
+		return // Return early to avoid showing multiple messages
+	}
+
+	// Check for entrance (to go up a level)
+	if tile.Type == mapgen.TileEntrance && g.CurrentFloor > 0 {
+		fmt.Println("Player is on an entrance tile")
+
+		// Add a message prompting the player to press 'e' to use the entrance
+		g.Renderer.AddMessage("Press 'e' to climb back up to the previous floor...")
+	}
+}
+
+// handleLevelTransition handles the player's transition between dungeon levels
+func (g *Game) handleLevelTransition() {
+	// Get current floor
+	floor := g.Dungeon.Floors[g.CurrentFloor]
+
+	// Get tile at player position
+	tile := floor.Level.Tiles[g.Player.Y][g.Player.X]
+
+	fmt.Printf("Attempting level transition. Player at (%d, %d) on floor %d, tile type: %d\n",
+		g.Player.X, g.Player.Y, g.CurrentFloor, tile.Type)
+
+	// Print debug information about tiles around the player
+	g.debugPrintTileTypes()
+
+	// Handle exit (going down)
+	if tile.Type == mapgen.TileExit {
+		fmt.Println("Confirmed player is on an exit tile, attempting to go down")
 		if g.CurrentFloor < len(g.Dungeon.Floors)-1 {
 			g.CurrentFloor++
 			g.Renderer.CurrentFloor = g.CurrentFloor
+			fmt.Printf("Moving to floor %d\n", g.CurrentFloor)
 
-			// Place player at entrance of next floor
+			// Place player near the entrance of the next floor
 			entrance := g.Dungeon.Floors[g.CurrentFloor].Entrance
-			g.Player.X = entrance.X
-			g.Player.Y = entrance.Y
+			fmt.Printf("Entrance on new floor is at (%d, %d)\n", entrance.X, entrance.Y)
+			g.placePlayerNearPosition(entrance)
+			fmt.Printf("Placed player at (%d, %d)\n", g.Player.X, g.Player.Y)
+
+			// Print debug information about the new floor
+			g.debugPrintTileTypes()
 
 			g.Renderer.AddMessage("You descend deeper into the dungeon...")
 		} else {
@@ -322,5 +388,144 @@ func (g *Game) checkSpecialTiles() {
 			g.Renderer.AddMessage("Congratulations! You have reached the end of the dungeon!")
 			g.State = StateGameOver
 		}
+		return // Add return to prevent checking entrance condition
 	}
+
+	// Handle entrance (going up)
+	if tile.Type == mapgen.TileEntrance && g.CurrentFloor > 0 {
+		fmt.Println("Confirmed player is on an entrance tile, attempting to go up")
+		g.CurrentFloor--
+		g.Renderer.CurrentFloor = g.CurrentFloor
+		fmt.Printf("Moving to floor %d\n", g.CurrentFloor)
+
+		// Place player near the exit of the previous floor
+		exit := g.Dungeon.Floors[g.CurrentFloor].Exit
+		fmt.Printf("Exit on previous floor is at (%d, %d)\n", exit.X, exit.Y)
+		g.placePlayerNearPosition(exit)
+		fmt.Printf("Placed player at (%d, %d)\n", g.Player.X, g.Player.Y)
+
+		// Print debug information about the new floor
+		g.debugPrintTileTypes()
+
+		g.Renderer.AddMessage("You climb back up to the previous floor...")
+		return
+	}
+
+	// If we get here, the player is not on a special tile
+	fmt.Println("Player is not on a level transition tile")
+	g.Renderer.AddMessage("You need to find stairs to change floors.")
+}
+
+// placePlayerNearPosition places the player in a valid position near the given position
+func (g *Game) placePlayerNearPosition(pos mapgen.Position) {
+	// Define possible offsets, prioritizing cardinal directions first
+	cardinalOffsets := []struct{ dx, dy int }{
+		{0, 1}, {1, 0}, {0, -1}, {-1, 0}, // Cardinal directions
+	}
+
+	diagonalOffsets := []struct{ dx, dy int }{
+		{1, 1}, {1, -1}, {-1, 1}, {-1, -1}, // Diagonals
+	}
+
+	fmt.Printf("Trying to place player near position (%d, %d)\n", pos.X, pos.Y)
+
+	// First try cardinal directions (more intuitive for player movement)
+	for _, offset := range cardinalOffsets {
+		newX := pos.X + offset.dx
+		newY := pos.Y + offset.dy
+
+		fmt.Printf("Checking cardinal position (%d, %d): ", newX, newY)
+		if g.isValidMove(newX, newY) {
+			fmt.Println("valid")
+			g.Player.X = newX
+			g.Player.Y = newY
+			return
+		} else {
+			fmt.Println("invalid")
+		}
+	}
+
+	// If no valid cardinal position, try diagonals
+	for _, offset := range diagonalOffsets {
+		newX := pos.X + offset.dx
+		newY := pos.Y + offset.dy
+
+		fmt.Printf("Checking diagonal position (%d, %d): ", newX, newY)
+		if g.isValidMove(newX, newY) {
+			fmt.Println("valid")
+			g.Player.X = newX
+			g.Player.Y = newY
+			return
+		} else {
+			fmt.Println("invalid")
+		}
+	}
+
+	// If no valid position found, try positions 2 spaces away
+	for dy := -2; dy <= 2; dy++ {
+		for dx := -2; dx <= 2; dx++ {
+			// Skip already checked positions and the center
+			if (dx == 0 && dy == 0) || (abs(dx) == 1 && abs(dy) == 1) || (abs(dx) == 1 && dy == 0) || (dx == 0 && abs(dy) == 1) {
+				continue
+			}
+
+			newX := pos.X + dx
+			newY := pos.Y + dy
+
+			fmt.Printf("Checking extended position (%d, %d): ", newX, newY)
+			if g.isValidMove(newX, newY) {
+				fmt.Println("valid")
+				g.Player.X = newX
+				g.Player.Y = newY
+				return
+			} else {
+				fmt.Println("invalid")
+			}
+		}
+	}
+
+	// If no valid position found, use the position itself as a fallback
+	fmt.Println("No valid position found, using the position itself")
+	g.Player.X = pos.X
+	g.Player.Y = pos.Y
+}
+
+// abs returns the absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// debugPrintTileTypes prints the tile types around the player's position
+func (g *Game) debugPrintTileTypes() {
+	// Get current floor
+	floor := g.Dungeon.Floors[g.CurrentFloor]
+
+	fmt.Printf("Tile types around player on floor %d:\n", g.CurrentFloor)
+
+	// Print a 5x5 grid around the player
+	for y := g.Player.Y - 2; y <= g.Player.Y+2; y++ {
+		for x := g.Player.X - 2; x <= g.Player.X+2; x++ {
+			if y >= 0 && y < floor.Level.Height && x >= 0 && x < floor.Level.Width {
+				tile := floor.Level.Tiles[y][x]
+				if x == g.Player.X && y == g.Player.Y {
+					fmt.Printf("[%d]", tile.Type) // Player position
+				} else {
+					fmt.Printf(" %d ", tile.Type)
+				}
+			} else {
+				fmt.Printf(" X ") // Out of bounds
+			}
+		}
+		fmt.Println()
+	}
+
+	// Print legend
+	fmt.Println("Legend: 0=Wall, 1=Floor, 2=Entrance, 3=Exit, 4=Hallway, 5=Pillar, 6=Water, 7=Rubble")
+
+	// Print entrance and exit positions
+	fmt.Printf("Entrance: (%d, %d), Exit: (%d, %d)\n",
+		floor.Entrance.X, floor.Entrance.Y, floor.Exit.X, floor.Exit.Y)
 }
