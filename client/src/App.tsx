@@ -1,7 +1,10 @@
-import { ChakraProvider, useToast } from '@chakra-ui/react'
+import { ChakraProvider, useToast, Box, VStack, Center } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
 import { StartScreen } from './components/game/StartScreen'
 import { CharacterCreation } from './components/game/CharacterCreation'
+import { GameBoard } from './components/game/GameBoard'
+import { GameControls } from './components/game/GameControls'
+import { GameStatus } from './components/game/GameStatus'
 import { connectWebSocket } from './services/api'
 import { CharacterData, DebugMessage } from './types/game'
 
@@ -31,6 +34,10 @@ function App() {
         // It's a debug message
         setDebugMessages(prev => [...prev, data as DebugMessage])
       }
+      
+      // Dispatch a custom event for other components to listen to
+      const event = new CustomEvent('websocket_message', { detail: data });
+      window.dispatchEvent(event);
     })
     
     setWs(socket)
@@ -83,14 +90,24 @@ function App() {
       case 'characterCreation':
         return <CharacterCreation onCreateCharacter={handleCreateCharacter} onBack={handleBackToStart} />
       case 'game':
-        // TODO: Replace with actual game component
         return (
-          <div style={{ color: 'white', padding: '20px' }}>
-            <h1>Game Screen</h1>
-            <p>Character: {character?.name}</p>
-            <p>Class: {character?.characterClass}</p>
-            <button onClick={() => setCurrentScreen('start')}>Back to Start</button>
-          </div>
+          <Center w="100vw" h="100vh" bg="#291326">
+            <Box 
+              position="relative" 
+              maxW="1200px" 
+              maxH="800px" 
+              w="100%" 
+              h="100%" 
+              bg="#291326" 
+              color="white"
+              overflow="hidden"
+              borderRadius="md"
+            >
+              <GameBoard />
+              <GameStatus character={character} />
+              <GameControls />
+            </Box>
+          </Center>
         )
       default:
         return <StartScreen onNewGame={handleNewGame} onLoadGame={handleLoadGame} />

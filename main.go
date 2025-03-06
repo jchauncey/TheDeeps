@@ -16,7 +16,8 @@ import (
 
 // Game represents the game state
 type Game struct {
-	// Add game state here
+	Dungeon *models.Dungeon
+	Players map[string]*models.Character
 }
 
 // DebugMessage represents a debug message
@@ -24,6 +25,26 @@ type DebugMessage struct {
 	Message   string `json:"message"`
 	Level     string `json:"level"`
 	Timestamp int64  `json:"timestamp"`
+}
+
+// FloorMessage represents a floor data message
+type FloorMessage struct {
+	Type         string          `json:"type"`
+	Floor        *models.Floor   `json:"floor"`
+	PlayerPos    models.Position `json:"playerPosition"`
+	CurrentFloor int             `json:"currentFloor"`
+}
+
+// MoveMessage represents a movement message from the client
+type MoveMessage struct {
+	Type      string `json:"type"`
+	Direction string `json:"direction"`
+}
+
+// ActionMessage represents an action message from the client
+type ActionMessage struct {
+	Type   string `json:"type"`
+	Action string `json:"action"`
 }
 
 var (
@@ -36,6 +57,7 @@ var (
 	}
 	clients             = make(map[*websocket.Conn]bool)
 	characterRepository = repositories.NewCharacterRepository()
+	game                = initGame()
 )
 
 // CreateCharacterRequest represents a request to create a character
@@ -52,6 +74,28 @@ type CharacterResponse struct {
 	CharacterClass string `json:"characterClass"`
 }
 
+// initGame initializes the game state
+func initGame() *Game {
+	log.Println("Initializing game...")
+
+	// Create a new dungeon with 10 floors
+	dungeon := models.NewDungeon(10)
+
+	log.Printf("Created dungeon with %d floors\n", len(dungeon.Floors))
+	for i, floor := range dungeon.Floors {
+		log.Printf("Floor %d: %d rooms, %d entities, %d items\n",
+			i+1, len(floor.Rooms), len(floor.Entities), len(floor.Items))
+	}
+
+	// Mark tiles around player as visible
+	updateVisibility(dungeon)
+
+	return &Game{
+		Dungeon: dungeon,
+		Players: make(map[string]*models.Character),
+	}
+}
+
 func main() {
 	r := mux.NewRouter()
 
@@ -62,6 +106,9 @@ func main() {
 	r.HandleFunc("/character", handleCreateCharacter).Methods("POST")
 	r.HandleFunc("/character/{id}", handleGetCharacter).Methods("GET")
 	r.HandleFunc("/characters", handleGetCharacters).Methods("GET")
+
+	// Dungeon endpoints
+	r.HandleFunc("/dungeon/floor/{level}", handleGetFloor).Methods("GET")
 
 	// Use CORS middleware
 	c := cors.New(cors.Options{
@@ -98,19 +145,322 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.WriteJSON(debugMsg)
 
+	// Send current floor data
+	sendFloorData(conn)
+
 	// Message handling loop
 	for {
-		messageType, p, err := conn.ReadMessage()
+		_, p, err := conn.ReadMessage()
 		if err != nil {
 			log.Println("Error reading message:", err)
 			break
 		}
 
-		// Echo the message back for now
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println("Error writing message:", err)
-			break
+		// Parse the message
+		var message map[string]interface{}
+		if err := json.Unmarshal(p, &message); err != nil {
+			log.Println("Error parsing message:", err)
+			continue
 		}
+
+		// Handle different message types
+		msgType, ok := message["type"].(string)
+		if !ok {
+			log.Println("Message missing 'type' field")
+			continue
+		}
+
+		switch msgType {
+		case "get_floor":
+			sendFloorData(conn)
+		case "move":
+			handleMove(conn, p)
+		case "action":
+			handleAction(conn, p)
+		default:
+			log.Printf("Unknown message type: %s", msgType)
+		}
+	}
+}
+
+// handleMove processes a move message
+func handleMove(conn *websocket.Conn, payload []byte) {
+	var moveMsg MoveMessage
+	if err := json.Unmarshal(payload, &moveMsg); err != nil {
+		log.Printf("Error parsing move message: %v", err)
+		return
+	}
+
+	// Get current player position
+	currentPos := game.Dungeon.PlayerPosition
+	newPos := currentPos
+
+	// Calculate new position based on direction
+	switch moveMsg.Direction {
+	case "up":
+		newPos.Y--
+	case "down":
+		newPos.Y++
+	case "left":
+		newPos.X--
+	case "right":
+		newPos.X++
+	default:
+		log.Printf("Invalid direction: %s", moveMsg.Direction)
+		return
+	}
+
+	// Check if the new position is valid
+	if isValidMove(newPos) {
+		// Update player position
+		game.Dungeon.PlayerPosition = newPos
+
+		// Update visibility
+		updateVisibility(game.Dungeon)
+
+		// Log movement
+		log.Printf("Player moved %s to (%d, %d)", moveMsg.Direction, newPos.X, newPos.Y)
+
+		// Send updated floor data to all clients
+		broadcastFloorData()
+	} else {
+		log.Printf("Invalid move to (%d, %d)", newPos.X, newPos.Y)
+	}
+}
+
+// handleAction processes an action message
+func handleAction(conn *websocket.Conn, payload []byte) {
+	var actionMsg ActionMessage
+	if err := json.Unmarshal(payload, &actionMsg); err != nil {
+		log.Printf("Error parsing action message: %v", err)
+		return
+	}
+
+	// Process different actions
+	switch actionMsg.Action {
+	case "wait":
+		log.Println("Player waited a turn")
+		// TODO: Implement turn-based logic
+	case "pickup":
+		pickupItem()
+	case "inventory":
+		log.Println("Player opened inventory")
+		// TODO: Implement inventory
+	case "attack":
+		attackEntity()
+	case "use":
+		log.Println("Player used an item")
+		// TODO: Implement item usage
+	case "descend":
+		descendStairs()
+	case "ascend":
+		ascendStairs()
+	case "menu":
+		log.Println("Player opened menu")
+		// TODO: Implement menu
+	default:
+		log.Printf("Unknown action: %s", actionMsg.Action)
+	}
+}
+
+// isValidMove checks if a move is valid
+func isValidMove(pos models.Position) bool {
+	currentFloor := game.Dungeon.CurrentFloor
+	floor := game.Dungeon.Floors[currentFloor]
+
+	// Check if position is within bounds
+	if pos.X < 0 || pos.X >= floor.Width || pos.Y < 0 || pos.Y >= floor.Height {
+		return false
+	}
+
+	// Check if the tile is walkable
+	tile := floor.Tiles[pos.Y][pos.X]
+	return tile.Type == models.TileFloor ||
+		tile.Type == models.TileStairsUp ||
+		tile.Type == models.TileStairsDown ||
+		tile.Type == models.TileDoor
+}
+
+// updateVisibility updates which tiles are visible to the player
+func updateVisibility(dungeon *models.Dungeon) {
+	currentFloor := dungeon.CurrentFloor
+	floor := dungeon.Floors[currentFloor]
+	playerPos := dungeon.PlayerPosition
+
+	// Reset visibility
+	for y := 0; y < floor.Height; y++ {
+		for x := 0; x < floor.Width; x++ {
+			floor.Tiles[y][x].Visible = false
+		}
+	}
+
+	// Set tiles within visibility range to visible
+	visibilityRange := 8
+	for y := max(0, playerPos.Y-visibilityRange); y <= min(floor.Height-1, playerPos.Y+visibilityRange); y++ {
+		for x := max(0, playerPos.X-visibilityRange); x <= min(floor.Width-1, playerPos.X+visibilityRange); x++ {
+			// Simple distance check for now
+			dx := playerPos.X - x
+			dy := playerPos.Y - y
+			distance := dx*dx + dy*dy
+
+			if distance <= visibilityRange*visibilityRange {
+				// Mark as visible and explored
+				floor.Tiles[y][x].Visible = true
+				floor.Tiles[y][x].Explored = true
+			}
+		}
+	}
+}
+
+// pickupItem handles item pickup
+func pickupItem() {
+	currentFloor := game.Dungeon.CurrentFloor
+	floor := game.Dungeon.Floors[currentFloor]
+	playerPos := game.Dungeon.PlayerPosition
+
+	// Check for items at player position
+	for i, item := range floor.Items {
+		if item.Position.X == playerPos.X && item.Position.Y == playerPos.Y {
+			log.Printf("Player picked up %s", item.Name)
+
+			// Remove item from floor
+			floor.Items = append(floor.Items[:i], floor.Items[i+1:]...)
+
+			// TODO: Add item to player inventory
+
+			// Send updated floor data
+			broadcastFloorData()
+			return
+		}
+	}
+
+	log.Println("No item to pick up")
+}
+
+// attackEntity handles attacking entities
+func attackEntity() {
+	currentFloor := game.Dungeon.CurrentFloor
+	floor := game.Dungeon.Floors[currentFloor]
+	playerPos := game.Dungeon.PlayerPosition
+
+	// Check for entities adjacent to player
+	for i, entity := range floor.Entities {
+		dx := abs(entity.Position.X - playerPos.X)
+		dy := abs(entity.Position.Y - playerPos.Y)
+
+		// If entity is adjacent (including diagonals)
+		if dx <= 1 && dy <= 1 {
+			log.Printf("Player attacked %s", entity.Name)
+
+			// Remove entity (for now, just kill it)
+			floor.Entities = append(floor.Entities[:i], floor.Entities[i+1:]...)
+
+			// Send updated floor data
+			broadcastFloorData()
+			return
+		}
+	}
+
+	log.Println("No entity to attack")
+}
+
+// descendStairs handles descending stairs
+func descendStairs() {
+	currentFloor := game.Dungeon.CurrentFloor
+	floor := game.Dungeon.Floors[currentFloor]
+	playerPos := game.Dungeon.PlayerPosition
+
+	// Check if player is on stairs down
+	if floor.Tiles[playerPos.Y][playerPos.X].Type == models.TileStairsDown {
+		// Check if there's a floor below
+		if currentFloor < len(game.Dungeon.Floors)-1 {
+			game.Dungeon.CurrentFloor++
+
+			// Find stairs up on the new floor
+			newFloor := game.Dungeon.Floors[game.Dungeon.CurrentFloor]
+			for y := 0; y < newFloor.Height; y++ {
+				for x := 0; x < newFloor.Width; x++ {
+					if newFloor.Tiles[y][x].Type == models.TileStairsUp {
+						game.Dungeon.PlayerPosition = models.Position{X: x, Y: y}
+						break
+					}
+				}
+			}
+
+			// Update visibility
+			updateVisibility(game.Dungeon)
+
+			log.Printf("Player descended to floor %d", game.Dungeon.CurrentFloor+1)
+
+			// Send updated floor data
+			broadcastFloorData()
+		}
+	} else {
+		log.Println("No stairs to descend")
+	}
+}
+
+// ascendStairs handles ascending stairs
+func ascendStairs() {
+	currentFloor := game.Dungeon.CurrentFloor
+	floor := game.Dungeon.Floors[currentFloor]
+	playerPos := game.Dungeon.PlayerPosition
+
+	// Check if player is on stairs up
+	if floor.Tiles[playerPos.Y][playerPos.X].Type == models.TileStairsUp {
+		// Check if there's a floor above
+		if currentFloor > 0 {
+			game.Dungeon.CurrentFloor--
+
+			// Find stairs down on the new floor
+			newFloor := game.Dungeon.Floors[game.Dungeon.CurrentFloor]
+			for y := 0; y < newFloor.Height; y++ {
+				for x := 0; x < newFloor.Width; x++ {
+					if newFloor.Tiles[y][x].Type == models.TileStairsDown {
+						game.Dungeon.PlayerPosition = models.Position{X: x, Y: y}
+						break
+					}
+				}
+			}
+
+			// Update visibility
+			updateVisibility(game.Dungeon)
+
+			log.Printf("Player ascended to floor %d", game.Dungeon.CurrentFloor+1)
+
+			// Send updated floor data
+			broadcastFloorData()
+		}
+	} else {
+		log.Println("No stairs to ascend")
+	}
+}
+
+// sendFloorData sends the current floor data to the client
+func sendFloorData(conn *websocket.Conn) {
+	currentFloor := game.Dungeon.CurrentFloor
+	floor := game.Dungeon.Floors[currentFloor]
+
+	// Create floor message
+	floorMsg := FloorMessage{
+		Type:         "floor_data",
+		Floor:        floor,
+		PlayerPos:    game.Dungeon.PlayerPosition,
+		CurrentFloor: currentFloor + 1, // 1-indexed for display
+	}
+
+	// Send floor data
+	if err := conn.WriteJSON(floorMsg); err != nil {
+		log.Printf("Error sending floor data: %v", err)
+	} else {
+		log.Printf("Sent floor %d data to client", currentFloor+1)
+	}
+}
+
+// broadcastFloorData sends the current floor data to all clients
+func broadcastFloorData() {
+	for client := range clients {
+		sendFloorData(client)
 	}
 }
 
@@ -205,6 +555,36 @@ func handleGetCharacters(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func handleGetFloor(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	levelStr := vars["level"]
+
+	var level int
+	if _, err := fmt.Sscanf(levelStr, "%d", &level); err != nil {
+		http.Error(w, "Invalid floor level", http.StatusBadRequest)
+		return
+	}
+
+	// Adjust for 0-indexing
+	level--
+
+	if level < 0 || level >= len(game.Dungeon.Floors) {
+		http.Error(w, "Floor level out of range", http.StatusBadRequest)
+		return
+	}
+
+	floor := game.Dungeon.Floors[level]
+
+	// Log floor request
+	logMessage := fmt.Sprintf("[%s] Floor %d requested",
+		time.Now().Format("2006-01-02 15:04:05"),
+		level+1)
+	log.Println(logMessage)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(floor)
+}
+
 func broadcastDebugMessage(message DebugMessage) {
 	for client := range clients {
 		if err := client.WriteJSON(message); err != nil {
@@ -226,4 +606,26 @@ func formatCharacterInfo(character *models.Character) string {
 		character.Stats.Intelligence,
 		character.Stats.Wisdom,
 		character.Stats.Charisma)
+}
+
+// Helper functions
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
