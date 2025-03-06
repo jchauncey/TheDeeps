@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/jchauncey/TheDeeps/internal/character"
@@ -36,6 +37,24 @@ type Game struct {
 	CreationStage int // 0 = class selection, 1 = name entry
 }
 
+// GameStateResponse represents the game state sent to the client
+type GameStateResponse struct {
+	Player struct {
+		X, Y  int    `json:"x,y"`
+		HP    int    `json:"hp"`
+		MaxHP int    `json:"maxHp"`
+		Name  string `json:"name"`
+		Class string `json:"class"`
+	} `json:"player"`
+	Map struct {
+		Tiles  [][]string `json:"tiles"`
+		Width  int        `json:"width"`
+		Height int        `json:"height"`
+	} `json:"map"`
+	Messages []string  `json:"messages"`
+	State    GameState `json:"state"`
+}
+
 // NewGame creates a new game instance
 func NewGame() *Game {
 	// Create renderer
@@ -53,6 +72,61 @@ func NewGame() *Game {
 		TempClass:     character.Warrior, // Default selection
 		CreationStage: 0,                 // Start with class selection
 	}
+}
+
+// GetState returns the current game state in a format suitable for the client
+func (g *Game) GetState() []byte {
+	response := GameStateResponse{}
+
+	if g.Player != nil {
+		response.Player.X = g.Player.X
+		response.Player.Y = g.Player.Y
+		response.Player.HP = g.Player.HP
+		response.Player.MaxHP = g.Player.MaxHP
+		response.Player.Name = g.Player.Name
+		response.Player.Class = string(g.TempClass)
+	}
+
+	if g.Dungeon != nil && g.CurrentFloor >= 0 && g.CurrentFloor < len(g.Dungeon.Floors) {
+		currentFloor := g.Dungeon.Floors[g.CurrentFloor]
+		response.Map.Width = len(currentFloor.Level.Tiles[0])
+		response.Map.Height = len(currentFloor.Level.Tiles)
+		response.Map.Tiles = make([][]string, response.Map.Height)
+		for y := range currentFloor.Level.Tiles {
+			response.Map.Tiles[y] = make([]string, response.Map.Width)
+			for x := range currentFloor.Level.Tiles[y] {
+				tile := currentFloor.Level.Tiles[y][x]
+				switch tile.Type {
+				case mapgen.TileWall:
+					response.Map.Tiles[y][x] = "#"
+				case mapgen.TileFloor:
+					response.Map.Tiles[y][x] = "."
+				case mapgen.TileEntrance:
+					response.Map.Tiles[y][x] = "<"
+				case mapgen.TileExit:
+					response.Map.Tiles[y][x] = ">"
+				case mapgen.TileHallway:
+					response.Map.Tiles[y][x] = "."
+				case mapgen.TilePillar:
+					response.Map.Tiles[y][x] = "O"
+				case mapgen.TileWater:
+					response.Map.Tiles[y][x] = "~"
+				case mapgen.TileRubble:
+					response.Map.Tiles[y][x] = ","
+				default:
+					response.Map.Tiles[y][x] = " "
+				}
+			}
+		}
+	}
+
+	response.State = g.State
+
+	data, err := json.Marshal(response)
+	if err != nil {
+		return []byte("{}")
+	}
+	return data
 }
 
 // StartGame initializes the game after character creation
@@ -671,4 +745,23 @@ func (g *Game) useSpecialAbility() {
 
 	// Regenerate mana each turn (this would normally be in a turn processing function)
 	g.Player.RegenerateMana()
+}
+
+// MovePlayer moves the player by the given delta if possible
+func (g *Game) MovePlayer(dx, dy int) bool {
+	if g.State != StatePlaying || g.Player == nil {
+		return false
+	}
+
+	newX := g.Player.X + dx
+	newY := g.Player.Y + dy
+
+	if g.isValidMove(newX, newY) {
+		g.Player.X = newX
+		g.Player.Y = newY
+		g.checkSpecialTiles()
+		return true
+	}
+
+	return false
 }
