@@ -40,7 +40,8 @@ type Game struct {
 // GameStateResponse represents the game state sent to the client
 type GameStateResponse struct {
 	Player struct {
-		X, Y  int    `json:"x,y"`
+		X     int    `json:"x"`
+		Y     int    `json:"y"`
 		HP    int    `json:"hp"`
 		MaxHP int    `json:"maxHp"`
 		Name  string `json:"name"`
@@ -84,7 +85,7 @@ func (g *Game) GetState() []byte {
 		response.Player.HP = g.Player.HP
 		response.Player.MaxHP = g.Player.MaxHP
 		response.Player.Name = g.Player.Name
-		response.Player.Class = string(g.TempClass)
+		response.Player.Class = character.GetClassName(g.TempClass)
 	}
 
 	if g.Dungeon != nil && g.CurrentFloor >= 0 && g.CurrentFloor < len(g.Dungeon.Floors) {

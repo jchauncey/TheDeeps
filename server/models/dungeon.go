@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -114,6 +115,10 @@ func NewDungeon(numFloors int) *Dungeon {
 
 // GenerateFloor generates a new dungeon floor
 func GenerateFloor(level, width, height int) *Floor {
+	// Increase floor size based on level
+	width = 100 + level*5 // Larger width, scaling with level
+	height = 70 + level*3 // Larger height, scaling with level
+
 	floor := &Floor{
 		Level:  level,
 		Width:  width,
@@ -129,14 +134,14 @@ func GenerateFloor(level, width, height int) *Floor {
 		}
 	}
 
-	// Generate rooms - ensure at least 3 rooms per floor
-	minRooms := 3
-	maxRooms := 10 + level // More rooms on deeper levels
-	floor.Rooms = generateRooms(floor, maxRooms, 5, 15, 3, 20)
+	// Generate rooms - more rooms for deeper levels
+	minRooms := 8 + level  // Minimum rooms increases with level
+	maxRooms := 15 + level // Maximum rooms increases with level
+	floor.Rooms = generateRooms(floor, maxRooms, 6, 15, 2, 30)
 
 	// If we didn't generate enough rooms, try again with more relaxed parameters
 	if len(floor.Rooms) < minRooms {
-		floor.Rooms = generateRooms(floor, maxRooms, 4, 12, 2, 30)
+		floor.Rooms = generateRooms(floor, maxRooms, 5, 12, 1, 40)
 	}
 
 	// Connect rooms with corridors
@@ -145,7 +150,7 @@ func GenerateFloor(level, width, height int) *Floor {
 	// Add stairs
 	addStairs(floor, level)
 
-	// Add entities and items
+	// Add entities and items - more on deeper levels
 	floor.Entities = generateEntities(floor, level)
 	floor.Items = generateItems(floor, level)
 
@@ -217,44 +222,78 @@ func connectRooms(floor *Floor) {
 		x1, y1 := room1.Center()
 		x2, y2 := room2.Center()
 
-		// Randomly decide whether to go horizontal first or vertical first
-		if rand.Intn(2) == 0 {
+		// Determine which direction has the greater distance
+		dx := abs(x2 - x1)
+		dy := abs(y2 - y1)
+
+		// Choose corridor creation strategy based on the room positions
+		if dx > dy {
+			// Rooms are more horizontally separated, so go horizontal first
 			createHorizontalCorridor(floor, x1, x2, y1)
 			createVerticalCorridor(floor, y1, y2, x2)
 		} else {
+			// Rooms are more vertically separated, so go vertical first
 			createVerticalCorridor(floor, y1, y2, x1)
 			createHorizontalCorridor(floor, x1, x2, y2)
 		}
 	}
 
 	// Add some additional random connections for better connectivity
-	// This helps ensure rooms have multiple exits
-	if len(floor.Rooms) > 2 {
-		numExtraConnections := len(floor.Rooms)/3 + 1
+	// But limit to avoid too many redundant corridors
+	if len(floor.Rooms) > 3 {
+		numExtraConnections := len(floor.Rooms) / 4 // Reduce the number of extra connections
+
+		// Keep track of connections to avoid duplicates
+		connections := make(map[string]bool)
+
 		for i := 0; i < numExtraConnections; i++ {
-			// Pick two random rooms
-			r1 := rand.Intn(len(floor.Rooms))
-			r2 := rand.Intn(len(floor.Rooms))
+			// Try several times to find a valid connection
+			for attempt := 0; attempt < 5; attempt++ {
+				// Pick two random rooms that are not adjacent in the sequence
+				r1 := rand.Intn(len(floor.Rooms))
+				r2 := rand.Intn(len(floor.Rooms))
 
-			// Make sure they're different rooms
-			if r1 == r2 {
-				r2 = (r2 + 1) % len(floor.Rooms)
-			}
+				// Make sure they're different rooms and not adjacent in the sequence
+				if r1 == r2 || abs(r1-r2) == 1 {
+					continue
+				}
 
-			room1 := floor.Rooms[r1]
-			room2 := floor.Rooms[r2]
+				// Create a unique key for this room pair
+				connectionKey := ""
+				if r1 < r2 {
+					connectionKey = fmt.Sprintf("%d-%d", r1, r2)
+				} else {
+					connectionKey = fmt.Sprintf("%d-%d", r2, r1)
+				}
 
-			// Get center points of each room
-			x1, y1 := room1.Center()
-			x2, y2 := room2.Center()
+				// Skip if we already have this connection
+				if connections[connectionKey] {
+					continue
+				}
 
-			// Create a corridor between them
-			if rand.Intn(2) == 0 {
-				createHorizontalCorridor(floor, x1, x2, y1)
-				createVerticalCorridor(floor, y1, y2, x2)
-			} else {
-				createVerticalCorridor(floor, y1, y2, x1)
-				createHorizontalCorridor(floor, x1, x2, y2)
+				room1 := floor.Rooms[r1]
+				room2 := floor.Rooms[r2]
+
+				// Get center points of each room
+				x1, y1 := room1.Center()
+				x2, y2 := room2.Center()
+
+				// Determine which direction has the greater distance
+				dx := abs(x2 - x1)
+				dy := abs(y2 - y1)
+
+				// Create a corridor between them based on their relative positions
+				if dx > dy {
+					createHorizontalCorridor(floor, x1, x2, y1)
+					createVerticalCorridor(floor, y1, y2, x2)
+				} else {
+					createVerticalCorridor(floor, y1, y2, x1)
+					createHorizontalCorridor(floor, x1, x2, y2)
+				}
+
+				// Mark this connection as created
+				connections[connectionKey] = true
+				break
 			}
 		}
 	}
@@ -295,31 +334,56 @@ func addStairs(floor *Floor, level int) {
 	}
 }
 
-// generateEntities generates entities for the floor
+// generateEntities generates random entities for the floor
 func generateEntities(floor *Floor, level int) []Entity {
-	entities := make([]Entity, 0)
+	// Scale number of entities with floor level and size
+	numEntities := 5 + level*2 + len(floor.Rooms)/2
+	entities := make([]Entity, 0, numEntities)
 
-	// Number of entities scales with floor level
-	numEntities := 5 + level
+	// Entity types with weights (higher level = more dangerous entities)
+	entityTypes := []string{"rat", "bat", "goblin", "skeleton", "orc"}
 
+	// Add more dangerous entities on deeper levels
+	if level > 3 {
+		entityTypes = append(entityTypes, "troll", "ogre")
+	}
+	if level > 6 {
+		entityTypes = append(entityTypes, "demon", "dragon")
+	}
+
+	// Generate entities
 	for i := 0; i < numEntities; i++ {
-		// Pick a random room (skip the first room for player safety)
-		roomIndex := rand.Intn(len(floor.Rooms)-1) + 1
+		// Pick a random room (excluding the first room which is the player's starting point)
+		roomIndex := 0
+		if len(floor.Rooms) > 1 {
+			roomIndex = 1 + rand.Intn(len(floor.Rooms)-1)
+		}
 		room := floor.Rooms[roomIndex]
 
-		// Random position within the room
-		x := rand.Intn(room.Width-2) + room.X + 1
-		y := rand.Intn(room.Height-2) + room.Y + 1
+		// Pick a random position within the room
+		x := room.X + rand.Intn(room.Width)
+		y := room.Y + rand.Intn(room.Height)
 
-		// Create entity
-		entityTypes := []string{"goblin", "orc", "skeleton", "rat", "bat"}
-		entityType := entityTypes[rand.Intn(len(entityTypes))]
+		// Pick a random entity type (weighted toward more dangerous types on deeper levels)
+		typeIndex := rand.Intn(len(entityTypes))
+		if level > 5 && rand.Intn(10) < 5 {
+			// 50% chance to pick from the second half of the list on deeper levels
+			typeIndex = len(entityTypes)/2 + rand.Intn(len(entityTypes)/2+1)
+			if typeIndex >= len(entityTypes) {
+				typeIndex = len(entityTypes) - 1
+			}
+		}
+		entityType := entityTypes[typeIndex]
 
+		// Create the entity
 		entity := Entity{
-			ID:       generateID(),
-			Type:     entityType,
-			Name:     entityType, // Simple name for now
-			Position: Position{X: x, Y: y},
+			ID:   generateID(),
+			Type: entityType,
+			Name: entityType, // Simple name for now
+			Position: Position{
+				X: x,
+				Y: y,
+			},
 		}
 
 		entities = append(entities, entity)
@@ -328,31 +392,56 @@ func generateEntities(floor *Floor, level int) []Entity {
 	return entities
 }
 
-// generateItems generates items for the floor
+// generateItems generates random items for the floor
 func generateItems(floor *Floor, level int) []Item {
-	items := make([]Item, 0)
+	// Scale number of items with floor level and size
+	numItems := 3 + level + len(floor.Rooms)/3
+	items := make([]Item, 0, numItems)
 
-	// Number of items scales with floor level
-	numItems := 3 + level/2
+	// Item types with weights (higher level = better items)
+	itemTypes := []string{"potion", "scroll", "coin", "gem"}
 
+	// Add better items on deeper levels
+	if level > 2 {
+		itemTypes = append(itemTypes, "weapon", "armor")
+	}
+	if level > 5 {
+		itemTypes = append(itemTypes, "wand", "amulet")
+	}
+
+	// Generate items
 	for i := 0; i < numItems; i++ {
-		// Pick a random room
-		roomIndex := rand.Intn(len(floor.Rooms))
+		// Pick a random room (excluding the first room on the first level)
+		roomIndex := 0
+		if len(floor.Rooms) > 1 && (level > 1 || i > 0) {
+			roomIndex = rand.Intn(len(floor.Rooms))
+		}
 		room := floor.Rooms[roomIndex]
 
-		// Random position within the room
-		x := rand.Intn(room.Width-2) + room.X + 1
-		y := rand.Intn(room.Height-2) + room.Y + 1
+		// Pick a random position within the room
+		x := room.X + rand.Intn(room.Width)
+		y := room.Y + rand.Intn(room.Height)
 
-		// Create item
-		itemTypes := []string{"potion", "scroll", "weapon", "armor", "gold"}
-		itemType := itemTypes[rand.Intn(len(itemTypes))]
+		// Pick a random item type (weighted toward better items on deeper levels)
+		typeIndex := rand.Intn(len(itemTypes))
+		if level > 3 && rand.Intn(10) < 4 {
+			// 40% chance to pick from the second half of the list on deeper levels
+			typeIndex = len(itemTypes)/2 + rand.Intn(len(itemTypes)/2+1)
+			if typeIndex >= len(itemTypes) {
+				typeIndex = len(itemTypes) - 1
+			}
+		}
+		itemType := itemTypes[typeIndex]
 
+		// Create the item
 		item := Item{
-			ID:       generateID(),
-			Type:     itemType,
-			Name:     itemType, // Simple name for now
-			Position: Position{X: x, Y: y},
+			ID:   generateID(),
+			Type: itemType,
+			Name: itemType, // Simple name for now
+			Position: Position{
+				X: x,
+				Y: y,
+			},
 		}
 
 		items = append(items, item)
@@ -384,4 +473,12 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// abs returns the absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
