@@ -7,6 +7,7 @@ import { GameControls } from './components/game/GameControls'
 import { GameStatus } from './components/game/GameStatus'
 import { connectWebSocket, sendWebSocketMessage } from './services/api'
 import { CharacterData, DebugMessage } from './types/game'
+import { useClickableToast } from './components/ui/ClickableToast'
 
 // Define the screens we can navigate to
 type Screen = 'start' | 'characterCreation' | 'game'
@@ -32,7 +33,7 @@ const theme = extendTheme({
       position: 'top',
       duration: 5000,
       isClosable: true,
-      closeOnClick: true,
+      variant: 'solid',
     },
   },
 })
@@ -53,7 +54,8 @@ function App() {
   // Store floor data
   const [floorData, setFloorData] = useState<FloorData | null>(null)
   
-  const toast = useToast()
+  // Use our custom clickable toast
+  const toast = useClickableToast();
 
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((data: any) => {
@@ -150,7 +152,6 @@ function App() {
       title: "Load Game",
       description: "This feature is not yet implemented.",
       status: "info",
-      position: "top",
     })
   }
 
@@ -172,7 +173,6 @@ function App() {
       title: "Character Created",
       description: `${characterData.name} the ${characterData.characterClass} is ready for adventure!`,
       status: "success",
-      position: "top",
     })
   }
 

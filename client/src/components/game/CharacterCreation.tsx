@@ -13,7 +13,6 @@ import {
   StatNumber, 
   StatHelpText,
   IconButton,
-  useToast,
   Spinner,
   Divider,
   Tooltip
@@ -22,6 +21,7 @@ import { useState, useEffect } from 'react'
 import { AddIcon, MinusIcon, InfoIcon } from '@chakra-ui/icons'
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game'
 import { createCharacter } from '../../services/api'
+import { useClickableToast } from '../ui/ClickableToast'
 
 interface CharacterCreationProps {
   onCreateCharacter: (character: CharacterData) => void;
@@ -55,13 +55,13 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
   const [pointsRemaining, setPointsRemaining] = useState(27); // Using D&D 5e point buy system
   const [autoAllocated, setAutoAllocated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const toast = useToast();
+  const toast = useClickableToast();
 
   // Auto-allocate points when class changes
   useEffect(() => {
     if (characterClass && !autoAllocated) {
       const selectedClass = CHARACTER_CLASSES.find(c => c.id === characterClass);
-      if (selectedClass) {
+      if (selectedClass && selectedClass.recommendedStats) {
         // Reset stats to base
         const newStats = {...BASE_STATS};
         
@@ -85,7 +85,6 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
           title: "Stats auto-allocated",
           description: `Points have been allocated based on the ${selectedClass.name} class. You can still adjust them manually.`,
           status: "info",
-          position: "top",
         });
       }
     }
@@ -161,7 +160,6 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
           title: "Character created",
           description: "Your character has been saved successfully.",
           status: "success",
-          position: "top",
         });
         
         // Notify parent component
@@ -171,7 +169,6 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
           title: "Error creating character",
           description: result.message || "There was a problem saving your character.",
           status: "error",
-          position: "top",
         });
       }
     } catch (error) {
@@ -179,7 +176,6 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
         title: "Error creating character",
         description: "There was a problem connecting to the server.",
         status: "error",
-        position: "top",
       });
       console.error("Error creating character:", error);
     } finally {
