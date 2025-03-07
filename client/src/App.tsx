@@ -1,4 +1,4 @@
-import { ChakraProvider, useToast, Box, VStack, Center } from '@chakra-ui/react'
+import { ChakraProvider, useToast, Box, Flex } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
 import { StartScreen } from './components/game/StartScreen'
 import { CharacterCreation } from './components/game/CharacterCreation'
@@ -91,23 +91,45 @@ function App() {
         return <CharacterCreation onCreateCharacter={handleCreateCharacter} onBack={handleBackToStart} />
       case 'game':
         return (
-          <Center w="100vw" h="100vh" bg="#291326">
-            <Box 
-              position="relative" 
-              maxW="1200px" 
-              maxH="800px" 
+          <Box 
+            w="100vw" 
+            h="100vh" 
+            bg="#291326" 
+            overflow="hidden"
+            position="relative"
+          >
+            <Flex 
               w="100%" 
               h="100%" 
-              bg="#291326" 
-              color="white"
-              overflow="hidden"
-              borderRadius="md"
+              p={4}
+              gap={4}
             >
-              <GameBoard />
-              <GameStatus character={character} />
-              <GameControls />
-            </Box>
-          </Center>
+              {/* Left side - Game Board */}
+              <Box 
+                flex="1" 
+                h="100%" 
+                position="relative"
+                borderRadius="md"
+                overflow="hidden"
+                minW="0" // Important for flex child to shrink properly
+              >
+                <GameBoard />
+              </Box>
+              
+              {/* Right side - Character Status */}
+              <Box 
+                w="280px" 
+                h="100%" 
+                position="relative"
+                flexShrink={0} // Prevent shrinking
+              >
+                <GameStatus character={character} />
+              </Box>
+            </Flex>
+            
+            {/* Controls (overlay) */}
+            <GameControls />
+          </Box>
         )
       default:
         return <StartScreen onNewGame={handleNewGame} onLoadGame={handleLoadGame} />

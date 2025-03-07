@@ -1,4 +1,4 @@
-import { Box, Flex, Text, Progress, Stat, StatLabel, StatNumber, StatHelpText } from '@chakra-ui/react';
+import { Box, Flex, Text, Progress, Stat, StatLabel, StatNumber, StatHelpText, Divider } from '@chakra-ui/react';
 import { CharacterData } from '../../types/game';
 
 interface GameStatusProps {
@@ -22,21 +22,22 @@ export const GameStatus = ({ character }: GameStatusProps) => {
 
   return (
     <Box
-      position="absolute"
-      top={4}
-      right={4}
-      width="250px"
+      height="100%"
+      width="100%"
       bg="rgba(0, 0, 0, 0.7)"
       p={4}
       borderRadius="md"
       color="white"
+      overflowY="auto"
     >
-      <Text fontSize="xl" fontWeight="bold" mb={2}>
+      <Text fontSize="xl" fontWeight="bold" mb={1}>
         {character.name}
       </Text>
-      <Text fontSize="md" color="gray.300" mb={4}>
+      <Text fontSize="md" color="gray.300" mb={3}>
         Level 1 {character.characterClass}
       </Text>
+
+      <Divider mb={3} />
 
       {/* Health and Experience */}
       <Box mb={4}>
@@ -52,6 +53,8 @@ export const GameStatus = ({ character }: GameStatusProps) => {
         </Flex>
         <Progress value={0} colorScheme="blue" size="sm" />
       </Box>
+
+      <Divider mb={3} />
 
       {/* Stats */}
       <Text fontSize="md" fontWeight="bold" mb={2}>
@@ -74,6 +77,28 @@ export const GameStatus = ({ character }: GameStatusProps) => {
           );
         })}
       </Flex>
+
+      <Divider my={3} />
+
+      {/* Equipment */}
+      <Text fontSize="md" fontWeight="bold" mb={2}>
+        Equipment
+      </Text>
+      <Box fontSize="sm" color="gray.300">
+        <Text>Weapon: None</Text>
+        <Text>Armor: None</Text>
+        <Text>Accessory: None</Text>
+      </Box>
+
+      <Divider my={3} />
+
+      {/* Inventory */}
+      <Text fontSize="md" fontWeight="bold" mb={2}>
+        Inventory
+      </Text>
+      <Box fontSize="sm" color="gray.300">
+        <Text>Empty</Text>
+      </Box>
     </Box>
   );
 }; 

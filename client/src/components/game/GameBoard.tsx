@@ -96,26 +96,39 @@ export const GameBoard = () => {
     requestFloorData();
   }, []);
 
-  // Calculate viewport size on mount and window resize
+  // Calculate viewport size on mount and when container size changes
   useEffect(() => {
     const updateViewportSize = () => {
-      // Calculate available space (accounting for padding and other elements)
-      const availableHeight = window.innerHeight - 120; // Account for padding, header, etc.
-      const availableWidth = window.innerWidth - 40;
-      
-      setViewportSize({
-        width: availableWidth,
-        height: availableHeight
-      });
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        console.log('Container size:', rect.width, rect.height);
+        setViewportSize({
+          width: Math.floor(rect.width - 30), // Account for padding
+          height: Math.floor(rect.height - 60) // Account for header and padding
+        });
+      }
     };
     
-    // Initial calculation
-    updateViewportSize();
+    // Initial calculation after a short delay to ensure container is rendered
+    setTimeout(updateViewportSize, 100);
     
-    // Add resize listener
+    // Create a ResizeObserver to watch for container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      console.log('Container resized');
+      updateViewportSize();
+    });
+    
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    // Also listen for window resize events
     window.addEventListener('resize', updateViewportSize);
     
     return () => {
+      if (containerRef.current) {
+        resizeObserver.unobserve(containerRef.current);
+      }
       window.removeEventListener('resize', updateViewportSize);
     };
   }, []);
@@ -123,6 +136,7 @@ export const GameBoard = () => {
   // Draw the floor when data changes or viewport size changes
   useEffect(() => {
     if (floor && playerPos && viewportSize.width > 0 && viewportSize.height > 0) {
+      console.log('Drawing floor with viewport size:', viewportSize);
       drawFloor();
     }
   }, [floor, playerPos, viewportSize]);
@@ -178,11 +192,21 @@ export const GameBoard = () => {
 
   // Draw the floor on the canvas
   const drawFloor = () => {
-    if (!floor || !canvasRef.current || !playerPos) return;
+    if (!floor || !canvasRef.current || !playerPos) {
+      console.log('Missing data for drawing:', { 
+        hasFloor: !!floor, 
+        hasCanvas: !!canvasRef.current, 
+        hasPlayerPos: !!playerPos 
+      });
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.log('Could not get canvas context');
+      return;
+    }
 
     // Calculate the visible area (viewport)
     const visibleTiles = {
@@ -191,14 +215,21 @@ export const GameBoard = () => {
     };
     
     // Calculate tile size based on available space and visible area
-    const tileSize = Math.min(
-      Math.floor(viewportSize.width / visibleTiles.width),
-      Math.floor(viewportSize.height / visibleTiles.height)
+    const tileSize = Math.max(
+      1,
+      Math.min(
+        Math.floor(viewportSize.width / visibleTiles.width),
+        Math.floor(viewportSize.height / visibleTiles.height)
+      )
     );
+    
+    console.log('Tile size calculated:', tileSize);
     
     // Set canvas size
     canvas.width = visibleTiles.width * tileSize;
     canvas.height = visibleTiles.height * tileSize;
+    
+    console.log('Canvas size set to:', canvas.width, canvas.height);
 
     // Calculate viewport center (player position)
     const viewportCenterX = Math.floor(visibleTiles.width / 2);
@@ -214,6 +245,8 @@ export const GameBoard = () => {
     
     const adjustedStartX = Math.min(viewportStartX, maxStartX);
     const adjustedStartY = Math.min(viewportStartY, maxStartY);
+    
+    console.log('Viewport start:', adjustedStartX, adjustedStartY);
 
     // Clear canvas
     ctx.fillStyle = '#000';
@@ -329,6 +362,8 @@ export const GameBoard = () => {
       tileSize / 2,
       tileSize / 2
     );
+    
+    console.log('Drawing complete');
   };
 
   if (loading) {
@@ -364,22 +399,23 @@ export const GameBoard = () => {
       _focus={{ boxShadow: "none" }} // Remove focus shadow
       display="flex"
       flexDirection="column"
-      alignItems="center"
-      justifyContent="center"
     >
       <Text color="white" mb={2} fontSize="lg">
         Floor {currentFloor}
       </Text>
       <Box
+        flex="1"
         display="flex"
         justifyContent="center"
         alignItems="center"
+        border="1px solid #444"
+        borderRadius="md"
+        bg="#1a1a1a"
       >
         <canvas
           ref={canvasRef}
           style={{
             imageRendering: 'pixelated',
-            border: '1px solid #555',
           }}
         />
       </Box>

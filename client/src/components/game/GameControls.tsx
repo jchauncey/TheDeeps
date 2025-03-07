@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
 import { 
-  Box, 
-  Text, 
-  Grid, 
-  Badge, 
   Modal, 
   ModalOverlay, 
   ModalContent, 
@@ -15,7 +11,6 @@ import {
 import { sendWebSocketMessage } from '../../services/api';
 
 export const GameControls = () => {
-  const [lastAction, setLastAction] = useState<string>('');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [keyMap, setKeyMap] = useState<Record<string, string>>({
     'ArrowUp': 'Move Up',
@@ -102,7 +97,6 @@ export const GameControls = () => {
       type: 'move',
       direction
     });
-    setLastAction(`Move ${direction}`);
   };
 
   // Handle actions
@@ -111,26 +105,10 @@ export const GameControls = () => {
       type: 'action',
       action
     });
-    setLastAction(action);
   };
 
   return (
     <>
-      {/* Last action indicator (small and unobtrusive) */}
-      {lastAction && (
-        <Box 
-          position="absolute" 
-          bottom={4} 
-          left={4} 
-          bg="rgba(0, 0, 0, 0.7)" 
-          p={2} 
-          borderRadius="md"
-          zIndex={1}
-        >
-          <Text fontSize="sm" color="white">Last action: <Badge colorScheme="purple">{lastAction}</Badge></Text>
-        </Box>
-      )}
-      
       {/* Help Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
@@ -138,27 +116,27 @@ export const GameControls = () => {
           <ModalHeader>Game Controls</ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
-            <Grid templateColumns="repeat(2, 1fr)" gap={6}>
-              <Box>
-                <Text fontSize="md" fontWeight="semibold" mb={3}>Movement</Text>
-                <Text fontSize="sm">↑/k: Move up</Text>
-                <Text fontSize="sm">↓/j: Move down</Text>
-                <Text fontSize="sm">←/h: Move left</Text>
-                <Text fontSize="sm">→/l: Move right</Text>
-                <Text fontSize="sm">.: Wait</Text>
-              </Box>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem' }}>Movement</h3>
+                <p style={{ fontSize: '0.875rem' }}>↑/k: Move up</p>
+                <p style={{ fontSize: '0.875rem' }}>↓/j: Move down</p>
+                <p style={{ fontSize: '0.875rem' }}>←/h: Move left</p>
+                <p style={{ fontSize: '0.875rem' }}>→/l: Move right</p>
+                <p style={{ fontSize: '0.875rem' }}>.: Wait</p>
+              </div>
               
-              <Box>
-                <Text fontSize="md" fontWeight="semibold" mb={3}>Actions</Text>
-                <Text fontSize="sm">g: Pick up item</Text>
-                <Text fontSize="sm">i: Inventory</Text>
-                <Text fontSize="sm">a: Attack</Text>
-                <Text fontSize="sm">u: Use item</Text>
-                <Text fontSize="sm">&lt;/&gt;: Stairs</Text>
-                <Text fontSize="sm">?: Help (this screen)</Text>
-                <Text fontSize="sm">Esc: Menu/Close</Text>
-              </Box>
-            </Grid>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem' }}>Actions</h3>
+                <p style={{ fontSize: '0.875rem' }}>g: Pick up item</p>
+                <p style={{ fontSize: '0.875rem' }}>i: Inventory</p>
+                <p style={{ fontSize: '0.875rem' }}>a: Attack</p>
+                <p style={{ fontSize: '0.875rem' }}>u: Use item</p>
+                <p style={{ fontSize: '0.875rem' }}>&lt;/&gt;: Stairs</p>
+                <p style={{ fontSize: '0.875rem' }}>?: Help (this screen)</p>
+                <p style={{ fontSize: '0.875rem' }}>Esc: Menu/Close</p>
+              </div>
+            </div>
           </ModalBody>
         </ModalContent>
       </Modal>
