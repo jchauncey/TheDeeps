@@ -377,12 +377,8 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
             gradient.addColorStop(1, baseColor);
             ctx.fillStyle = gradient;
           } else if (tile.explored) {
-            // Explored but not currently visible tiles
-            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.4)`;
-            
-            // Add a dark overlay to show it's not currently visible
-            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            // Explored but not currently visible tiles - make them clearly visible but dimmed
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
           } else {
             // Unexplored tiles (should not reach here due to the skip check above)
             ctx.fillStyle = '#000';
@@ -391,8 +387,8 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
           
           // Draw grid lines with opacity based on visibility
-          ctx.strokeStyle = tile.visible ? '#333' : '#222';
-          ctx.lineWidth = tile.visible ? 1 : 0.5;
+          ctx.strokeStyle = tile.visible ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.2)';
+          ctx.lineWidth = 0.5;
           ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
         }
       }
@@ -527,25 +523,82 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       // After drawing all tiles, add a shadow effect around the visible area
       // This creates a more dramatic fog of war effect
       const drawShadowEffect = () => {
-        // Create a radial gradient for the shadow effect
-        const centerX = playerViewportX * tileSize + tileSize / 2;
-        const centerY = playerViewportY * tileSize + tileSize / 2;
-        const visibilityRadius = 8; // Match the server-side visibility range
-        const radius = visibilityRadius * tileSize;
+        // With room-based visibility, we don't need a complex shadow effect
+        // Just add a subtle shadow to explored but not visible tiles
         
-        const shadowGradient = ctx.createRadialGradient(
-          centerX, centerY, radius * 0.7, // Inner circle
-          centerX, centerY, radius        // Outer circle
-        );
+        // First, create a dark overlay for unexplored areas
+        for (let y = 0; y < visibleTiles.height; y++) {
+          for (let x = 0; x < visibleTiles.width; x++) {
+            // Convert viewport coordinates to dungeon coordinates
+            const dungeonX = adjustedStartX + x;
+            const dungeonY = adjustedStartY + y;
+            
+            // Skip if out of bounds
+            if (dungeonX >= floor.width || dungeonY >= floor.height) continue;
+            
+            // Check if tiles array is properly structured
+            if (!floor.tiles[dungeonY] || !floor.tiles[dungeonY][dungeonX]) continue;
+            
+            const tile = floor.tiles[dungeonY][dungeonX];
+            
+            // Only draw darkness for unexplored areas
+            if (!tile.explored && !tile.visible) {
+              ctx.fillStyle = '#000';
+              ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            }
+            
+            // Add a subtle shadow to explored but not currently visible tiles
+            if (tile.explored && !tile.visible) {
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+              ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            }
+          }
+        }
         
-        // Transparent in the center, dark at the edges
-        shadowGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        shadowGradient.addColorStop(1, 'rgba(0, 0, 0, 0.7)');
+        // Add a subtle glow to the room edges for currently visible areas
+        ctx.globalCompositeOperation = 'lighter';
         
-        // Draw the shadow overlay
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = shadowGradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < visibleTiles.height; y++) {
+          for (let x = 0; x < visibleTiles.width; x++) {
+            // Convert viewport coordinates to dungeon coordinates
+            const dungeonX = adjustedStartX + x;
+            const dungeonY = adjustedStartY + y;
+            
+            // Skip if out of bounds
+            if (dungeonX >= floor.width || dungeonY >= floor.height) continue;
+            
+            // Check if tiles array is properly structured
+            if (!floor.tiles[dungeonY] || !floor.tiles[dungeonY][dungeonX]) continue;
+            
+            const tile = floor.tiles[dungeonY][dungeonX];
+            
+            // Add a subtle glow to visible tiles at the edge of rooms
+            if (tile.visible) {
+              // Check if this is an edge tile (has at least one adjacent non-visible tile)
+              let isEdge = false;
+              
+              // Check adjacent tiles
+              const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+              for (const [dx, dy] of directions) {
+                const nx = dungeonX + dx;
+                const ny = dungeonY + dy;
+                
+                // If adjacent tile is out of bounds or not visible, this is an edge
+                if (nx < 0 || nx >= floor.width || ny < 0 || ny >= floor.height ||
+                    !floor.tiles[ny][nx].visible) {
+                  isEdge = true;
+                  break;
+                }
+              }
+              
+              // If this is an edge tile, add a subtle glow
+              if (isEdge) {
+                ctx.fillStyle = 'rgba(255, 255, 200, 0.1)';
+                ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+              }
+            }
+          }
+        }
         
         // Reset composite operation
         ctx.globalCompositeOperation = 'source-over';

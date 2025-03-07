@@ -32,6 +32,7 @@ const theme = extendTheme({
       position: 'top',
       duration: 5000,
       isClosable: true,
+      closeOnClick: true,
     },
   },
 })

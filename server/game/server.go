@@ -12,6 +12,16 @@ import (
 	"github.com/jchauncey/TheDeeps/server/repositories"
 )
 
+// Game constants
+const (
+	VisibilityRange = 10 // Adjust this value to change the fog of war size
+)
+
+// Debug flags
+var (
+	DebugMode = false // Set to true to enable debug features
+)
+
 // GameServer manages the game state and client connections
 type GameServer struct {
 	Game                *Game
@@ -208,15 +218,23 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 	}
 }
 
-// HandleAction processes action commands
+// HandleAction handles player actions
 func (s *GameServer) HandleAction(conn *websocket.Conn, payload []byte) {
-	var actionMsg ActionMessage
-	if err := json.Unmarshal(payload, &actionMsg); err != nil {
-		log.Printf("Error parsing action message: %v", err)
+	if s.Game == nil || s.Game.Dungeon == nil {
+		log.Printf("Error: Game or dungeon is nil in HandleAction")
 		return
 	}
 
-	switch actionMsg.Action {
+	var message ActionMessage
+	err := json.Unmarshal(payload, &message)
+	if err != nil {
+		log.Printf("Error unmarshaling action message: %v", err)
+		return
+	}
+
+	log.Printf("Received action: %s", message.Action)
+
+	switch message.Action {
 	case "pickup":
 		s.PickupItem()
 	case "attack":
@@ -225,8 +243,21 @@ func (s *GameServer) HandleAction(conn *websocket.Conn, payload []byte) {
 		s.DescendStairs()
 	case "ascend":
 		s.AscendStairs()
+	case "toggle_debug":
+		DebugMode = !DebugMode
+		log.Printf("Debug mode: %v", DebugMode)
+		if DebugMode {
+			RevealEntireMap(s.Game.Dungeon)
+		} else {
+			// When turning debug mode off, update visibility normally
+			UpdateVisibility(s.Game.Dungeon)
+		}
+		// Send updated floor data to the client
+		if conn != nil {
+			s.SendFloorData(conn)
+		}
 	default:
-		log.Printf("Unknown action: %s", actionMsg.Action)
+		log.Printf("Unknown action: %s", message.Action)
 	}
 }
 
@@ -373,90 +404,128 @@ func (s *GameServer) BroadcastFloorData() {
 
 // UpdateVisibility updates which tiles are visible to the player
 func UpdateVisibility(dungeon *models.Dungeon) {
+	if dungeon == nil || len(dungeon.Floors) == 0 || dungeon.CurrentFloor < 0 || dungeon.CurrentFloor >= len(dungeon.Floors) {
+		log.Printf("Warning: Cannot update visibility, invalid dungeon state")
+		return
+	}
+
 	currentFloor := dungeon.CurrentFloor
 	floor := dungeon.Floors[currentFloor]
 	playerPos := dungeon.PlayerPosition
 
+	if floor == nil || len(floor.Tiles) == 0 {
+		log.Printf("Warning: Cannot update visibility, invalid floor state")
+		return
+	}
+
 	// Reset visibility
 	for y := 0; y < floor.Height; y++ {
+		if y >= len(floor.Tiles) {
+			continue
+		}
 		for x := 0; x < floor.Width; x++ {
+			if x >= len(floor.Tiles[y]) {
+				continue
+			}
 			floor.Tiles[y][x].Visible = false
 		}
 	}
 
-	// Set visible tiles with line of sight
-	visibilityRange := 8
-
-	// Mark the player's position as visible and explored
-	if playerPos.Y >= 0 && playerPos.Y < floor.Height &&
-		playerPos.X >= 0 && playerPos.X < floor.Width {
-		floor.Tiles[playerPos.Y][playerPos.X].Visible = true
-		floor.Tiles[playerPos.Y][playerPos.X].Explored = true
-	}
-
-	// Check visibility in all directions
-	for angle := 0; angle < 360; angle += 5 {
-		// Cast a ray from the player position
-		castRay(floor, playerPos, angle, visibilityRange)
-	}
-}
-
-// castRay casts a ray from the player position in the given angle and marks tiles as visible
-func castRay(floor *models.Floor, playerPos models.Position, angle int, maxDistance int) {
-	// Convert angle to radians
-	radians := float64(angle) * (3.14159 / 180.0)
-
-	// Calculate direction vector
-	dx := float64(Cos(radians))
-	dy := float64(Sin(radians))
-
-	// Cast the ray
-	for distance := 1; distance <= maxDistance; distance++ {
-		// Calculate the position of the current point on the ray
-		x := int(float64(playerPos.X) + dx*float64(distance) + 0.5)
-		y := int(float64(playerPos.Y) + dy*float64(distance) + 0.5)
-
-		// Check if the position is within bounds
-		if x < 0 || x >= floor.Width || y < 0 || y >= floor.Height {
-			break
+	// If in debug mode, make the entire floor visible
+	if DebugMode {
+		for y := 0; y < floor.Height; y++ {
+			if y >= len(floor.Tiles) {
+				continue
+			}
+			for x := 0; x < floor.Width; x++ {
+				if x >= len(floor.Tiles[y]) {
+					continue
+				}
+				floor.Tiles[y][x].Visible = true
+				floor.Tiles[y][x].Explored = true
+			}
 		}
+		return
+	}
 
-		// Mark the tile as visible and explored
-		floor.Tiles[y][x].Visible = true
-		floor.Tiles[y][x].Explored = true
-
-		// If the tile is a wall or other obstacle, stop the ray
-		if floor.Tiles[y][x].Type == models.TileWall {
+	// Find which room the player is in
+	var currentRoom *models.Room
+	for i := range floor.Rooms {
+		room := &floor.Rooms[i]
+		if room.Contains(playerPos.X, playerPos.Y) {
+			currentRoom = room
 			break
 		}
 	}
-}
 
-// Sin calculates the sine of an angle in radians
-func Sin(radians float64) float64 {
-	return float64(int(1000*Sine(radians))) / 1000
-}
-
-// Cos calculates the cosine of an angle in radians
-func Cos(radians float64) float64 {
-	return float64(int(1000*Sine(radians+3.14159/2))) / 1000
-}
-
-// Sine approximates the sine function
-func Sine(radians float64) float64 {
-	// Normalize angle to 0-2π
-	for radians < 0 {
-		radians += 2 * 3.14159
-	}
-	for radians > 2*3.14159 {
-		radians -= 2 * 3.14159
-	}
-
-	// Simple sine approximation
-	if radians < 3.14159 {
-		return float64(4 * radians * (3.14159 - radians) / (3.14159 * 3.14159))
+	// If player is in a room, make the entire room visible
+	if currentRoom != nil {
+		// Make all tiles in the room visible and explored
+		for y := currentRoom.Y; y < currentRoom.Y+currentRoom.Height; y++ {
+			if y < 0 || y >= floor.Height || y >= len(floor.Tiles) {
+				continue
+			}
+			for x := currentRoom.X; x < currentRoom.X+currentRoom.Width; x++ {
+				if x < 0 || x >= floor.Width || x >= len(floor.Tiles[y]) {
+					continue
+				}
+				floor.Tiles[y][x].Visible = true
+				floor.Tiles[y][x].Explored = true
+			}
+		}
 	} else {
-		return float64(-4 * (radians - 3.14159) * (2*3.14159 - radians) / (3.14159 * 3.14159))
+		// Player is in a corridor, make a small area around them visible
+		visibilityRange := 3 // Smaller range for corridors
+
+		// Mark tiles around the player as visible
+		for y := playerPos.Y - visibilityRange; y <= playerPos.Y+visibilityRange; y++ {
+			if y < 0 || y >= floor.Height || y >= len(floor.Tiles) {
+				continue
+			}
+			for x := playerPos.X - visibilityRange; x <= playerPos.X+visibilityRange; x++ {
+				// Skip if out of bounds
+				if x < 0 || x >= floor.Width || x >= len(floor.Tiles[y]) {
+					continue
+				}
+
+				// Calculate distance from player
+				dx := playerPos.X - x
+				dy := playerPos.Y - y
+				distance := Abs(dx) + Abs(dy) // Manhattan distance
+
+				// Only make tiles within range visible
+				if distance <= visibilityRange {
+					floor.Tiles[y][x].Visible = true
+					floor.Tiles[y][x].Explored = true
+				}
+			}
+		}
+	}
+}
+
+// RevealEntireMap reveals the entire current floor
+func RevealEntireMap(dungeon *models.Dungeon) {
+	if dungeon == nil || len(dungeon.Floors) == 0 || dungeon.CurrentFloor < 0 || dungeon.CurrentFloor >= len(dungeon.Floors) {
+		log.Printf("Warning: Cannot reveal map, invalid dungeon state")
+		return
+	}
+
+	currentFloor := dungeon.CurrentFloor
+	floor := dungeon.Floors[currentFloor]
+
+	if floor == nil || len(floor.Tiles) == 0 {
+		log.Printf("Warning: Cannot reveal map, invalid floor state")
+		return
+	}
+
+	// Mark all tiles as explored
+	for y := 0; y < floor.Height; y++ {
+		for x := 0; x < floor.Width; x++ {
+			if y < len(floor.Tiles) && x < len(floor.Tiles[y]) {
+				floor.Tiles[y][x].Explored = true
+				floor.Tiles[y][x].Visible = true
+			}
+		}
 	}
 }
 

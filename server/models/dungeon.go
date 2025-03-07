@@ -129,8 +129,15 @@ func GenerateFloor(level, width, height int) *Floor {
 		}
 	}
 
-	// Generate rooms
-	floor.Rooms = generateRooms(floor, 10, 5, 15, 5, 10)
+	// Generate rooms - ensure at least 3 rooms per floor
+	minRooms := 3
+	maxRooms := 10 + level // More rooms on deeper levels
+	floor.Rooms = generateRooms(floor, maxRooms, 5, 15, 3, 20)
+
+	// If we didn't generate enough rooms, try again with more relaxed parameters
+	if len(floor.Rooms) < minRooms {
+		floor.Rooms = generateRooms(floor, maxRooms, 4, 12, 2, 30)
+	}
 
 	// Connect rooms with corridors
 	connectRooms(floor)
@@ -200,6 +207,7 @@ func roomsOverlap(r1, r2 *Room, minDistance int) bool {
 
 // connectRooms connects rooms with corridors
 func connectRooms(floor *Floor) {
+	// First, connect rooms in sequence
 	for i := 0; i < len(floor.Rooms)-1; i++ {
 		// Connect each room to the next one
 		room1 := floor.Rooms[i]
@@ -216,6 +224,38 @@ func connectRooms(floor *Floor) {
 		} else {
 			createVerticalCorridor(floor, y1, y2, x1)
 			createHorizontalCorridor(floor, x1, x2, y2)
+		}
+	}
+
+	// Add some additional random connections for better connectivity
+	// This helps ensure rooms have multiple exits
+	if len(floor.Rooms) > 2 {
+		numExtraConnections := len(floor.Rooms)/3 + 1
+		for i := 0; i < numExtraConnections; i++ {
+			// Pick two random rooms
+			r1 := rand.Intn(len(floor.Rooms))
+			r2 := rand.Intn(len(floor.Rooms))
+
+			// Make sure they're different rooms
+			if r1 == r2 {
+				r2 = (r2 + 1) % len(floor.Rooms)
+			}
+
+			room1 := floor.Rooms[r1]
+			room2 := floor.Rooms[r2]
+
+			// Get center points of each room
+			x1, y1 := room1.Center()
+			x2, y2 := room2.Center()
+
+			// Create a corridor between them
+			if rand.Intn(2) == 0 {
+				createHorizontalCorridor(floor, x1, x2, y1)
+				createVerticalCorridor(floor, y1, y2, x2)
+			} else {
+				createVerticalCorridor(floor, y1, y2, x1)
+				createHorizontalCorridor(floor, x1, x2, y2)
+			}
 		}
 	}
 }
