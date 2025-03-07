@@ -334,19 +334,65 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           const baseColor = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
           
           // Parse the hex color to RGB
-          const r = parseInt(baseColor.slice(1, 3), 16);
-          const g = parseInt(baseColor.slice(3, 5), 16);
-          const b = parseInt(baseColor.slice(5, 7), 16);
+          let r = 0, g = 0, b = 0;
+          try {
+            // Ensure baseColor is a valid hex color
+            if (baseColor && baseColor.startsWith('#') && baseColor.length >= 7) {
+              r = parseInt(baseColor.slice(1, 3), 16);
+              g = parseInt(baseColor.slice(3, 5), 16);
+              b = parseInt(baseColor.slice(5, 7), 16);
+            }
+            
+            // Validate the parsed values
+            r = isNaN(r) ? 0 : r;
+            g = isNaN(g) ? 0 : g;
+            b = isNaN(b) ? 0 : b;
+          } catch (error) {
+            console.error('Error parsing color:', baseColor, error);
+            // Default to gray if parsing fails
+            r = g = b = 128;
+          }
           
-          // Set color with opacity based on visibility
-          ctx.fillStyle = tile.visible 
-            ? baseColor 
-            : `rgba(${r}, ${g}, ${b}, 0.5)`;
+          // Set color with enhanced opacity based on visibility
+          if (tile.visible) {
+            // Fully visible tiles
+            ctx.fillStyle = baseColor;
+            
+            // Add a subtle glow effect to visible tiles
+            const gradient = ctx.createRadialGradient(
+              x * tileSize + tileSize / 2, 
+              y * tileSize + tileSize / 2, 
+              0,
+              x * tileSize + tileSize / 2, 
+              y * tileSize + tileSize / 2, 
+              tileSize
+            );
+            
+            // Ensure RGB values are valid numbers before adding to them
+            const rGlow = Math.min(255, r + 30);
+            const gGlow = Math.min(255, g + 30);
+            const bGlow = Math.min(255, b + 30);
+            
+            gradient.addColorStop(0, `rgba(${rGlow}, ${gGlow}, ${bGlow}, 1)`);
+            gradient.addColorStop(1, baseColor);
+            ctx.fillStyle = gradient;
+          } else if (tile.explored) {
+            // Explored but not currently visible tiles
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.4)`;
+            
+            // Add a dark overlay to show it's not currently visible
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+          } else {
+            // Unexplored tiles (should not reach here due to the skip check above)
+            ctx.fillStyle = '#000';
+          }
           
           ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
           
-          // Draw grid lines
-          ctx.strokeStyle = '#222';
+          // Draw grid lines with opacity based on visibility
+          ctx.strokeStyle = tile.visible ? '#333' : '#222';
+          ctx.lineWidth = tile.visible ? 1 : 0.5;
           ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
         }
       }
@@ -377,9 +423,24 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           const baseColor = ITEM_COLORS[item.type as keyof typeof ITEM_COLORS] || '#fff';
           
           // Parse the hex color to RGB
-          const r = parseInt(baseColor.slice(1, 3), 16);
-          const g = parseInt(baseColor.slice(3, 5), 16);
-          const b = parseInt(baseColor.slice(5, 7), 16);
+          let r = 0, g = 0, b = 0;
+          try {
+            // Ensure baseColor is a valid hex color
+            if (baseColor && baseColor.startsWith('#') && baseColor.length >= 7) {
+              r = parseInt(baseColor.slice(1, 3), 16);
+              g = parseInt(baseColor.slice(3, 5), 16);
+              b = parseInt(baseColor.slice(5, 7), 16);
+            }
+            
+            // Validate the parsed values
+            r = isNaN(r) ? 0 : r;
+            g = isNaN(g) ? 0 : g;
+            b = isNaN(b) ? 0 : b;
+          } catch (error) {
+            console.error('Error parsing color:', baseColor, error);
+            // Default to gray if parsing fails
+            r = g = b = 128;
+          }
           
           ctx.fillStyle = tile.visible 
             ? baseColor 
@@ -462,6 +523,36 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       }
       
       console.log('Drawing complete');
+
+      // After drawing all tiles, add a shadow effect around the visible area
+      // This creates a more dramatic fog of war effect
+      const drawShadowEffect = () => {
+        // Create a radial gradient for the shadow effect
+        const centerX = playerViewportX * tileSize + tileSize / 2;
+        const centerY = playerViewportY * tileSize + tileSize / 2;
+        const visibilityRadius = 8; // Match the server-side visibility range
+        const radius = visibilityRadius * tileSize;
+        
+        const shadowGradient = ctx.createRadialGradient(
+          centerX, centerY, radius * 0.7, // Inner circle
+          centerX, centerY, radius        // Outer circle
+        );
+        
+        // Transparent in the center, dark at the edges
+        shadowGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        shadowGradient.addColorStop(1, 'rgba(0, 0, 0, 0.7)');
+        
+        // Draw the shadow overlay
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = shadowGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Reset composite operation
+        ctx.globalCompositeOperation = 'source-over';
+      };
+
+      // Draw shadow effect after drawing all tiles, entities and the player
+      drawShadowEffect();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error drawing floor';
       console.error(errorMessage);

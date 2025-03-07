@@ -384,19 +384,79 @@ func UpdateVisibility(dungeon *models.Dungeon) {
 		}
 	}
 
-	// Set visible tiles
+	// Set visible tiles with line of sight
 	visibilityRange := 8
-	for y := Max(0, playerPos.Y-visibilityRange); y <= Min(floor.Height-1, playerPos.Y+visibilityRange); y++ {
-		for x := Max(0, playerPos.X-visibilityRange); x <= Min(floor.Width-1, playerPos.X+visibilityRange); x++ {
-			dx := playerPos.X - x
-			dy := playerPos.Y - y
-			distance := dx*dx + dy*dy
 
-			if distance <= visibilityRange*visibilityRange {
-				floor.Tiles[y][x].Visible = true
-				floor.Tiles[y][x].Explored = true
-			}
+	// Mark the player's position as visible and explored
+	if playerPos.Y >= 0 && playerPos.Y < floor.Height &&
+		playerPos.X >= 0 && playerPos.X < floor.Width {
+		floor.Tiles[playerPos.Y][playerPos.X].Visible = true
+		floor.Tiles[playerPos.Y][playerPos.X].Explored = true
+	}
+
+	// Check visibility in all directions
+	for angle := 0; angle < 360; angle += 5 {
+		// Cast a ray from the player position
+		castRay(floor, playerPos, angle, visibilityRange)
+	}
+}
+
+// castRay casts a ray from the player position in the given angle and marks tiles as visible
+func castRay(floor *models.Floor, playerPos models.Position, angle int, maxDistance int) {
+	// Convert angle to radians
+	radians := float64(angle) * (3.14159 / 180.0)
+
+	// Calculate direction vector
+	dx := float64(Cos(radians))
+	dy := float64(Sin(radians))
+
+	// Cast the ray
+	for distance := 1; distance <= maxDistance; distance++ {
+		// Calculate the position of the current point on the ray
+		x := int(float64(playerPos.X) + dx*float64(distance) + 0.5)
+		y := int(float64(playerPos.Y) + dy*float64(distance) + 0.5)
+
+		// Check if the position is within bounds
+		if x < 0 || x >= floor.Width || y < 0 || y >= floor.Height {
+			break
 		}
+
+		// Mark the tile as visible and explored
+		floor.Tiles[y][x].Visible = true
+		floor.Tiles[y][x].Explored = true
+
+		// If the tile is a wall or other obstacle, stop the ray
+		if floor.Tiles[y][x].Type == models.TileWall {
+			break
+		}
+	}
+}
+
+// Sin calculates the sine of an angle in radians
+func Sin(radians float64) float64 {
+	return float64(int(1000*Sine(radians))) / 1000
+}
+
+// Cos calculates the cosine of an angle in radians
+func Cos(radians float64) float64 {
+	return float64(int(1000*Sine(radians+3.14159/2))) / 1000
+}
+
+// Sine approximates the sine function
+func Sine(radians float64) float64 {
+	// Normalize angle to 0-2π
+	for radians < 0 {
+		radians += 2 * 3.14159
+	}
+	for radians > 2*3.14159 {
+		radians -= 2 * 3.14159
+	}
+
+	// Simple sine approximation
+	if radians < 3.14159 {
+		return float64(4 * radians * (3.14159 - radians) / (3.14159 * 3.14159))
+	} else {
+		return float64(-4 * (radians - 3.14159) * (2*3.14159 - radians) / (3.14159 * 3.14159))
 	}
 }
 
