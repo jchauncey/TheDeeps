@@ -11,6 +11,19 @@ import { CharacterData, DebugMessage } from './types/game'
 // Define the screens we can navigate to
 type Screen = 'start' | 'characterCreation' | 'game'
 
+// Define the floor data interface
+interface Position {
+  x: number;
+  y: number;
+}
+
+interface FloorData {
+  type: string;
+  floor: any; // Using any for simplicity, but should match the Floor interface in GameBoard
+  playerPosition: Position;
+  currentFloor: number;
+}
+
 function App() {
   // Track which screen we're on
   const [currentScreen, setCurrentScreen] = useState<Screen>('start')
@@ -25,13 +38,13 @@ function App() {
   const [ws, setWs] = useState<WebSocket | null>(null)
   
   // Store floor data
-  const [floorData, setFloorData] = useState<any>(null)
+  const [floorData, setFloorData] = useState<FloorData | null>(null)
   
   const toast = useToast()
 
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((data: any) => {
-    console.log('Received WebSocket message:', data);
+    console.log('App received WebSocket message:', data);
     
     // Handle debug messages
     if (data.level) {
@@ -40,7 +53,7 @@ function App() {
     
     // Handle floor data
     if (data.type === 'floor_data') {
-      console.log('Received floor data:', data);
+      console.log('App received floor data:', data);
       setFloorData(data);
     }
     
@@ -51,6 +64,7 @@ function App() {
 
   // Connect to WebSocket when component mounts
   useEffect(() => {
+    console.log('Connecting to WebSocket...');
     const socket = connectWebSocket(handleWebSocketMessage);
     setWs(socket);
     
@@ -64,11 +78,54 @@ function App() {
 
   // Request floor data when entering game screen
   useEffect(() => {
-    if (currentScreen === 'game' && ws && ws.readyState === WebSocket.OPEN) {
+    if (currentScreen === 'game' && character) {
       console.log('Requesting floor data...');
-      sendWebSocketMessage({ type: 'get_floor' });
+      const success = sendWebSocketMessage({ 
+        type: 'get_floor',
+        characterId: character.name // Use character name as ID for now
+      });
+      console.log('Floor data request sent:', success);
     }
-  }, [currentScreen, ws]);
+  }, [currentScreen, character]);
+
+  // Handle keyboard controls at the App level
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (currentScreen !== 'game') return;
+      
+      let direction = '';
+      
+      // Handle both key and code
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        direction = 'up';
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        direction = 'down';
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        direction = 'left';
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        direction = 'right';
+      } else {
+        return; // Not a movement key
+      }
+      
+      // Prevent default behavior (scrolling)
+      e.preventDefault();
+      
+      // Send move command to server
+      console.log(`Sending move command: ${direction}`);
+      sendWebSocketMessage({
+        type: 'move',
+        direction
+      });
+    };
+    
+    // Add event listener
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentScreen]);
 
   const handleNewGame = () => {
     setCurrentScreen('characterCreation')
@@ -92,6 +149,12 @@ function App() {
   const handleCreateCharacter = (characterData: CharacterData) => {
     setCharacter(characterData)
     setCurrentScreen('game')
+    
+    // Send character data to server
+    sendWebSocketMessage({
+      type: 'create_character',
+      character: characterData
+    });
     
     toast({
       title: "Character Created",

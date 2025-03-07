@@ -42,9 +42,11 @@ export const connectWebSocket = (onMessage: (data: any) => void): WebSocket => {
 // Send message through WebSocket
 export const sendWebSocketMessage = (message: any): boolean => {
   if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log('Sending WebSocket message:', message);
     ws.send(JSON.stringify(message));
     return true;
   }
+  console.log('WebSocket not connected, message not sent:', message);
   return false;
 };
 
