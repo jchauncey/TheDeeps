@@ -2,52 +2,34 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
+	"log"
+	"net/http"
 
-	"github.com/jchauncey/TheDeeps/internal/game"
-	"github.com/jchauncey/TheDeeps/internal/ui"
+	"github.com/jchauncey/TheDeeps/server/game"
+	"github.com/jchauncey/TheDeeps/server/handlers"
+	"github.com/rs/cors"
 )
 
 func main() {
-	fmt.Println("Welcome to The Deeps!")
-	fmt.Println("Loading game...")
+	// Create game server
+	server := game.NewGameServer()
 
-	// Set up signal handling for clean exit
-	setupSignalHandling()
+	// Create HTTP handlers
+	handler := handlers.NewHandler(server)
 
-	// Initialize terminal size and set up resize handler
-	if err := ui.InitTerminalSize(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing terminal: %v\n", err)
-		os.Exit(1)
-	}
+	// Setup routes
+	router := server.SetupRoutes(handler)
 
-	// Hide cursor during gameplay
-	ui.HideCursor()
+	// Configure CORS
+	corsHandler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:5174"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
 
-	// Create and run the game
-	g := game.NewGame()
-	g.Run()
-
-	// Restore terminal state
-	ui.ShowCursor()
-	fmt.Print("\033[0m") // Reset colors
-
-	fmt.Println("Thanks for playing The Deeps!")
-}
-
-// setupSignalHandling ensures the terminal is restored on unexpected exit
-func setupSignalHandling() {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-c
-		// Restore terminal
-		ui.ShowCursor()
-		fmt.Print("\033[0m") // Reset colors
-		fmt.Println("\nGame terminated.")
-		os.Exit(0)
-	}()
+	// Start server
+	port := 8080
+	fmt.Printf("Server starting on port %d...\n", port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), corsHandler.Handler(router)))
 }
