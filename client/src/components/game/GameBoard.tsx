@@ -327,10 +327,7 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           
           const tile = floor.tiles[dungeonY][dungeonX];
           
-          // Skip unexplored tiles
-          if (!tile.explored && !tile.visible) continue;
-          
-          // Draw tile with different opacity based on visibility
+          // Draw all tiles
           const baseColor = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
           
           // Parse the hex color to RGB
@@ -353,41 +350,12 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
             r = g = b = 128;
           }
           
-          // Set color with enhanced opacity based on visibility
-          if (tile.visible) {
-            // Fully visible tiles
-            ctx.fillStyle = baseColor;
-            
-            // Add a subtle glow effect to visible tiles
-            const gradient = ctx.createRadialGradient(
-              x * tileSize + tileSize / 2, 
-              y * tileSize + tileSize / 2, 
-              0,
-              x * tileSize + tileSize / 2, 
-              y * tileSize + tileSize / 2, 
-              tileSize
-            );
-            
-            // Ensure RGB values are valid numbers before adding to them
-            const rGlow = Math.min(255, r + 30);
-            const gGlow = Math.min(255, g + 30);
-            const bGlow = Math.min(255, b + 30);
-            
-            gradient.addColorStop(0, `rgba(${rGlow}, ${gGlow}, ${bGlow}, 1)`);
-            gradient.addColorStop(1, baseColor);
-            ctx.fillStyle = gradient;
-          } else if (tile.explored) {
-            // Explored but not currently visible tiles - make them clearly visible but dimmed
-            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
-          } else {
-            // Unexplored tiles (should not reach here due to the skip check above)
-            ctx.fillStyle = '#000';
-          }
-          
+          // Set color for the tile
+          ctx.fillStyle = baseColor;
           ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
           
-          // Draw grid lines with opacity based on visibility
-          ctx.strokeStyle = tile.visible ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.2)';
+          // Draw grid lines
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
           ctx.lineWidth = 0.5;
           ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
         }
@@ -412,35 +380,10 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           
           const tile = floor.tiles[item.position.y][item.position.x];
           
-          // Skip items on unexplored tiles
-          if (!tile.explored && !tile.visible) return;
-          
           // Draw with different opacity based on visibility
           const baseColor = ITEM_COLORS[item.type as keyof typeof ITEM_COLORS] || '#fff';
           
-          // Parse the hex color to RGB
-          let r = 0, g = 0, b = 0;
-          try {
-            // Ensure baseColor is a valid hex color
-            if (baseColor && baseColor.startsWith('#') && baseColor.length >= 7) {
-              r = parseInt(baseColor.slice(1, 3), 16);
-              g = parseInt(baseColor.slice(3, 5), 16);
-              b = parseInt(baseColor.slice(5, 7), 16);
-            }
-            
-            // Validate the parsed values
-            r = isNaN(r) ? 0 : r;
-            g = isNaN(g) ? 0 : g;
-            b = isNaN(b) ? 0 : b;
-          } catch (error) {
-            console.error('Error parsing color:', baseColor, error);
-            // Default to gray if parsing fails
-            r = g = b = 128;
-          }
-          
-          ctx.fillStyle = tile.visible 
-            ? baseColor 
-            : `rgba(${r}, ${g}, ${b}, 0.5)`;
+          ctx.fillStyle = baseColor;
           
           ctx.beginPath();
           ctx.arc(
@@ -470,11 +413,6 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
             console.error('Invalid entity position:', entity.position);
             return;
           }
-          
-          const tile = floor.tiles[entity.position.y][entity.position.x];
-          
-          // Only draw entities on visible tiles
-          if (!tile.visible) return;
           
           ctx.fillStyle = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
           ctx.fillRect(
@@ -519,93 +457,6 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       }
       
       console.log('Drawing complete');
-
-      // After drawing all tiles, add a shadow effect around the visible area
-      // This creates a more dramatic fog of war effect
-      const drawShadowEffect = () => {
-        // With room-based visibility, we don't need a complex shadow effect
-        // Just add a subtle shadow to explored but not visible tiles
-        
-        // First, create a dark overlay for unexplored areas
-        for (let y = 0; y < visibleTiles.height; y++) {
-          for (let x = 0; x < visibleTiles.width; x++) {
-            // Convert viewport coordinates to dungeon coordinates
-            const dungeonX = adjustedStartX + x;
-            const dungeonY = adjustedStartY + y;
-            
-            // Skip if out of bounds
-            if (dungeonX >= floor.width || dungeonY >= floor.height) continue;
-            
-            // Check if tiles array is properly structured
-            if (!floor.tiles[dungeonY] || !floor.tiles[dungeonY][dungeonX]) continue;
-            
-            const tile = floor.tiles[dungeonY][dungeonX];
-            
-            // Only draw darkness for unexplored areas
-            if (!tile.explored && !tile.visible) {
-              ctx.fillStyle = '#000';
-              ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-            }
-            
-            // Add a subtle shadow to explored but not currently visible tiles
-            if (tile.explored && !tile.visible) {
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-              ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-            }
-          }
-        }
-        
-        // Add a subtle glow to the room edges for currently visible areas
-        ctx.globalCompositeOperation = 'lighter';
-        
-        for (let y = 0; y < visibleTiles.height; y++) {
-          for (let x = 0; x < visibleTiles.width; x++) {
-            // Convert viewport coordinates to dungeon coordinates
-            const dungeonX = adjustedStartX + x;
-            const dungeonY = adjustedStartY + y;
-            
-            // Skip if out of bounds
-            if (dungeonX >= floor.width || dungeonY >= floor.height) continue;
-            
-            // Check if tiles array is properly structured
-            if (!floor.tiles[dungeonY] || !floor.tiles[dungeonY][dungeonX]) continue;
-            
-            const tile = floor.tiles[dungeonY][dungeonX];
-            
-            // Add a subtle glow to visible tiles at the edge of rooms
-            if (tile.visible) {
-              // Check if this is an edge tile (has at least one adjacent non-visible tile)
-              let isEdge = false;
-              
-              // Check adjacent tiles
-              const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-              for (const [dx, dy] of directions) {
-                const nx = dungeonX + dx;
-                const ny = dungeonY + dy;
-                
-                // If adjacent tile is out of bounds or not visible, this is an edge
-                if (nx < 0 || nx >= floor.width || ny < 0 || ny >= floor.height ||
-                    !floor.tiles[ny][nx].visible) {
-                  isEdge = true;
-                  break;
-                }
-              }
-              
-              // If this is an edge tile, add a subtle glow
-              if (isEdge) {
-                ctx.fillStyle = 'rgba(255, 255, 200, 0.1)';
-                ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-              }
-            }
-          }
-        }
-        
-        // Reset composite operation
-        ctx.globalCompositeOperation = 'source-over';
-      };
-
-      // Draw shadow effect after drawing all tiles, entities and the player
-      drawShadowEffect();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error drawing floor';
       console.error(errorMessage);
