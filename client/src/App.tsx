@@ -1,4 +1,4 @@
-import { ChakraProvider, useToast, Box, Flex } from '@chakra-ui/react'
+import { ChakraProvider, useToast, Box, Flex, extendTheme } from '@chakra-ui/react'
 import { useState, useEffect, useCallback } from 'react'
 import { StartScreen } from './components/game/StartScreen'
 import { CharacterCreation } from './components/game/CharacterCreation'
@@ -23,6 +23,18 @@ interface FloorData {
   playerPosition: Position;
   currentFloor: number;
 }
+
+// Create a custom theme with toast configuration
+const theme = extendTheme({
+  // Configure toast defaults
+  toast: {
+    defaultOptions: {
+      position: 'top',
+      duration: 5000,
+      isClosable: true,
+    },
+  },
+})
 
 function App() {
   // Track which screen we're on
@@ -137,8 +149,7 @@ function App() {
       title: "Load Game",
       description: "This feature is not yet implemented.",
       status: "info",
-      duration: 3000,
-      isClosable: true,
+      position: "top",
     })
   }
 
@@ -160,8 +171,7 @@ function App() {
       title: "Character Created",
       description: `${characterData.name} the ${characterData.characterClass} is ready for adventure!`,
       status: "success",
-      duration: 5000,
-      isClosable: true,
+      position: "top",
     })
   }
 
@@ -220,7 +230,7 @@ function App() {
   }
 
   return (
-    <ChakraProvider>
+    <ChakraProvider theme={theme}>
       {renderScreen()}
     </ChakraProvider>
   )

@@ -85,8 +85,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
           title: "Stats auto-allocated",
           description: `Points have been allocated based on the ${selectedClass.name} class. You can still adjust them manually.`,
           status: "info",
-          duration: 5000,
-          isClosable: true,
+          position: "top",
         });
       }
     }
@@ -162,8 +161,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
           title: "Character created",
           description: "Your character has been saved successfully.",
           status: "success",
-          duration: 3000,
-          isClosable: true,
+          position: "top",
         });
         
         // Notify parent component
@@ -173,8 +171,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
           title: "Error creating character",
           description: result.message || "There was a problem saving your character.",
           status: "error",
-          duration: 5000,
-          isClosable: true,
+          position: "top",
         });
       }
     } catch (error) {
@@ -182,8 +179,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
         title: "Error creating character",
         description: "There was a problem connecting to the server.",
         status: "error",
-        duration: 5000,
-        isClosable: true,
+        position: "top",
       });
       console.error("Error creating character:", error);
     } finally {
