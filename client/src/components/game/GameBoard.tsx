@@ -94,6 +94,8 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // toast is used for future error handling
+  // @ts-ignore
   const toast = useToast();
 
   // Process floor data when it changes
@@ -378,6 +380,8 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
             return;
           }
           
+          // Tile reference is kept for future visibility checks
+          // @ts-ignore
           const tile = floor.tiles[item.position.y][item.position.x];
           
           // Draw with different opacity based on visibility

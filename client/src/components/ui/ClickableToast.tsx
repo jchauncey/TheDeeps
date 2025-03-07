@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, useToast, UseToastOptions } from '@chakra-ui/react';
 
 interface ClickableToastProps extends UseToastOptions {

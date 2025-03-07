@@ -16,7 +16,8 @@ import { sendWebSocketMessage } from '../../services/api';
 export const GameControls = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [debugMode, setDebugMode] = useState(false);
-  const [keyMap, setKeyMap] = useState<Record<string, string>>({
+  // We define the keyMap but don't need to update it
+  const [keyMap] = useState<Record<string, string>>({
     'ArrowUp': 'Move Up',
     'ArrowDown': 'Move Down',
     'ArrowLeft': 'Move Left',

@@ -1,5 +1,4 @@
 import { io, Socket } from 'socket.io-client'
-import { useGameStore } from '../store/gameStore'
 
 class WebSocketService {
   private socket: Socket | null = null
@@ -17,10 +16,11 @@ class WebSocketService {
       console.log('Connected to game server')
     })
 
-    this.socket.on('gameState', (state: any) => {
+    this.socket.on('gameState', (_state: any) => {
       // Update game state when receiving updates from server
-      const store = useGameStore.getState()
-      // TODO: Update store with received state
+      // TODO: Implement state update logic when needed
+      // const store = useGameStore.getState()
+      // store.updateState(_state)
     })
 
     this.socket.on('disconnect', () => {

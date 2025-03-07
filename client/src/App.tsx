@@ -1,4 +1,4 @@
-import { ChakraProvider, useToast, Box, Flex, extendTheme } from '@chakra-ui/react'
+import { ChakraProvider, Box, Flex, extendTheme } from '@chakra-ui/react'
 import { useState, useEffect, useCallback } from 'react'
 import { StartScreen } from './components/game/StartScreen'
 import { CharacterCreation } from './components/game/CharacterCreation'
@@ -6,7 +6,7 @@ import { GameBoard } from './components/game/GameBoard'
 import { GameControls } from './components/game/GameControls'
 import { GameStatus } from './components/game/GameStatus'
 import { connectWebSocket, sendWebSocketMessage } from './services/api'
-import { CharacterData, DebugMessage } from './types/game'
+import { CharacterData } from './types/game'
 import { useClickableToast } from './components/ui/ClickableToast'
 
 // Define the screens we can navigate to
@@ -45,12 +45,6 @@ function App() {
   // Store character data
   const [character, setCharacter] = useState<CharacterData | null>(null)
   
-  // Store debug messages
-  const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([])
-  
-  // WebSocket connection
-  const [ws, setWs] = useState<WebSocket | null>(null)
-  
   // Store floor data
   const [floorData, setFloorData] = useState<FloorData | null>(null)
   
@@ -60,11 +54,6 @@ function App() {
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((data: any) => {
     console.log('App received WebSocket message:', data);
-    
-    // Handle debug messages
-    if (data.level) {
-      setDebugMessages(prev => [...prev, data as DebugMessage]);
-    }
     
     // Handle floor data
     if (data.type === 'floor_data') {
@@ -81,7 +70,6 @@ function App() {
   useEffect(() => {
     console.log('Connecting to WebSocket...');
     const socket = connectWebSocket(handleWebSocketMessage);
-    setWs(socket);
     
     // Clean up WebSocket connection when component unmounts
     return () => {
