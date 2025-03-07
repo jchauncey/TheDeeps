@@ -14,11 +14,13 @@ import {
   StatHelpText,
   IconButton,
   useToast,
-  Spinner
+  Spinner,
+  Divider,
+  Tooltip
 } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
-import { AddIcon, MinusIcon } from '@chakra-ui/icons'
-import { CharacterData } from '../../types/game'
+import { AddIcon, MinusIcon, InfoIcon } from '@chakra-ui/icons'
+import { CharacterData, CHARACTER_CLASSES } from '../../types/game'
 import { createCharacter } from '../../services/api'
 
 interface CharacterCreationProps {
@@ -36,49 +38,6 @@ const BASE_STATS = {
   charisma: 8
 };
 
-// Class-specific stat allocations
-const CLASS_STAT_ALLOCATIONS = {
-  warrior: {
-    strength: 4,
-    constitution: 3,
-    dexterity: 2,
-    wisdom: 1,
-    intelligence: 0,
-    charisma: 0
-  },
-  rogue: {
-    dexterity: 4,
-    charisma: 2,
-    intelligence: 2,
-    constitution: 1,
-    strength: 1,
-    wisdom: 0
-  },
-  mage: {
-    intelligence: 5,
-    wisdom: 2,
-    dexterity: 2,
-    constitution: 1,
-    charisma: 0,
-    strength: 0
-  },
-  cleric: {
-    wisdom: 4,
-    charisma: 3,
-    constitution: 2,
-    strength: 1,
-    intelligence: 0,
-    dexterity: 0
-  }
-};
-
-const CLASSES = [
-  { id: 'warrior', name: 'Warrior', description: 'Strong melee fighter with heavy armor' },
-  { id: 'rogue', name: 'Rogue', description: 'Stealthy character with high dexterity' },
-  { id: 'mage', name: 'Mage', description: 'Powerful spellcaster with arcane knowledge' },
-  { id: 'cleric', name: 'Cleric', description: 'Divine spellcaster with healing abilities' }
-];
-
 // Calculate the ability score modifier using D&D rules
 const calculateModifier = (score: number): number => {
   return Math.floor((score - 10) / 2);
@@ -93,7 +52,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
   const [name, setName] = useState('');
   const [characterClass, setCharacterClass] = useState('');
   const [stats, setStats] = useState({...BASE_STATS});
-  const [pointsRemaining, setPointsRemaining] = useState(10);
+  const [pointsRemaining, setPointsRemaining] = useState(27); // Using D&D 5e point buy system
   const [autoAllocated, setAutoAllocated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
@@ -101,23 +60,30 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
   // Auto-allocate points when class changes
   useEffect(() => {
     if (characterClass && !autoAllocated) {
-      const allocation = CLASS_STAT_ALLOCATIONS[characterClass as keyof typeof CLASS_STAT_ALLOCATIONS];
-      if (allocation) {
+      const selectedClass = CHARACTER_CLASSES.find(c => c.id === characterClass);
+      if (selectedClass) {
         // Reset stats to base
         const newStats = {...BASE_STATS};
         
-        // Apply class allocation
-        Object.entries(allocation).forEach(([stat, points]) => {
-          newStats[stat as keyof typeof newStats] += points;
+        // Apply class recommended stats
+        Object.entries(selectedClass.recommendedStats).forEach(([stat, value]) => {
+          newStats[stat as keyof typeof newStats] = value;
         });
         
         setStats(newStats);
-        setPointsRemaining(0);
+        
+        // Calculate points used
+        let pointsUsed = 0;
+        Object.values(newStats).forEach(value => {
+          pointsUsed += calculatePointCost(value);
+        });
+        
+        setPointsRemaining(27 - pointsUsed);
         setAutoAllocated(true);
         
         toast({
           title: "Stats auto-allocated",
-          description: `Points have been allocated based on the ${characterClass} class. You can still adjust them manually.`,
+          description: `Points have been allocated based on the ${selectedClass.name} class. You can still adjust them manually.`,
           status: "info",
           duration: 5000,
           isClosable: true,
@@ -133,33 +99,56 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
 
   const resetStats = () => {
     setStats({...BASE_STATS});
-    setPointsRemaining(10);
+    setPointsRemaining(27);
     setAutoAllocated(false);
   };
 
+  // Calculate point cost for a stat value (D&D 5e point buy system)
+  const calculatePointCost = (value: number): number => {
+    if (value <= 8) return 0;
+    if (value === 9) return 1;
+    if (value === 10) return 2;
+    if (value === 11) return 3;
+    if (value === 12) return 4;
+    if (value === 13) return 5;
+    if (value === 14) return 7;
+    if (value === 15) return 9;
+    return 0; // Default case
+  };
+
   const handleStatChange = (stat: keyof typeof stats, change: number) => {
-    // Don't allow stats below 8 or above 18
+    // Don't allow stats below 8 or above 15 (D&D 5e point buy limits)
     const newValue = stats[stat] + change;
-    if (newValue < 8 || newValue > 18) return;
+    if (newValue < 8 || newValue > 15) return;
+    
+    // Calculate point cost difference
+    const currentCost = calculatePointCost(stats[stat]);
+    const newCost = calculatePointCost(newValue);
+    const pointDifference = newCost - currentCost;
     
     // Check if we have enough points
-    if (change > 0 && pointsRemaining < 1) return;
+    if (pointsRemaining < pointDifference) return;
     
     setStats({
       ...stats,
       [stat]: newValue
     });
     
-    setPointsRemaining(pointsRemaining - change);
+    setPointsRemaining(pointsRemaining - pointDifference);
   };
 
   const handleCreateCharacter = async () => {
     if (!name || !characterClass) return;
     
+    const selectedClass = CHARACTER_CLASSES.find(c => c.id === characterClass);
+    if (!selectedClass) return;
+    
     const characterData: CharacterData = {
       name,
       characterClass,
-      stats
+      stats,
+      abilities: selectedClass.abilities,
+      proficiencies: selectedClass.proficiencies
     };
     
     setIsSubmitting(true);
@@ -202,9 +191,38 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
     }
   };
 
-  const getClassDescription = () => {
-    const selectedClass = CLASSES.find(c => c.id === characterClass);
-    return selectedClass ? selectedClass.description : 'Select a class to see description';
+  const getSelectedClass = () => {
+    return CHARACTER_CLASSES.find(c => c.id === characterClass);
+  };
+
+  // Calculate health and mana based on stats and class
+  const calculateHealth = () => {
+    const selectedClass = getSelectedClass();
+    if (!selectedClass) return 0;
+    
+    const conModifier = calculateModifier(stats.constitution);
+    return selectedClass.hitDie + conModifier;
+  };
+
+  const calculateMana = () => {
+    const selectedClass = getSelectedClass();
+    if (!selectedClass) return 0;
+    
+    // Spellcasting classes
+    if (['wizard', 'sorcerer', 'warlock'].includes(characterClass)) {
+      return 10 + calculateModifier(stats.intelligence) * 2;
+    } else if (['cleric', 'druid'].includes(characterClass)) {
+      return 10 + calculateModifier(stats.wisdom) * 2;
+    } else if (['bard', 'paladin'].includes(characterClass)) {
+      return 10 + calculateModifier(stats.charisma) * 2;
+    } else {
+      // Non-spellcasting classes get less mana
+      return 5 + Math.max(
+        calculateModifier(stats.intelligence),
+        calculateModifier(stats.wisdom),
+        calculateModifier(stats.charisma)
+      );
+    }
   };
 
   return (
@@ -251,11 +269,36 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
               _hover={{ borderColor: 'purple.400' }}
               _focus={{ borderColor: 'purple.500' }}
             >
-              {CLASSES.map(c => (
+              {CHARACTER_CLASSES.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </Select>
-            <Text mt={2} fontSize="md" color="gray.300">{getClassDescription()}</Text>
+            
+            {characterClass && (
+              <Box mt={3} p={3} bg="whiteAlpha.100" borderRadius="md">
+                <Text fontSize="md" fontWeight="bold" mb={1}>{getSelectedClass()?.name}</Text>
+                <Text fontSize="sm" color="gray.300" mb={2}>{getSelectedClass()?.description}</Text>
+                
+                <Divider my={2} />
+                
+                <Text fontSize="sm" mb={1}>
+                  <Text as="span" fontWeight="bold">Primary Ability:</Text> {getSelectedClass()?.primaryAbility}
+                </Text>
+                <Text fontSize="sm" mb={1}>
+                  <Text as="span" fontWeight="bold">Hit Die:</Text> d{getSelectedClass()?.hitDie}
+                </Text>
+                <Text fontSize="sm" mb={1}>
+                  <Text as="span" fontWeight="bold">Saving Throws:</Text> {getSelectedClass()?.savingThrows.join(', ')}
+                </Text>
+                
+                <Divider my={2} />
+                
+                <Text fontSize="sm" fontWeight="bold" mb={1}>Starting Abilities:</Text>
+                <Text fontSize="sm" color="gray.300">
+                  {getSelectedClass()?.abilities.join(', ')}
+                </Text>
+              </Box>
+            )}
           </Box>
           
           {/* Stats Allocation */}
@@ -283,14 +326,36 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
                 const formattedModifier = formatModifier(modifier);
                 const modifierColor = modifier >= 0 ? "green.300" : "red.300";
                 
+                // Determine if this is a primary stat for the selected class
+                const selectedClass = getSelectedClass();
+                const isPrimary = selectedClass?.primaryAbility.toLowerCase().includes(statName.toLowerCase());
+                
                 return (
-                  <Flex key={statName} justify="space-between" align="center" p={2} bg="whiteAlpha.100" borderRadius="md">
+                  <Flex 
+                    key={statName} 
+                    justify="space-between" 
+                    align="center" 
+                    p={2} 
+                    bg={isPrimary ? "whiteAlpha.200" : "whiteAlpha.100"} 
+                    borderRadius="md"
+                    borderLeft={isPrimary ? "3px solid" : "none"}
+                    borderColor="purple.400"
+                  >
                     <Stat>
-                      <StatLabel textTransform="capitalize">{statName}</StatLabel>
-                      <StatNumber>{value}</StatNumber>
-                      <StatHelpText color={modifierColor}>
-                        Modifier: {formattedModifier}
-                      </StatHelpText>
+                      <Flex align="center">
+                        <StatLabel textTransform="capitalize" fontSize="sm">{statName}</StatLabel>
+                        {isPrimary && (
+                          <Tooltip label="Primary ability for this class">
+                            <InfoIcon ml={1} color="purple.300" fontSize="xs" />
+                          </Tooltip>
+                        )}
+                      </Flex>
+                      <Flex align="baseline">
+                        <StatNumber fontSize="md">{value}</StatNumber>
+                        <StatHelpText fontSize="xs" color={modifierColor} mt={0} ml={1}>
+                          ({formattedModifier})
+                        </StatHelpText>
+                      </Flex>
                     </Stat>
                     <HStack>
                       <IconButton
@@ -307,7 +372,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
                         icon={<AddIcon />}
                         size="sm"
                         colorScheme="purple"
-                        isDisabled={pointsRemaining <= 0 || stats[statName as keyof typeof stats] >= 18 || isSubmitting}
+                        isDisabled={pointsRemaining <= 0 || stats[statName as keyof typeof stats] >= 15 || isSubmitting}
                         onClick={() => handleStatChange(statName as keyof typeof stats, 1)}
                       />
                     </HStack>
@@ -316,6 +381,34 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
               })}
             </VStack>
           </Box>
+          
+          {/* Character Preview */}
+          {characterClass && (
+            <Box p={4} bg="whiteAlpha.100" borderRadius="md">
+              <Text fontSize="md" fontWeight="bold" mb={3}>Character Preview</Text>
+              
+              <Flex justify="space-between" wrap="wrap">
+                <Box flex="1" minW="200px" mr={4}>
+                  <Text fontSize="sm" mb={1}>
+                    <Text as="span" fontWeight="bold">Health:</Text> {calculateHealth()}
+                  </Text>
+                  <Text fontSize="sm" mb={1}>
+                    <Text as="span" fontWeight="bold">Mana:</Text> {calculateMana()}
+                  </Text>
+                  <Text fontSize="sm" mb={1}>
+                    <Text as="span" fontWeight="bold">Armor Class:</Text> {10 + calculateModifier(stats.dexterity)}
+                  </Text>
+                </Box>
+                
+                <Box flex="1" minW="200px">
+                  <Text fontSize="sm" fontWeight="bold" mb={1}>Proficiencies:</Text>
+                  <Text fontSize="xs" color="gray.300">
+                    {getSelectedClass()?.proficiencies.join(', ')}
+                  </Text>
+                </Box>
+              </Flex>
+            </Box>
+          )}
           
           {/* Buttons */}
           <HStack spacing={4} justify="center" mt={6}>

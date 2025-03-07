@@ -81,7 +81,11 @@ interface FloorData {
   currentFloor: number;
 }
 
-export const GameBoard = () => {
+interface GameBoardProps {
+  floorData: FloorData | null;
+}
+
+export const GameBoard = ({ floorData }: GameBoardProps) => {
   const [loading, setLoading] = useState(true);
   const [floor, setFloor] = useState<Floor | null>(null);
   const [playerPos, setPlayerPos] = useState<Position | null>(null);
@@ -91,10 +95,24 @@ export const GameBoard = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
-  // Request floor data when component mounts
+  // Process floor data when it changes
   useEffect(() => {
-    requestFloorData();
-  }, []);
+    if (floorData) {
+      console.log('Processing floor data:', floorData);
+      setFloor(floorData.floor);
+      setPlayerPos(floorData.playerPosition);
+      setCurrentFloor(floorData.currentFloor);
+      setLoading(false);
+    }
+  }, [floorData]);
+
+  // Request floor data when component mounts if not provided
+  useEffect(() => {
+    if (!floorData) {
+      console.log('No floor data provided, requesting from server...');
+      requestFloorData();
+    }
+  }, [floorData]);
 
   // Calculate viewport size on mount and when container size changes
   useEffect(() => {
@@ -141,9 +159,8 @@ export const GameBoard = () => {
     }
   }, [floor, playerPos, viewportSize]);
 
-  // Handle WebSocket messages
+  // Handle WebSocket messages for additional updates
   useEffect(() => {
-    // This function would be called by the parent component when a WebSocket message is received
     const handleWebSocketMessage = (data: any) => {
       if (data.type === 'floor_data') {
         const floorData = data as FloorData;
@@ -154,7 +171,6 @@ export const GameBoard = () => {
       }
     };
 
-    // Register the handler with the parent component
     window.addEventListener('websocket_message', (e: any) => handleWebSocketMessage(e.detail));
 
     return () => {
@@ -262,6 +278,12 @@ export const GameBoard = () => {
         // Skip if out of bounds
         if (dungeonX >= floor.width || dungeonY >= floor.height) continue;
         
+        // Check if tiles array is properly structured
+        if (!floor.tiles[dungeonY] || !floor.tiles[dungeonY][dungeonX]) {
+          console.error('Invalid tile data at', dungeonX, dungeonY);
+          continue;
+        }
+        
         const tile = floor.tiles[dungeonY][dungeonX];
         
         // Skip unexplored tiles
@@ -289,79 +311,99 @@ export const GameBoard = () => {
     }
 
     // Draw items within viewport
-    floor.items.forEach(item => {
-      // Convert dungeon coordinates to viewport coordinates
-      const viewportX = item.position.x - adjustedStartX;
-      const viewportY = item.position.y - adjustedStartY;
-      
-      // Skip if outside viewport
-      if (viewportX < 0 || viewportX >= visibleTiles.width || 
-          viewportY < 0 || viewportY >= visibleTiles.height) return;
-      
-      const tile = floor.tiles[item.position.y][item.position.x];
-      
-      // Skip items on unexplored tiles
-      if (!tile.explored && !tile.visible) return;
-      
-      // Draw with different opacity based on visibility
-      const baseColor = ITEM_COLORS[item.type as keyof typeof ITEM_COLORS] || '#fff';
-      
-      // Parse the hex color to RGB
-      const r = parseInt(baseColor.slice(1, 3), 16);
-      const g = parseInt(baseColor.slice(3, 5), 16);
-      const b = parseInt(baseColor.slice(5, 7), 16);
-      
-      ctx.fillStyle = tile.visible 
-        ? baseColor 
-        : `rgba(${r}, ${g}, ${b}, 0.5)`;
-      
-      ctx.beginPath();
-      ctx.arc(
-        viewportX * tileSize + tileSize / 2,
-        viewportY * tileSize + tileSize / 2,
-        tileSize / 4,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
-    });
+    if (floor.items && Array.isArray(floor.items)) {
+      floor.items.forEach(item => {
+        // Convert dungeon coordinates to viewport coordinates
+        const viewportX = item.position.x - adjustedStartX;
+        const viewportY = item.position.y - adjustedStartY;
+        
+        // Skip if outside viewport
+        if (viewportX < 0 || viewportX >= visibleTiles.width || 
+            viewportY < 0 || viewportY >= visibleTiles.height) return;
+        
+        // Check if position is valid
+        if (!floor.tiles[item.position.y] || !floor.tiles[item.position.y][item.position.x]) {
+          console.error('Invalid item position:', item.position);
+          return;
+        }
+        
+        const tile = floor.tiles[item.position.y][item.position.x];
+        
+        // Skip items on unexplored tiles
+        if (!tile.explored && !tile.visible) return;
+        
+        // Draw with different opacity based on visibility
+        const baseColor = ITEM_COLORS[item.type as keyof typeof ITEM_COLORS] || '#fff';
+        
+        // Parse the hex color to RGB
+        const r = parseInt(baseColor.slice(1, 3), 16);
+        const g = parseInt(baseColor.slice(3, 5), 16);
+        const b = parseInt(baseColor.slice(5, 7), 16);
+        
+        ctx.fillStyle = tile.visible 
+          ? baseColor 
+          : `rgba(${r}, ${g}, ${b}, 0.5)`;
+        
+        ctx.beginPath();
+        ctx.arc(
+          viewportX * tileSize + tileSize / 2,
+          viewportY * tileSize + tileSize / 2,
+          tileSize / 4,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      });
+    }
 
     // Draw entities within viewport
-    floor.entities.forEach(entity => {
-      // Convert dungeon coordinates to viewport coordinates
-      const viewportX = entity.position.x - adjustedStartX;
-      const viewportY = entity.position.y - adjustedStartY;
-      
-      // Skip if outside viewport
-      if (viewportX < 0 || viewportX >= visibleTiles.width || 
-          viewportY < 0 || viewportY >= visibleTiles.height) return;
-      
-      const tile = floor.tiles[entity.position.y][entity.position.x];
-      
-      // Only draw entities on visible tiles
-      if (!tile.visible) return;
-      
-      ctx.fillStyle = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
-      ctx.fillRect(
-        viewportX * tileSize + tileSize / 4,
-        viewportY * tileSize + tileSize / 4,
-        tileSize / 2,
-        tileSize / 2
-      );
-    });
+    if (floor.entities && Array.isArray(floor.entities)) {
+      floor.entities.forEach(entity => {
+        // Convert dungeon coordinates to viewport coordinates
+        const viewportX = entity.position.x - adjustedStartX;
+        const viewportY = entity.position.y - adjustedStartY;
+        
+        // Skip if outside viewport
+        if (viewportX < 0 || viewportX >= visibleTiles.width || 
+            viewportY < 0 || viewportY >= visibleTiles.height) return;
+        
+        // Check if position is valid
+        if (!floor.tiles[entity.position.y] || !floor.tiles[entity.position.y][entity.position.x]) {
+          console.error('Invalid entity position:', entity.position);
+          return;
+        }
+        
+        const tile = floor.tiles[entity.position.y][entity.position.x];
+        
+        // Only draw entities on visible tiles
+        if (!tile.visible) return;
+        
+        ctx.fillStyle = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
+        ctx.fillRect(
+          viewportX * tileSize + tileSize / 4,
+          viewportY * tileSize + tileSize / 4,
+          tileSize / 2,
+          tileSize / 2
+        );
+      });
+    }
 
     // Draw player
     // Convert dungeon coordinates to viewport coordinates
     const playerViewportX = playerPos.x - adjustedStartX;
     const playerViewportY = playerPos.y - adjustedStartY;
     
-    ctx.fillStyle = ENTITY_COLORS.player;
-    ctx.fillRect(
-      playerViewportX * tileSize + tileSize / 4,
-      playerViewportY * tileSize + tileSize / 4,
-      tileSize / 2,
-      tileSize / 2
-    );
+    // Only draw player if within viewport
+    if (playerViewportX >= 0 && playerViewportX < visibleTiles.width &&
+        playerViewportY >= 0 && playerViewportY < visibleTiles.height) {
+      ctx.fillStyle = ENTITY_COLORS.player;
+      ctx.fillRect(
+        playerViewportX * tileSize + tileSize / 4,
+        playerViewportY * tileSize + tileSize / 4,
+        tileSize / 2,
+        tileSize / 2
+      );
+    }
     
     console.log('Drawing complete');
   };

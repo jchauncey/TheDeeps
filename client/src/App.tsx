@@ -1,11 +1,11 @@
 import { ChakraProvider, useToast, Box, Flex } from '@chakra-ui/react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { StartScreen } from './components/game/StartScreen'
 import { CharacterCreation } from './components/game/CharacterCreation'
 import { GameBoard } from './components/game/GameBoard'
 import { GameControls } from './components/game/GameControls'
 import { GameStatus } from './components/game/GameStatus'
-import { connectWebSocket } from './services/api'
+import { connectWebSocket, sendWebSocketMessage } from './services/api'
 import { CharacterData, DebugMessage } from './types/game'
 
 // Define the screens we can navigate to
@@ -24,31 +24,51 @@ function App() {
   // WebSocket connection
   const [ws, setWs] = useState<WebSocket | null>(null)
   
+  // Store floor data
+  const [floorData, setFloorData] = useState<any>(null)
+  
   const toast = useToast()
+
+  // Handle WebSocket messages
+  const handleWebSocketMessage = useCallback((data: any) => {
+    console.log('Received WebSocket message:', data);
+    
+    // Handle debug messages
+    if (data.level) {
+      setDebugMessages(prev => [...prev, data as DebugMessage]);
+    }
+    
+    // Handle floor data
+    if (data.type === 'floor_data') {
+      console.log('Received floor data:', data);
+      setFloorData(data);
+    }
+    
+    // Dispatch a custom event for other components to listen to
+    const event = new CustomEvent('websocket_message', { detail: data });
+    window.dispatchEvent(event);
+  }, []);
 
   // Connect to WebSocket when component mounts
   useEffect(() => {
-    const socket = connectWebSocket((data) => {
-      // Handle incoming WebSocket messages
-      if (data.level) {
-        // It's a debug message
-        setDebugMessages(prev => [...prev, data as DebugMessage])
-      }
-      
-      // Dispatch a custom event for other components to listen to
-      const event = new CustomEvent('websocket_message', { detail: data });
-      window.dispatchEvent(event);
-    })
-    
-    setWs(socket)
+    const socket = connectWebSocket(handleWebSocketMessage);
+    setWs(socket);
     
     // Clean up WebSocket connection when component unmounts
     return () => {
       if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.close()
+        socket.close();
       }
+    };
+  }, [handleWebSocketMessage]);
+
+  // Request floor data when entering game screen
+  useEffect(() => {
+    if (currentScreen === 'game' && ws && ws.readyState === WebSocket.OPEN) {
+      console.log('Requesting floor data...');
+      sendWebSocketMessage({ type: 'get_floor' });
     }
-  }, [])
+  }, [currentScreen, ws]);
 
   const handleNewGame = () => {
     setCurrentScreen('characterCreation')
@@ -113,7 +133,7 @@ function App() {
                 overflow="hidden"
                 minW="0" // Important for flex child to shrink properly
               >
-                <GameBoard />
+                <GameBoard floorData={floorData} />
               </Box>
               
               {/* Right side - Character Status */}
