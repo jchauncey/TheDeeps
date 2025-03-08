@@ -62,11 +62,64 @@ function App() {
           description: data.message,
           status: 'error',
         })
+      } else if (data.type === 'character_created') {
+        // Update character with ID from server
+        if (data.character && data.character.id) {
+          console.log('Setting character ID:', data.character.id)
+          
+          // Create a complete character object from the server response
+          const updatedCharacter = {
+            ...data.character,
+            // Ensure all required fields are present
+            name: data.character.name,
+            characterClass: data.character.characterClass,
+            stats: data.character.stats,
+            id: data.character.id
+          };
+          
+          // Update the character state
+          setCharacter(updatedCharacter);
+          
+          toast({
+            title: 'Character Created',
+            description: data.message || 'Character created successfully',
+            status: 'success',
+          })
+          
+          // Move to dungeon selection screen
+          setCurrentScreen('dungeonSelection')
+        } else {
+          console.error('Character created but no ID received');
+          toast({
+            title: 'Error',
+            description: 'Character created but no ID received',
+            status: 'error',
+          })
+        }
+      } else if (data.type === 'dungeon_created') {
+        toast({
+          title: 'Success',
+          description: data.message || 'Dungeon created successfully',
+          status: 'success',
+        })
+      } else if (data.type === 'dungeon_joined') {
+        toast({
+          title: 'Success',
+          description: data.message || 'Dungeon joined successfully',
+          status: 'success',
+        })
+        
+        // Request floor data
+        if (character && character.id) {
+          sendWebSocketMessage({ 
+            type: 'get_floor'
+          });
+        }
       }
     } catch (error) {
       console.error('Error handling WebSocket message:', error)
     }
-  }, [toast])
+  }, [toast, character, setCharacter])
   
   // Handle WebSocket connection
   const initializeWebSocket = useCallback(() => {
@@ -159,14 +212,20 @@ function App() {
       }
     })
     
-    if (success) {
-      setCurrentScreen('dungeonSelection')
-    } else {
+    if (!success) {
       toast({
         title: 'Error',
         description: 'Failed to send character data to server',
         status: 'error',
       })
+    } else {
+      toast({
+        title: 'Creating Character',
+        description: 'Character creation request sent',
+        status: 'info',
+        duration: 3000,
+      })
+      // We'll wait for the character_created message before navigating
     }
   }
   

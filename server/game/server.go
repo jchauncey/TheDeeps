@@ -82,8 +82,9 @@ type CreateDungeonMessage struct {
 }
 
 type JoinDungeonMessage struct {
-	Type      string `json:"type"`
-	DungeonID string `json:"dungeonId"`
+	Type        string `json:"type"`
+	DungeonID   string `json:"dungeonId"`
+	CharacterID string `json:"characterId"`
 }
 
 type ListDungeonsMessage struct {
@@ -1246,23 +1247,32 @@ func (s *GameServer) HandleJoinDungeon(conn *websocket.Conn, payload []byte) {
 		return
 	}
 
-	// Log the dungeon join
-	log.Printf("Player joining dungeon: %s", joinDungeonMsg.DungeonID)
+	// Validate character ID
+	if joinDungeonMsg.CharacterID == "" {
+		log.Println("Character ID is required")
+		sendError(conn, "Character ID is required")
+		return
+	}
 
-	// Associate the dungeon with the connection
-	s.Clients[conn] = joinDungeonMsg.DungeonID
+	// Log the dungeon join
+	log.Printf("Player %s joining dungeon: %s", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID)
+
+	// Associate the character with the connection
+	s.Clients[conn] = joinDungeonMsg.CharacterID
 
 	// Send success message
 	response := map[string]interface{}{
-		"type":      "dungeon_joined",
-		"message":   fmt.Sprintf("Player joined dungeon %s", joinDungeonMsg.DungeonID),
-		"timestamp": time.Now().Unix(),
+		"type":        "dungeon_joined",
+		"dungeonId":   joinDungeonMsg.DungeonID,
+		"characterId": joinDungeonMsg.CharacterID,
+		"message":     fmt.Sprintf("Player %s joined dungeon %s", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID),
+		"timestamp":   time.Now().Unix(),
 	}
 
 	if err := conn.WriteJSON(response); err != nil {
 		log.Printf("Error sending dungeon join response: %v", err)
 	} else {
-		log.Printf("Player joined dungeon %s", joinDungeonMsg.DungeonID)
+		log.Printf("Player %s joined dungeon %s", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID)
 	}
 }
 

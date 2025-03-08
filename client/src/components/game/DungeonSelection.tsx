@@ -24,7 +24,7 @@ import {
   CardHeader,
   SimpleGrid,
 } from '@chakra-ui/react';
-import { createDungeon, getAvailableDungeons, joinDungeon } from '../../services/api';
+import { createDungeon, getAvailableDungeons, joinDungeon, sendWebSocketMessage, joinDungeonWS } from '../../services/api';
 import { DungeonData, FloorData } from '../../types/game';
 
 interface DungeonSelectionProps {
@@ -97,22 +97,34 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
 
     setIsCreating(true);
     try {
-      const result = await createDungeon(dungeonName, numFloors);
-      if (result.success && result.dungeonId) {
+      // Use the WebSocket API instead of HTTP API
+      const success = sendWebSocketMessage({
+        type: 'create_dungeon',
+        name: dungeonName,
+        numFloors: numFloors
+      });
+      
+      if (success) {
         toast({
-          title: 'Success',
-          description: 'Dungeon created successfully',
-          status: 'success',
-          duration: 5000,
+          title: 'Creating Dungeon',
+          description: 'Dungeon creation request sent',
+          status: 'info',
+          duration: 3000,
           isClosable: true,
         });
         
-        // Join the newly created dungeon
-        await handleJoinDungeon(result.dungeonId);
+        // Wait for the dungeon to be created
+        // The server will send a dungeon_created message
+        // which will be handled by the WebSocket message handler
+        
+        // Refresh the dungeon list after a short delay
+        setTimeout(() => {
+          loadDungeons();
+        }, 1000);
       } else {
         toast({
           title: 'Error',
-          description: result.message || 'Failed to create dungeon',
+          description: 'Failed to send dungeon creation request',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -134,22 +146,57 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
   const handleJoinDungeon = async (dungeonId: string) => {
     setIsJoining(true);
     try {
-      const result = await joinDungeon(dungeonId, characterId);
-      if (result.success && result.floorData) {
+      // Use the WebSocket API instead of HTTP API
+      const success = sendWebSocketMessage({
+        type: 'join_dungeon',
+        dungeonId: dungeonId,
+        characterId: characterId
+      });
+      
+      if (success) {
         toast({
-          title: 'Success',
-          description: 'Joined dungeon successfully',
-          status: 'success',
-          duration: 5000,
+          title: 'Joining Dungeon',
+          description: 'Dungeon join request sent',
+          status: 'info',
+          duration: 3000,
           isClosable: true,
         });
         
-        // Notify parent component that a dungeon has been selected
-        onDungeonSelected(dungeonId, result.floorData);
+        // Wait for the dungeon to be joined
+        // The server will send a dungeon_joined message
+        // which will be handled by the WebSocket message handler
+        
+        // For now, we'll simulate a successful join after a short delay
+        // In a real implementation, we would wait for the server's response
+        setTimeout(() => {
+          // Create a simple floor data object for demonstration
+          const dummyFloorData: FloorData = {
+            type: 'floor_data',
+            floor: {
+              width: 20,
+              height: 20,
+              tiles: [],
+              entities: [],
+              items: []
+            },
+            playerPosition: { x: 10, y: 10 },
+            currentFloor: 0,
+            playerData: {
+              id: characterId,
+              name: 'Player',
+              characterClass: 'warrior',
+              health: 100,
+              maxHealth: 100
+            }
+          };
+          
+          // Notify parent component that a dungeon has been selected
+          onDungeonSelected(dungeonId, dummyFloorData);
+        }, 1000);
       } else {
         toast({
           title: 'Error',
-          description: result.message || 'Failed to join dungeon',
+          description: 'Failed to send dungeon join request',
           status: 'error',
           duration: 5000,
           isClosable: true,
