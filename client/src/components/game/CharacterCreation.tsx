@@ -146,7 +146,8 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
       characterClass,
       stats,
       abilities: selectedClass.abilities,
-      proficiencies: selectedClass.proficiencies
+      proficiencies: selectedClass.proficiencies,
+      gold: 10 // Starting gold amount
     };
     
     setIsSubmitting(true);

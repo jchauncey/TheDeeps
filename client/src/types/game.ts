@@ -12,6 +12,7 @@ export interface CharacterData {
   };
   abilities: string[];
   proficiencies: string[];
+  gold: number; // Amount of gold the character has
 }
 
 // Character class definitions
@@ -264,6 +265,7 @@ export interface GameState {
   mana: number;
   maxMana: number;
   experience: number;
+  gold: number; // Amount of gold the player has
   inventory: Item[];
 }
 

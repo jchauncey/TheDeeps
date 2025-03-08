@@ -15,7 +15,6 @@ import { sendWebSocketMessage } from '../../services/api';
 
 export const GameControls = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [debugMode, setDebugMode] = useState(false);
   // We define the keyMap but don't need to update it
   const [keyMap] = useState<Record<string, string>>({
     'ArrowUp': 'Move Up',
@@ -71,10 +70,6 @@ export const GameControls = () => {
         handleAction('descend');
       } else if (e.key === '<') {
         handleAction('ascend');
-      } else if (e.ctrlKey && e.key === 'd') {
-        // Toggle debug mode (F12 or Ctrl+D)
-        e.preventDefault(); // Prevent browser's default behavior
-        toggleDebugMode();
       } else if (e.key === '?') {
         // Toggle help modal
         if (isOpen) {
@@ -99,7 +94,7 @@ export const GameControls = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onOpen, onClose, keyMap]);
+  }, [keyMap, isOpen, onOpen, onClose]);
 
   // Handle movement
   const handleMove = (direction: 'up' | 'down' | 'left' | 'right') => {
@@ -117,30 +112,8 @@ export const GameControls = () => {
     });
   };
 
-  // Toggle debug mode
-  const toggleDebugMode = () => {
-    setDebugMode(!debugMode);
-    sendWebSocketMessage({
-      type: 'action',
-      action: 'toggle_debug'
-    });
-  };
-
   return (
     <>
-      {/* Debug Button */}
-      <Tooltip label="Toggle Debug Mode (F12 or Ctrl+D)" placement="left">
-        <Box position="fixed" top="20px" right="20px" zIndex={1000}>
-          <Button
-            size="sm"
-            colorScheme={debugMode ? "red" : "gray"}
-            onClick={toggleDebugMode}
-          >
-            {debugMode ? "Debug: ON" : "Debug: OFF"}
-          </Button>
-        </Box>
-      </Tooltip>
-
       {/* Help Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
@@ -165,7 +138,6 @@ export const GameControls = () => {
                 <p style={{ fontSize: '0.875rem' }}>a: Attack</p>
                 <p style={{ fontSize: '0.875rem' }}>u: Use item</p>
                 <p style={{ fontSize: '0.875rem' }}>&lt;/&gt;: Stairs</p>
-                <p style={{ fontSize: '0.875rem' }}>d: Toggle debug mode</p>
                 <p style={{ fontSize: '0.875rem' }}>?: Help (this screen)</p>
                 <p style={{ fontSize: '0.875rem' }}>Esc: Menu/Close</p>
               </div>

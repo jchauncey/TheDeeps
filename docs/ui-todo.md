@@ -6,7 +6,7 @@ This document lists the missing UI elements that need to be implemented to fully
 - [ ] Implement a Random Name generator button that generates fantasy-appropriate character names
 
 ## Character Profile Window
-- [ ] Add a gold counter to display how much gold the character currently has
+- [x] Add a gold counter to display how much gold the character currently has
 - [ ] Add a potion counter to display how many potions the character is currently holding
 - [ ] Enhance the inventory section to show gold, potions, and other items
 - [ ] Ensure experience points are properly tracked and updated during gameplay

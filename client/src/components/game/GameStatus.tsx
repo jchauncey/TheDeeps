@@ -255,6 +255,13 @@ export const GameStatus = ({ character }: GameStatusProps) => {
         Inventory
       </Text>
       <Box fontSize="sm" color="gray.300">
+        <Flex mb={1} align="center">
+          <Text width="80px" color="gray.400">Gold:</Text>
+          <Flex align="center">
+            <Text mr={1}>{character.gold || 0}</Text>
+            <Box as="span" color="yellow.400" fontSize="xs">●</Box>
+          </Flex>
+        </Flex>
         <Text>Empty</Text>
       </Box>
 
