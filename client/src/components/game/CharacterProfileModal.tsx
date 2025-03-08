@@ -18,6 +18,22 @@ import {
 } from '@chakra-ui/react';
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game';
 import { FaHeart, FaFlask, FaBrain, FaShieldAlt, FaRunning, FaStar, FaUser } from 'react-icons/fa';
+// Import Game Icons for class-specific icons
+import { 
+  GiSwordman, 
+  GiWizardFace, 
+  GiDaggers,
+  GiHolySymbol, 
+  GiOakLeaf,
+  GiDevilMask,
+  GiLyre,
+  GiShield,
+  GiBowArrow,
+  GiMonkFace,
+  GiAxeSwing,
+  GiFireball,
+  GiDungeonGate
+} from 'react-icons/gi';
 
 // Import CLASS_COLORS from the same place GameStatus uses it
 import { CLASS_COLORS } from '../../constants/gameConstants';
@@ -36,6 +52,28 @@ export const CharacterProfileModal = ({ character, isOpen, onClose }: CharacterP
   
   // Get class colors
   const classColors = CLASS_COLORS[character.characterClass as keyof typeof CLASS_COLORS] || CLASS_COLORS.default;
+  
+  // Get the appropriate icon component based on class
+  const getClassIcon = () => {
+    switch(classColors.iconType) {
+      case 'GiSwordman': return GiSwordman;
+      case 'GiWizardFace': return GiWizardFace;
+      case 'GiDaggers': return GiDaggers;
+      case 'GiHolySymbol': return GiHolySymbol;
+      case 'GiOakLeaf': return GiOakLeaf;
+      case 'GiDevilMask': return GiDevilMask;
+      case 'GiLyre': return GiLyre;
+      case 'GiShield': return GiShield;
+      case 'GiBowArrow': return GiBowArrow;
+      case 'GiMonkFace': return GiMonkFace;
+      case 'GiAxeSwing': return GiAxeSwing;
+      case 'GiFireball': return GiFireball;
+      case 'GiDungeonGate': return GiDungeonGate;
+      default: return FaUser;
+    }
+  };
+  
+  const ClassIcon = getClassIcon();
   
   // Calculate derived stats
   const calculateModifier = (stat: number) => Math.floor((stat - 10) / 2);
@@ -85,7 +123,7 @@ export const CharacterProfileModal = ({ character, isOpen, onClose }: CharacterP
               width="60px"
               height="60px"
             >
-              <Icon as={FaUser} color={classColors.textColor} boxSize="1.5em" />
+              <Icon as={ClassIcon} color={classColors.textColor} boxSize="1.8em" />
             </Box>
             <Box>
               <Text fontSize="2xl" fontWeight="bold" mb={0}>

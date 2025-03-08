@@ -4,6 +4,22 @@ import { FaHeart, FaFlask, FaStar, FaUser } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
 import { CharacterProfileModal } from '../../components/game/CharacterProfileModal';
 import { CLASS_COLORS } from '../../constants/gameConstants';
+// Import Game Icons for class-specific icons
+import { 
+  GiSwordman, 
+  GiWizardFace, 
+  GiDaggers,
+  GiHolySymbol, 
+  GiOakLeaf,
+  GiDevilMask,
+  GiLyre,
+  GiShield,
+  GiBowArrow,
+  GiMonkFace,
+  GiAxeSwing,
+  GiFireball,
+  GiDungeonGate
+} from 'react-icons/gi';
 
 // Define a custom event name for opening the character profile
 export const OPEN_CHARACTER_PROFILE_EVENT = 'open_character_profile';
@@ -56,6 +72,28 @@ export const GameStatusSimple = ({ character }: GameStatusSimpleProps) => {
   // Get class colors
   const classColors = CLASS_COLORS[character.characterClass as keyof typeof CLASS_COLORS] || CLASS_COLORS.default;
   
+  // Get the appropriate icon component based on class
+  const getClassIcon = () => {
+    switch(classColors.iconType) {
+      case 'GiSwordman': return GiSwordman;
+      case 'GiWizardFace': return GiWizardFace;
+      case 'GiDaggers': return GiDaggers;
+      case 'GiHolySymbol': return GiHolySymbol;
+      case 'GiOakLeaf': return GiOakLeaf;
+      case 'GiDevilMask': return GiDevilMask;
+      case 'GiLyre': return GiLyre;
+      case 'GiShield': return GiShield;
+      case 'GiBowArrow': return GiBowArrow;
+      case 'GiMonkFace': return GiMonkFace;
+      case 'GiAxeSwing': return GiAxeSwing;
+      case 'GiFireball': return GiFireball;
+      case 'GiDungeonGate': return GiDungeonGate;
+      default: return FaUser;
+    }
+  };
+  
+  const ClassIcon = getClassIcon();
+  
   // Calculate derived stats
   const calculateModifier = (stat: number) => Math.floor((stat - 10) / 2);
   
@@ -100,7 +138,7 @@ export const GameStatusSimple = ({ character }: GameStatusSimpleProps) => {
           <Tooltip label="Open Character Profile (Press 'C')">
             <Button 
               size="sm" 
-              leftIcon={<FaUser />} 
+              leftIcon={<Icon as={ClassIcon} />} 
               variant="outline"
               onClick={() => setIsProfileOpen(true)}
               _hover={{ bg: classColors.primary + '30' }}

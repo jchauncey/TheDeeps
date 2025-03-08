@@ -68,7 +68,7 @@
    - Health bar with current/maximum values
    - Mana bar with current/maximum values
    - Experience bar with progress to next level
-   - Profile button to open detailed character information
+   - Profile button with class-specific icon
    - Class-specific styling and colors
    - Responsive design that works well on smaller screens
 
@@ -76,7 +76,8 @@
    - Accessible via 'C' hotkey or Profile button in status panel
    - Overlays the game map when opened
    - Detailed character information in a scrollable modal
-   - Class icon displayed in a square container instead of a circle
+   - Class-specific icon displayed in a square container
+   - Thematic icons for each character class (warrior, mage, rogue, etc.)
    - Character name, level, and class prominently displayed
    - Text colors with sufficient contrast against background colors
    - Attributes section with modifier values
