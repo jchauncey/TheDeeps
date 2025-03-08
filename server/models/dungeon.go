@@ -57,10 +57,14 @@ func (r *Room) Center() (int, int) {
 
 // Entity represents an entity in the dungeon (monster, NPC, etc.)
 type Entity struct {
-	ID       string   `json:"id"`
-	Type     string   `json:"type"`
-	Name     string   `json:"name"`
-	Position Position `json:"position"`
+	ID             string   `json:"id"`
+	Type           string   `json:"type"`
+	Name           string   `json:"name"`
+	Position       Position `json:"position"`
+	CharacterClass string   `json:"characterClass,omitempty"`
+	Health         int      `json:"health,omitempty"`
+	MaxHealth      int      `json:"maxHealth,omitempty"`
+	Status         []string `json:"status,omitempty"`
 	// Add more entity properties as needed
 }
 

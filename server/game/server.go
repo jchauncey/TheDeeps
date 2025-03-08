@@ -285,6 +285,46 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 	// Move if valid
 	if s.IsValidMove(newPos) {
 		s.Game.Dungeon.PlayerPosition = newPos
+
+		// Update player entity position
+		currentFloor := s.Game.Dungeon.CurrentFloor
+		floor := s.Game.Dungeon.Floors[currentFloor]
+
+		// Find and update player entity
+		for i, entity := range floor.Entities {
+			if entity.Type == "player" {
+				floor.Entities[i].Position = newPos
+				break
+			}
+		}
+
+		// Get the player character for the current connection
+		character := s.Game.Players[conn.RemoteAddr().String()]
+
+		// If we have a player character but no player entity exists, create one
+		if character != nil {
+			playerEntityExists := false
+			for _, entity := range floor.Entities {
+				if entity.Type == "player" {
+					playerEntityExists = true
+					break
+				}
+			}
+
+			if !playerEntityExists {
+				playerEntity := models.Entity{
+					ID:             uuid.New().String(),
+					Type:           "player",
+					Name:           character.Name,
+					Position:       newPos,
+					CharacterClass: character.CharacterClass,
+					Health:         character.Health,
+					MaxHealth:      character.MaxHealth,
+				}
+				floor.Entities = append(floor.Entities, playerEntity)
+			}
+		}
+
 		UpdateVisibility(s.Game.Dungeon)
 		log.Printf("Player moved %s to (%d, %d)", moveMsg.Direction, newPos.X, newPos.Y)
 		s.BroadcastFloorData()
@@ -415,6 +455,48 @@ func (s *GameServer) DescendStairs() {
 				}
 			}
 
+			// Get the player character for the current connection
+			playerAddr := ""
+			for client := range s.Clients {
+				if s.Clients[client] {
+					playerAddr = client.RemoteAddr().String()
+					break
+				}
+			}
+
+			// If we have a player character, create or update the player entity on the new floor
+			if playerAddr != "" && s.Game.Players[playerAddr] != nil {
+				character := s.Game.Players[playerAddr]
+
+				// Check if a player entity already exists on the new floor
+				playerEntityExists := false
+				for i, entity := range newFloor.Entities {
+					if entity.Type == "player" {
+						// Update existing player entity with character info
+						newFloor.Entities[i].CharacterClass = character.CharacterClass
+						newFloor.Entities[i].Health = character.Health
+						newFloor.Entities[i].MaxHealth = character.MaxHealth
+						newFloor.Entities[i].Position = s.Game.Dungeon.PlayerPosition
+						playerEntityExists = true
+						break
+					}
+				}
+
+				// If no player entity exists, create one
+				if !playerEntityExists {
+					playerEntity := models.Entity{
+						ID:             uuid.New().String(),
+						Type:           "player",
+						Name:           character.Name,
+						Position:       s.Game.Dungeon.PlayerPosition,
+						CharacterClass: character.CharacterClass,
+						Health:         character.Health,
+						MaxHealth:      character.MaxHealth,
+					}
+					newFloor.Entities = append(newFloor.Entities, playerEntity)
+				}
+			}
+
 			UpdateVisibility(s.Game.Dungeon)
 			log.Printf("Player descended to floor %d", s.Game.Dungeon.CurrentFloor+1)
 			s.BroadcastFloorData()
@@ -442,6 +524,48 @@ func (s *GameServer) AscendStairs() {
 						s.Game.Dungeon.PlayerPosition = models.Position{X: x, Y: y}
 						break
 					}
+				}
+			}
+
+			// Get the player character for the current connection
+			playerAddr := ""
+			for client := range s.Clients {
+				if s.Clients[client] {
+					playerAddr = client.RemoteAddr().String()
+					break
+				}
+			}
+
+			// If we have a player character, create or update the player entity on the new floor
+			if playerAddr != "" && s.Game.Players[playerAddr] != nil {
+				character := s.Game.Players[playerAddr]
+
+				// Check if a player entity already exists on the new floor
+				playerEntityExists := false
+				for i, entity := range newFloor.Entities {
+					if entity.Type == "player" {
+						// Update existing player entity with character info
+						newFloor.Entities[i].CharacterClass = character.CharacterClass
+						newFloor.Entities[i].Health = character.Health
+						newFloor.Entities[i].MaxHealth = character.MaxHealth
+						newFloor.Entities[i].Position = s.Game.Dungeon.PlayerPosition
+						playerEntityExists = true
+						break
+					}
+				}
+
+				// If no player entity exists, create one
+				if !playerEntityExists {
+					playerEntity := models.Entity{
+						ID:             uuid.New().String(),
+						Type:           "player",
+						Name:           character.Name,
+						Position:       s.Game.Dungeon.PlayerPosition,
+						CharacterClass: character.CharacterClass,
+						Health:         character.Health,
+						MaxHealth:      character.MaxHealth,
+					}
+					newFloor.Entities = append(newFloor.Entities, playerEntity)
 				}
 			}
 
@@ -634,6 +758,38 @@ func (s *GameServer) HandleCreateCharacter(conn *websocket.Conn, payload []byte)
 
 	// Associate the character with the connection
 	s.Game.Players[conn.RemoteAddr().String()] = character
+
+	// Create or update player entity on the current floor with character class info
+	currentFloor := s.Game.Dungeon.CurrentFloor
+	floor := s.Game.Dungeon.Floors[currentFloor]
+	playerPos := s.Game.Dungeon.PlayerPosition
+
+	// Check if a player entity already exists
+	playerEntityExists := false
+	for i, entity := range floor.Entities {
+		if entity.Type == "player" {
+			// Update existing player entity with new character class
+			floor.Entities[i].CharacterClass = character.CharacterClass
+			floor.Entities[i].Health = character.Health
+			floor.Entities[i].MaxHealth = character.MaxHealth
+			playerEntityExists = true
+			break
+		}
+	}
+
+	// If no player entity exists, create one
+	if !playerEntityExists {
+		playerEntity := models.Entity{
+			ID:             uuid.New().String(),
+			Type:           "player",
+			Name:           character.Name,
+			Position:       playerPos,
+			CharacterClass: character.CharacterClass,
+			Health:         character.Health,
+			MaxHealth:      character.MaxHealth,
+		}
+		floor.Entities = append(floor.Entities, playerEntity)
+	}
 
 	// Send success message
 	response := map[string]interface{}{
