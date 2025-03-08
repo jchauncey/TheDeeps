@@ -359,6 +359,8 @@ func (s *GameServer) HandleAction(conn *websocket.Conn, payload []byte) {
 		s.DescendStairs()
 	case "ascend":
 		s.AscendStairs()
+	case "save_game":
+		s.SaveGame(conn)
 	case "toggle_debug":
 		DebugMode = !DebugMode
 		log.Printf("Debug mode: %v", DebugMode)
@@ -816,5 +818,42 @@ func sendError(conn *websocket.Conn, message string) {
 
 	if err != nil {
 		log.Printf("Error sending error message: %v", err)
+	}
+}
+
+// SaveGame saves the current game state for a player
+func (s *GameServer) SaveGame(conn *websocket.Conn) {
+	// Get the player character associated with this connection
+	character := s.Game.Players[conn.RemoteAddr().String()]
+	if character == nil {
+		log.Printf("Error: No character found for connection")
+		sendError(conn, "No character found to save")
+		return
+	}
+
+	// Update the character's position and other state
+	character.UpdatedAt = time.Now()
+
+	// Save the character to the repository
+	if s.CharacterRepository != nil {
+		err := s.CharacterRepository.Update(character)
+		if err != nil {
+			log.Printf("Error saving character: %v", err)
+			sendError(conn, fmt.Sprintf("Error saving game: %v", err))
+			return
+		}
+	}
+
+	// Send success message
+	response := map[string]interface{}{
+		"type":      "game_saved",
+		"message":   fmt.Sprintf("Game saved successfully for %s", character.Name),
+		"timestamp": time.Now().Unix(),
+	}
+
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending save game response: %v", err)
+	} else {
+		log.Printf("Game saved successfully for %s", character.Name)
 	}
 }

@@ -5,4 +5,5 @@ export * from './GameBoard';
 export * from './GameControls';
 export * from './GameStatus';
 export * from './GameStatusSimple';
-export * from './StartScreen'; 
+export * from './StartScreen';
+export * from './MainMenu'; 

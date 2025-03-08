@@ -13,9 +13,30 @@ import {
 } from '@chakra-ui/react';
 import { sendWebSocketMessage } from '../../services/api';
 import { OPEN_CHARACTER_PROFILE_EVENT } from '../game';
+import { MainMenu } from './MainMenu';
+import { CharacterData } from '../../types/game';
 
-export const GameControls = () => {
-  const { isOpen, onOpen, onClose } = useDisclosure();
+interface GameControlsProps {
+  character: CharacterData | null;
+  onNewGame: () => void;
+  onLoadGame: () => void;
+}
+
+export const GameControls = ({ character, onNewGame, onLoadGame }: GameControlsProps) => {
+  // Help modal disclosure
+  const { 
+    isOpen: isHelpOpen, 
+    onOpen: onHelpOpen, 
+    onClose: onHelpClose 
+  } = useDisclosure();
+  
+  // Main menu disclosure
+  const { 
+    isOpen: isMenuOpen, 
+    onOpen: onMenuOpen, 
+    onClose: onMenuClose 
+  } = useDisclosure();
+  
   // We define the keyMap but don't need to update it
   const [keyMap] = useState<Record<string, string>>({
     'w': 'Move Up',
@@ -73,17 +94,23 @@ export const GameControls = () => {
         window.dispatchEvent(new Event(OPEN_CHARACTER_PROFILE_EVENT));
       } else if (e.key === '?') {
         // Toggle help modal
-        if (isOpen) {
-          onClose();
+        if (isHelpOpen) {
+          onHelpClose();
         } else {
-          onOpen();
+          onHelpOpen();
         }
       } else if (e.key === 'Escape') {
-        // Close modal if open, otherwise show menu
-        if (isOpen) {
-          onClose();
-        } else {
-          handleAction('menu');
+        // If help modal is open, close it
+        if (isHelpOpen) {
+          onHelpClose();
+        } 
+        // If menu is open, close it
+        else if (isMenuOpen) {
+          onMenuClose();
+        }
+        // Otherwise open the menu
+        else {
+          onMenuOpen();
         }
       }
     };
@@ -95,7 +122,7 @@ export const GameControls = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [keyMap, isOpen, onOpen, onClose]);
+  }, [keyMap, isHelpOpen, onHelpOpen, onHelpClose, isMenuOpen, onMenuOpen, onMenuClose]);
 
   // Handle movement
   const handleMove = (direction: 'up' | 'down' | 'left' | 'right') => {
@@ -118,7 +145,7 @@ export const GameControls = () => {
   return (
     <>
       {/* Help Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isHelpOpen} onClose={onHelpClose} size="lg">
         <ModalOverlay />
         <ModalContent bg="#291326" color="white">
           <ModalHeader>Game Controls</ModalHeader>
@@ -149,6 +176,15 @@ export const GameControls = () => {
           </ModalBody>
         </ModalContent>
       </Modal>
+      
+      {/* Main Menu */}
+      <MainMenu 
+        isOpen={isMenuOpen} 
+        onClose={onMenuClose} 
+        onNewGame={onNewGame}
+        onLoadGame={onLoadGame}
+        character={character}
+      />
     </>
   );
 }; 

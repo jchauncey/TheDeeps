@@ -188,4 +188,28 @@ export const getSavedCharacters = async (): Promise<{ success: boolean; characte
       message: error instanceof Error ? error.message : 'An unknown error occurred' 
     };
   }
+};
+
+// Save the current game
+export const saveGame = async (characterId: string): Promise<{ success: boolean; message?: string }> => {
+  try {
+    // Send a WebSocket message to save the game
+    const success = sendWebSocketMessage({
+      type: 'action',
+      action: 'save_game',
+      characterId
+    });
+    
+    if (!success) {
+      throw new Error('Failed to send save game request');
+    }
+    
+    return { success: true, message: 'Game save request sent' };
+  } catch (error) {
+    console.error('Error saving game:', error);
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'An unknown error occurred' 
+    };
+  }
 }; 

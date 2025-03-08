@@ -272,7 +272,11 @@ function App() {
             </Flex>
             
             {/* Controls (overlay) */}
-            <GameControls />
+            <GameControls 
+              character={character}
+              onNewGame={handleNewGame}
+              onLoadGame={handleLoadGame}
+            />
           </Box>
         )
       default:
