@@ -101,7 +101,6 @@ export const GameStatusSimple = ({ character }: GameStatusSimpleProps) => {
             <Button 
               size="sm" 
               leftIcon={<FaUser />} 
-              colorScheme="purple" 
               variant="outline"
               onClick={() => setIsProfileOpen(true)}
               _hover={{ bg: classColors.primary + '30' }}

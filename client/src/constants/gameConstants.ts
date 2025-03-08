@@ -3,66 +3,79 @@ export const CLASS_COLORS = {
   warrior: {
     primary: '#C53030',   // Red
     secondary: '#E53E3E',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'W'
   },
   mage: {
     primary: '#3182CE',   // Blue
     secondary: '#4299E1',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'M'
   },
   rogue: {
     primary: '#38A169',   // Green
     secondary: '#48BB78',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'R'
   },
   cleric: {
     primary: '#D69E2E',   // Yellow
     secondary: '#ECC94B',
+    textColor: '#000000', // Black text for contrast with yellow
     icon: 'C'
   },
   druid: {
     primary: '#805AD5',   // Purple
     secondary: '#9F7AEA',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'D'
   },
   warlock: {
     primary: '#6B46C1',   // Purple
     secondary: '#805AD5',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'W'
   },
   bard: {
     primary: '#DD6B20',   // Orange
     secondary: '#ED8936',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'B'
   },
   paladin: {
     primary: '#2C5282',   // Blue
     secondary: '#3182CE',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'P'
   },
   ranger: {
     primary: '#276749',   // Green
     secondary: '#38A169',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'R'
   },
   monk: {
     primary: '#975A16',   // Yellow
     secondary: '#B7791F',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'M'
   },
   barbarian: {
     primary: '#9B2C2C',   // Red
     secondary: '#C53030',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'B'
   },
   sorcerer: {
     primary: '#44337A',   // Purple
     secondary: '#6B46C1',
+    textColor: '#FFFFFF', // White text for contrast
     icon: 'S'
   },
   default: {
     primary: '#718096',   // Gray
     secondary: '#A0AEC0',
+    textColor: '#FFFFFF', // White text for contrast
     icon: '?'
   }
 }; 

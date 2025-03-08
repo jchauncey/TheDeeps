@@ -18,6 +18,7 @@
    - Accessible design with proper contrast ratios and screen reader support
    - Dark mode support with automatic detection of system preferences
    - Consistent padding and margins throughout the interface
+   - Text colors should have sufficient contrast with background colors
 
 3. **Notification System**
    - Toast banners should be clickable to dismiss
@@ -75,8 +76,9 @@
    - Accessible via 'C' hotkey or Profile button in status panel
    - Overlays the game map when opened
    - Detailed character information in a scrollable modal
-   - Character portrait or icon at the top
+   - Class icon displayed in a square container instead of a circle
    - Character name, level, and class prominently displayed
+   - Text colors with sufficient contrast against background colors
    - Attributes section with modifier values
    - Class abilities section with visual indicators
    - Equipment section showing equipped items

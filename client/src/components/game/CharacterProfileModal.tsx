@@ -11,14 +11,13 @@ import {
   Text,
   Divider,
   Badge,
-  Avatar,
   Icon,
   Grid,
   GridItem,
   Button
 } from '@chakra-ui/react';
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game';
-import { FaHeart, FaFlask, FaBrain, FaShieldAlt, FaRunning, FaStar } from 'react-icons/fa';
+import { FaHeart, FaFlask, FaBrain, FaShieldAlt, FaRunning, FaStar, FaUser } from 'react-icons/fa';
 
 // Import CLASS_COLORS from the same place GameStatus uses it
 import { CLASS_COLORS } from '../../constants/gameConstants';
@@ -73,29 +72,33 @@ export const CharacterProfileModal = ({ character, isOpen, onClose }: CharacterP
         <ModalHeader>Character Profile</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          {/* Character Header with Avatar */}
+          {/* Character Header */}
           <Flex align="center" mb={3}>
-            <Avatar 
-              size="lg" 
-              name={character.name} 
-              bg={classColors.primary}
-              color="white"
-              icon={<Text fontSize="xl">{classColors.icon}</Text>}
+            <Box 
+              bg={classColors.primary} 
+              p={3} 
+              borderRadius="md" 
               mr={3}
-            />
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              width="60px"
+              height="60px"
+            >
+              <Icon as={FaUser} color={classColors.textColor} boxSize="1.5em" />
+            </Box>
             <Box>
               <Text fontSize="2xl" fontWeight="bold" mb={0}>
                 {character.name}
               </Text>
               <Flex align="center">
                 <Badge 
-                  colorScheme="purple" 
                   mr={2}
                   px={2}
                   py={0.5}
                   borderRadius="full"
                   bg={classColors.primary}
-                  color="white"
+                  color={classColors.textColor}
                 >
                   Level {characterLevel}
                 </Badge>
@@ -177,7 +180,7 @@ export const CharacterProfileModal = ({ character, isOpen, onClose }: CharacterP
                   py={1}
                   borderRadius="full"
                   bg={`${classColors.secondary}90`}
-                  color="white"
+                  color={classColors.textColor}
                 >
                   {ability}
                 </Badge>
@@ -219,8 +222,8 @@ export const CharacterProfileModal = ({ character, isOpen, onClose }: CharacterP
               Inventory
             </Text>
             <Flex justify="space-between" mb={2}>
-              <Badge colorScheme="yellow">Gold: {character.gold || 0}</Badge>
-              <Badge colorScheme="red">Potions: {character.potions || 0}</Badge>
+              <Badge bg={classColors.primary} color={classColors.textColor}>Gold: {character.gold || 0}</Badge>
+              <Badge bg="red.500" color="white">Potions: {character.potions || 0}</Badge>
             </Flex>
             <Box 
               p={2} 
