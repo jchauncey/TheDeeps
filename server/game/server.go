@@ -189,66 +189,56 @@ func (s *GameServer) SetupRoutes(handler any) *mux.Router {
 	return r
 }
 
-// HandleWebSocket processes WebSocket connections
+// HandleWebSocket handles WebSocket connections
 func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Configure WebSocket upgrader with more robust settings
-	s.Upgrader.HandshakeTimeout = 10 * time.Second
-	s.Upgrader.EnableCompression = true
+	// Add CORS headers
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, Upgrade, Connection")
 
-	conn, err := s.Upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("Error upgrading to WebSocket:", err)
+	// Handle preflight requests
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	// Set read/write deadlines
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	conn.SetPongHandler(func(string) error {
-		// Reset read deadline on pong
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		return nil
-	})
-
-	// Start a ping-pong keepalive goroutine
-	stopPinger := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				// Send ping
-				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(5*time.Second)); err != nil {
-					log.Println("Ping error:", err)
-					return
-				}
-			case <-stopPinger:
-				return
-			}
-		}
-	}()
+	// Upgrade the HTTP connection to a WebSocket connection
+	conn, err := s.Upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Error upgrading to WebSocket: %v", err)
+		return
+	}
 
 	// Register client
 	s.Clients[conn] = ""
 
 	// Ensure proper cleanup when function returns
 	defer func() {
-		close(stopPinger)
-		delete(s.Clients, conn)
+		// Get character ID associated with this connection
+		characterID := s.Clients[conn]
+
+		// Clean up connection
 		conn.Close()
+		delete(s.Clients, conn)
+
+		// Log the disconnection
+		if characterID != "" {
+			log.Printf("Client disconnected: character ID %s", characterID)
+		} else {
+			log.Printf("Client disconnected: no character associated")
+		}
+
 		log.Println("WebSocket connection closed and cleaned up")
 	}()
 
-	// Send welcome message
-	err = conn.WriteJSON(DebugMessage{
-		Message:   "Connected to game server",
-		Level:     "info",
-		Timestamp: time.Now().Unix(),
-	})
+	// Send a welcome message
+	welcomeMsg := map[string]interface{}{
+		"type":      "welcome",
+		"message":   "Welcome to The Deeps!",
+		"timestamp": time.Now().Unix(),
+	}
 
-	if err != nil {
+	if err := conn.WriteJSON(welcomeMsg); err != nil {
 		log.Println("Error sending welcome message:", err)
 		return
 	}
@@ -263,7 +253,7 @@ func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("Unexpected close error: %v", err)
 			} else {
-				log.Println("Error reading message:", err)
+				log.Printf("Client disconnected: %v", err)
 			}
 			break
 		}

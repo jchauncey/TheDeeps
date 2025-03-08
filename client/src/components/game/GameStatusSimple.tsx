@@ -20,9 +20,7 @@ import {
   GiFireball,
   GiDungeonGate
 } from 'react-icons/gi';
-
-// Define a custom event name for opening the character profile
-export const OPEN_CHARACTER_PROFILE_EVENT = 'open_character_profile';
+import { OPEN_CHARACTER_PROFILE_EVENT } from './GameControls';
 
 interface GameStatusSimpleProps {
   character: CharacterData | null;

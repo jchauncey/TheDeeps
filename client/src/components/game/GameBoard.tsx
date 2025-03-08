@@ -3,6 +3,7 @@ import { Box, Spinner, Text, useToast, Button } from '@chakra-ui/react';
 import { sendWebSocketMessage } from '../../services/api';
 import { CLASS_COLORS } from '../../constants/gameConstants';
 import { MapLegend } from './MapLegend';
+import { FloorData, Position, Entity, Tile, Room, Floor, DungeonItem } from '../../types/game';
 
 // Define tile types and their colors
 export const TILE_COLORS = {
@@ -67,71 +68,6 @@ const CHARACTER_CLASS_STYLES = {
   // Default for any unspecified class
   default: { color: CLASS_COLORS.default.primary, symbol: '@', secondaryColor: CLASS_COLORS.default.secondary },
 };
-
-interface Position {
-  x: number;
-  y: number;
-}
-
-interface Entity {
-  id: string;
-  type: string;
-  name: string;
-  position: Position;
-  characterClass?: string; // Add character class for player entities
-  health?: number; // Add health for status indicators
-  maxHealth?: number;
-  status?: string[]; // Add status effects array
-  damage?: number; // Add damage for mob entities
-  defense?: number; // Add defense for mob entities
-  speed?: number; // Add speed for mob entities
-  difficulty?: string; // Add difficulty for mob entities
-}
-
-interface Item {
-  id: string;
-  type: string;
-  name: string;
-  position: Position;
-}
-
-interface Tile {
-  type: string;
-  explored: boolean;
-  visible: boolean;
-  entity?: Entity;
-  item?: Item;
-}
-
-interface Room {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface Floor {
-  level: number;
-  width: number;
-  height: number;
-  tiles: Tile[][];
-  rooms: Room[];
-  entities: Entity[];
-  items: Item[];
-}
-
-interface FloorData {
-  type: string;
-  floor: Floor;
-  playerPosition: Position;
-  currentFloor: number;
-  playerData?: {
-    characterClass?: string;
-    health?: number;
-    maxHealth?: number;
-    status?: string[];
-  };
-}
 
 interface GameBoardProps {
   floorData: FloorData | null;
@@ -303,350 +239,166 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
 
   // Draw the floor on the canvas
   const drawFloor = () => {
-    if (!floor || !canvasRef.current || !playerPos) {
-      console.log('Missing data for drawing:', { 
-        hasFloor: !!floor, 
-        hasCanvas: !!canvasRef.current, 
-        hasPlayerPos: !!playerPos 
-      });
-      return;
-    }
-
+    if (!floor || !playerPos || !canvasRef.current) return;
+    
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      console.log('Could not get canvas context');
-      return;
+    if (!ctx) return;
+    
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Calculate tile size based on viewport
+    const tileSize = Math.min(
+      viewportSize.width / Math.min(floor.width, 40),
+      viewportSize.height / Math.min(floor.height, 25)
+    );
+    
+    // Calculate viewport boundaries to only render what's visible
+    const visibleTilesX = Math.ceil(viewportSize.width / tileSize);
+    const visibleTilesY = Math.ceil(viewportSize.height / tileSize);
+    
+    // Center the viewport on the player
+    const startX = Math.max(0, playerPos.x - Math.floor(visibleTilesX / 2));
+    const startY = Math.max(0, playerPos.y - Math.floor(visibleTilesY / 2));
+    const endX = Math.min(floor.width, startX + visibleTilesX);
+    const endY = Math.min(floor.height, startY + visibleTilesY);
+    
+    // Draw tiles
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const tile = floor.tiles[y][x];
+        const screenX = (x - startX) * tileSize;
+        const screenY = (y - startY) * tileSize;
+        
+        // Draw tile background
+        ctx.fillStyle = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
+        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+        
+        // Draw tile border
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+        
+        // Draw item if present
+        if (tile.item) {
+          drawItem(ctx, tile.item, screenX, screenY, tileSize);
+        }
+      }
     }
+    
+    // Draw entities
+    for (const entity of floor.entities) {
+      // Only draw entities within the viewport
+      if (
+        entity.position.x >= startX && 
+        entity.position.x < endX && 
+        entity.position.y >= startY && 
+        entity.position.y < endY
+      ) {
+        const screenX = (entity.position.x - startX) * tileSize;
+        const screenY = (entity.position.y - startY) * tileSize;
+        drawEntity(ctx, entity, screenX, screenY, tileSize);
+      }
+    }
+  };
 
-    try {
-      // Calculate the visible area (viewport)
-      const visibleTiles = {
-        width: Math.min(floor.width, 40), // Limit to 40 tiles wide
-        height: Math.min(floor.height, 25) // Limit to 25 tiles high
-      };
+  // Update the drawItem function to use DungeonItem
+  const drawItem = (
+    ctx: CanvasRenderingContext2D, 
+    item: DungeonItem, 
+    x: number, 
+    y: number, 
+    size: number
+  ) => {
+    // Draw item
+    const itemColor = ITEM_COLORS[item.type as keyof typeof ITEM_COLORS] || '#fff';
+    ctx.fillStyle = itemColor;
+    
+    // Draw a smaller rectangle for the item
+    const padding = size * 0.25;
+    ctx.fillRect(x + padding, y + padding, size - padding * 2, size - padding * 2);
+    
+    // Draw item border
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + padding, y + padding, size - padding * 2, size - padding * 2);
+  };
+
+  // Add the drawEntity function
+  const drawEntity = (
+    ctx: CanvasRenderingContext2D, 
+    entity: Entity, 
+    x: number, 
+    y: number, 
+    size: number
+  ) => {
+    // Draw entity
+    const entityColor = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
+    ctx.fillStyle = entityColor;
+    
+    // Draw entity as a circle
+    ctx.beginPath();
+    ctx.arc(
+      x + size / 2,
+      y + size / 2,
+      size / 3,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+    
+    // Determine difficulty from entity name or use the difficulty property
+    let difficulty = entity.difficulty || 'normal';
+    if (!entity.difficulty) {
+      if (entity.name.startsWith('easy')) {
+        difficulty = 'easy';
+      } else if (entity.name.startsWith('hard')) {
+        difficulty = 'hard';
+      } else if (entity.name.startsWith('elite')) {
+        difficulty = 'elite';
+      } else if (entity.name.startsWith('boss')) {
+        difficulty = 'boss';
+      }
+    }
+    
+    // Add a border with difficulty color
+    ctx.strokeStyle = DIFFICULTY_COLORS[difficulty as keyof typeof DIFFICULTY_COLORS] || '#000';
+    ctx.lineWidth = difficulty === 'boss' ? 3 : difficulty === 'elite' ? 2 : 1;
+    ctx.stroke();
+    
+    // Add a letter indicator for entity type
+    ctx.fillStyle = '#000';
+    ctx.font = `${Math.max(8, size / 2)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+      entity.type.charAt(0).toUpperCase(),
+      x + size / 2,
+      y + size / 2
+    );
+    
+    // Draw health bar if health is available
+    if (entity.health !== undefined && entity.maxHealth !== undefined && entity.health < entity.maxHealth) {
+      const healthPercentage = entity.health / entity.maxHealth;
       
-      // Calculate tile size based on available space and visible area
-      const tileSize = Math.max(
-        1,
-        Math.min(
-          Math.floor(viewportSize.width / visibleTiles.width),
-          Math.floor(viewportSize.height / visibleTiles.height)
-        )
+      // Health bar background
+      ctx.fillStyle = '#500';
+      ctx.fillRect(
+        x,
+        y - size / 5,
+        size,
+        size / 10
       );
       
-      console.log('Tile size calculated:', tileSize);
-      
-      // Set canvas size
-      canvas.width = visibleTiles.width * tileSize;
-      canvas.height = visibleTiles.height * tileSize;
-      
-      console.log('Canvas size set to:', canvas.width, canvas.height);
-
-      // Calculate viewport center (player position)
-      const viewportCenterX = Math.floor(visibleTiles.width / 2);
-      const viewportCenterY = Math.floor(visibleTiles.height / 2);
-      
-      // Calculate top-left corner of viewport in dungeon coordinates
-      const viewportStartX = Math.max(0, playerPos.x - viewportCenterX);
-      const viewportStartY = Math.max(0, playerPos.y - viewportCenterY);
-      
-      // Adjust if we're near the edge of the map
-      const maxStartX = Math.max(0, floor.width - visibleTiles.width);
-      const maxStartY = Math.max(0, floor.height - visibleTiles.height);
-      
-      const adjustedStartX = Math.min(viewportStartX, maxStartX);
-      const adjustedStartY = Math.min(viewportStartY, maxStartY);
-      
-      console.log('Viewport start:', adjustedStartX, adjustedStartY);
-
-      // Clear canvas
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Draw tiles within viewport
-      for (let y = 0; y < visibleTiles.height; y++) {
-        for (let x = 0; x < visibleTiles.width; x++) {
-          // Convert viewport coordinates to dungeon coordinates
-          const dungeonX = adjustedStartX + x;
-          const dungeonY = adjustedStartY + y;
-          
-          // Skip if out of bounds
-          if (dungeonX >= floor.width || dungeonY >= floor.height) continue;
-          
-          // Check if tiles array is properly structured
-          if (!floor.tiles[dungeonY] || !floor.tiles[dungeonY][dungeonX]) {
-            console.error('Invalid tile data at', dungeonX, dungeonY);
-            continue;
-          }
-          
-          const tile = floor.tiles[dungeonY][dungeonX];
-          
-          // Draw all tiles
-          const baseColor = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
-          
-          // Parse the hex color to RGB
-          let r = 0, g = 0, b = 0;
-          try {
-            // Ensure baseColor is a valid hex color
-            if (baseColor && baseColor.startsWith('#') && baseColor.length >= 7) {
-              r = parseInt(baseColor.slice(1, 3), 16);
-              g = parseInt(baseColor.slice(3, 5), 16);
-              b = parseInt(baseColor.slice(5, 7), 16);
-            }
-            
-            // Validate the parsed values
-            r = isNaN(r) ? 0 : r;
-            g = isNaN(g) ? 0 : g;
-            b = isNaN(b) ? 0 : b;
-          } catch (error) {
-            console.error('Error parsing color:', baseColor, error);
-            // Default to gray if parsing fails
-            r = g = b = 128;
-          }
-          
-          // Set color for the tile
-          ctx.fillStyle = baseColor;
-          ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-          
-          // Draw grid lines
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-          ctx.lineWidth = 0.5;
-          ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
-        }
-      }
-
-      // Draw items within viewport
-      if (floor.items && Array.isArray(floor.items)) {
-        floor.items.forEach(item => {
-          // Convert dungeon coordinates to viewport coordinates
-          const viewportX = item.position.x - adjustedStartX;
-          const viewportY = item.position.y - adjustedStartY;
-          
-          // Skip if outside viewport
-          if (viewportX < 0 || viewportX >= visibleTiles.width || 
-              viewportY < 0 || viewportY >= visibleTiles.height) return;
-          
-          // Check if position is valid
-          if (!floor.tiles[item.position.y] || !floor.tiles[item.position.y][item.position.x]) {
-            console.error('Invalid item position:', item.position);
-            return;
-          }
-          
-          // Tile reference is kept for future visibility checks
-          // @ts-ignore
-          const tile = floor.tiles[item.position.y][item.position.x];
-          
-          // Draw with different opacity based on visibility
-          const baseColor = ITEM_COLORS[item.type as keyof typeof ITEM_COLORS] || '#fff';
-          
-          ctx.fillStyle = baseColor;
-          
-          ctx.beginPath();
-          ctx.arc(
-            viewportX * tileSize + tileSize / 2,
-            viewportY * tileSize + tileSize / 2,
-            tileSize / 4,
-            0,
-            Math.PI * 2
-          );
-          ctx.fill();
-        });
-      }
-
-      // Draw entities within viewport
-      if (floor.entities && Array.isArray(floor.entities)) {
-        floor.entities.forEach(entity => {
-          // Convert dungeon coordinates to viewport coordinates
-          const viewportX = entity.position.x - adjustedStartX;
-          const viewportY = entity.position.y - adjustedStartY;
-          
-          // Skip if outside viewport
-          if (viewportX < 0 || viewportX >= visibleTiles.width || 
-              viewportY < 0 || viewportY >= visibleTiles.height) return;
-          
-          // Check if position is valid
-          if (!floor.tiles[entity.position.y] || !floor.tiles[entity.position.y][entity.position.x]) {
-            console.error('Invalid entity position:', entity.position);
-            return;
-          }
-          
-          // Draw entity with improved visuals
-          const baseColor = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
-          ctx.fillStyle = baseColor;
-          
-          // Draw entity as a circle with a border
-          ctx.beginPath();
-          ctx.arc(
-            viewportX * tileSize + tileSize / 2,
-            viewportY * tileSize + tileSize / 2,
-            tileSize / 3,
-            0,
-            Math.PI * 2
-          );
-          ctx.fill();
-          
-          // Determine difficulty from entity name
-          let difficulty = 'normal';
-          if (entity.name.startsWith('easy')) {
-            difficulty = 'easy';
-          } else if (entity.name.startsWith('hard')) {
-            difficulty = 'hard';
-          } else if (entity.name.startsWith('elite')) {
-            difficulty = 'elite';
-          } else if (entity.name.startsWith('boss')) {
-            difficulty = 'boss';
-          }
-          
-          // Add a border with difficulty color
-          ctx.strokeStyle = DIFFICULTY_COLORS[difficulty as keyof typeof DIFFICULTY_COLORS] || '#000';
-          ctx.lineWidth = difficulty === 'boss' ? 3 : difficulty === 'elite' ? 2 : 1;
-          ctx.stroke();
-          
-          // Add a letter indicator for entity type
-          ctx.fillStyle = '#000';
-          ctx.font = `${Math.max(8, tileSize / 2)}px monospace`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(
-            entity.type.charAt(0).toUpperCase(),
-            viewportX * tileSize + tileSize / 2,
-            viewportY * tileSize + tileSize / 2
-          );
-          
-          // Draw health bar if health is available
-          if (entity.health !== undefined && entity.maxHealth !== undefined && entity.health < entity.maxHealth) {
-            const healthPercentage = entity.health / entity.maxHealth;
-            
-            // Health bar background
-            ctx.fillStyle = '#500';
-            ctx.fillRect(
-              viewportX * tileSize,
-              viewportY * tileSize - tileSize / 5,
-              tileSize,
-              tileSize / 10
-            );
-            
-            // Health bar fill
-            ctx.fillStyle = healthPercentage > 0.5 ? '#0f0' : healthPercentage > 0.25 ? '#ff0' : '#f00';
-            ctx.fillRect(
-              viewportX * tileSize,
-              viewportY * tileSize - tileSize / 5,
-              tileSize * healthPercentage,
-              tileSize / 10
-            );
-          }
-        });
-      }
-
-      // Draw player with class-specific styling
-      // Convert dungeon coordinates to viewport coordinates
-      const playerViewportX = playerPos.x - adjustedStartX;
-      const playerViewportY = playerPos.y - adjustedStartY;
-      
-      console.log(`Drawing player at viewport coordinates: (${playerViewportX}, ${playerViewportY})`);
-      
-      // Only draw player if within viewport
-      if (playerViewportX >= 0 && playerViewportX < visibleTiles.width &&
-          playerViewportY >= 0 && playerViewportY < visibleTiles.height) {
-        
-        // Find player entity to get class and health info
-        const playerEntity = floor.entities?.find(e => e.type === 'player');
-        const characterClass = playerEntity?.characterClass || floorData?.playerData?.characterClass || 'default';
-        const classStyle = CHARACTER_CLASS_STYLES[characterClass as keyof typeof CHARACTER_CLASS_STYLES] || 
-                           CHARACTER_CLASS_STYLES.default;
-        
-        // Calculate health percentage if available
-        const healthPercentage = playerEntity?.health && playerEntity?.maxHealth 
-          ? playerEntity.health / playerEntity.maxHealth 
-          : floorData?.playerData?.health && floorData?.playerData?.maxHealth
-            ? floorData.playerData.health / floorData.playerData.maxHealth
-            : 1;
-        
-        // Draw a more visible player marker with class-specific styling
-        ctx.fillStyle = classStyle.color;
-        
-        // Draw player as a circle
-        ctx.beginPath();
-        ctx.arc(
-          playerViewportX * tileSize + tileSize / 2,
-          playerViewportY * tileSize + tileSize / 2,
-          tileSize / 2.5,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-        
-        // Add a border
-        ctx.strokeStyle = classStyle.secondaryColor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        // Add the class symbol
-        ctx.fillStyle = '#000';
-        ctx.font = `bold ${Math.max(10, tileSize / 1.5)}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(
-          classStyle.symbol,
-          playerViewportX * tileSize + tileSize / 2,
-          playerViewportY * tileSize + tileSize / 2
-        );
-        
-        // Draw health indicator if health is less than 100%
-        if (healthPercentage < 1) {
-          // Health bar background
-          ctx.fillStyle = '#500';
-          ctx.fillRect(
-            playerViewportX * tileSize,
-            playerViewportY * tileSize - tileSize / 5,
-            tileSize,
-            tileSize / 10
-          );
-          
-          // Health bar fill
-          ctx.fillStyle = healthPercentage > 0.5 ? '#0f0' : healthPercentage > 0.25 ? '#ff0' : '#f00';
-          ctx.fillRect(
-            playerViewportX * tileSize,
-            playerViewportY * tileSize - tileSize / 5,
-            tileSize * healthPercentage,
-            tileSize / 10
-          );
-        }
-        
-        // Draw status effects if any
-        if (playerEntity?.status && playerEntity.status.length > 0) {
-          const statusColors = {
-            poisoned: '#0f0',
-            burning: '#f50',
-            frozen: '#0ff',
-            blessed: '#ff0',
-            cursed: '#f0f',
-            default: '#fff'
-          };
-          
-          // Draw status indicator
-          playerEntity.status.slice(0, 3).forEach((status, index) => {
-            const statusColor = statusColors[status as keyof typeof statusColors] || statusColors.default;
-            ctx.fillStyle = statusColor;
-            ctx.beginPath();
-            ctx.arc(
-              playerViewportX * tileSize + tileSize / 4 + (index * tileSize / 4),
-              playerViewportY * tileSize + tileSize - tileSize / 6,
-              tileSize / 10,
-              0,
-              Math.PI * 2
-            );
-            ctx.fill();
-          });
-        }
-      }
-      
-      console.log('Drawing complete');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error drawing floor';
-      console.error(errorMessage);
-      setError(errorMessage);
+      // Health bar fill
+      ctx.fillStyle = healthPercentage > 0.5 ? '#0f0' : healthPercentage > 0.25 ? '#ff0' : '#f00';
+      ctx.fillRect(
+        x,
+        y - size / 5,
+        size * healthPercentage,
+        size / 10
+      );
     }
   };
 

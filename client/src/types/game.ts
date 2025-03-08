@@ -23,6 +23,99 @@ export interface CharacterData {
   equipment?: { [slot: string]: Item | null }; // Equipped items
   inventory?: Item[]; // Inventory items
   potions?: number; // Number of potions
+  id?: string; // Character ID
+}
+
+// Position in the dungeon
+export interface Position {
+  x: number;
+  y: number;
+}
+
+// Entity in the dungeon (player, monster, etc.)
+export interface Entity {
+  id: string;
+  type: string;
+  name: string;
+  position: Position;
+  characterClass?: string;
+  health?: number;
+  maxHealth?: number;
+  damage?: number;
+  defense?: number;
+  speed?: number;
+  status?: string[];
+  difficulty?: string; // Add difficulty property
+}
+
+// Item in the dungeon
+export interface DungeonItem {
+  id: string;
+  type: string;
+  name: string;
+  position: Position;
+}
+
+// Tile in the dungeon
+export interface Tile {
+  type: string;
+  explored: boolean;
+  visible: boolean;
+  entity?: Entity;
+  item?: DungeonItem;
+}
+
+// Room in the dungeon
+export interface Room {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Floor in the dungeon
+export interface Floor {
+  level: number;
+  width: number;
+  height: number;
+  tiles: Tile[][];
+  rooms: Room[];
+  entities: Entity[];
+  items: DungeonItem[];
+}
+
+// Dungeon structure
+export interface Dungeon {
+  floors: Floor[];
+  currentFloor: number;
+  playerPosition: Position;
+}
+
+// Dungeon instance data
+export interface DungeonData {
+  id: string;
+  name: string;
+  playerCount: number;
+  createdAt: string;
+  numFloors: number;
+}
+
+// Floor data returned by the API
+export interface FloorData {
+  type?: string;
+  floor: Floor;
+  playerPosition: Position;
+  currentFloor: number;
+  playerData?: {
+    id?: string;
+    name?: string;
+    characterClass?: string;
+    health?: number;
+    maxHealth?: number;
+    status?: string[];
+  };
+  dungeonId?: string;
+  dungeonName?: string;
 }
 
 // Character class definitions

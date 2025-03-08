@@ -22,10 +22,14 @@ func main() {
 
 	// Configure CORS
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:5174"},
+		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:5174", "*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Upgrade", "Connection"},
 		AllowCredentials: true,
+		// Important for WebSockets
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
 	})
 
 	// Start server

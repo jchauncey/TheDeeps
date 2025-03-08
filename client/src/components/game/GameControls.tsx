@@ -12,9 +12,11 @@ import {
   Tooltip
 } from '@chakra-ui/react';
 import { sendWebSocketMessage } from '../../services/api';
-import { OPEN_CHARACTER_PROFILE_EVENT } from '../game';
 import { MainMenu } from './MainMenu';
 import { CharacterData } from '../../types/game';
+
+// Define the event name locally
+export const OPEN_CHARACTER_PROFILE_EVENT = 'open_character_profile';
 
 interface GameControlsProps {
   character: CharacterData | null;

@@ -1,9 +1,10 @@
 // Export all game components
-export * from './CharacterCreation';
-export * from './CharacterProfileModal';
-export * from './GameBoard';
-export * from './GameControls';
-export * from './GameStatus';
-export * from './GameStatusSimple';
-export * from './StartScreen';
-export * from './MainMenu'; 
+export { StartScreen } from './StartScreen';
+export { CharacterCreation } from './CharacterCreation';
+export { GameBoard } from './GameBoard';
+export { GameControls } from './GameControls';
+export { GameStatus } from './GameStatus';
+export { GameStatusSimple } from './GameStatusSimple';
+export { CharacterProfileModal } from './CharacterProfileModal';
+export { DungeonSelection } from './DungeonSelection';
+export { MainMenu } from './MainMenu'; 
