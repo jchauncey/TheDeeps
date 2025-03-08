@@ -82,6 +82,9 @@ func (ms *MobSpawner) generateEntities(floor *models.Floor, level int) []models.
 			Position:  mobInstance.Position,
 			Health:    mobInstance.Health,
 			MaxHealth: mobInstance.MaxHealth,
+			Damage:    mobInstance.Damage,
+			Defense:   mobInstance.Defense,
+			Speed:     mobInstance.Speed,
 			Status:    mobInstance.Status,
 		}
 
@@ -159,6 +162,9 @@ func (ms *MobSpawner) SpawnAdditionalMobs(count int) {
 			Position:  mobInstance.Position,
 			Health:    mobInstance.Health,
 			MaxHealth: mobInstance.MaxHealth,
+			Damage:    mobInstance.Damage,
+			Defense:   mobInstance.Defense,
+			Speed:     mobInstance.Speed,
 			Status:    mobInstance.Status,
 		}
 

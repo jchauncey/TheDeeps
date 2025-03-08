@@ -64,6 +64,9 @@ type Entity struct {
 	CharacterClass string   `json:"characterClass,omitempty"`
 	Health         int      `json:"health,omitempty"`
 	MaxHealth      int      `json:"maxHealth,omitempty"`
+	Damage         int      `json:"damage,omitempty"`
+	Defense        int      `json:"defense,omitempty"`
+	Speed          int      `json:"speed,omitempty"`
 	Status         []string `json:"status,omitempty"`
 	// Add more entity properties as needed
 }

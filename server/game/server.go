@@ -474,21 +474,6 @@ func (s *GameServer) handleEntityDeath(entity models.Entity) {
 		difficulty = models.DifficultyBoss
 	}
 
-	// Calculate gold drop based on difficulty
-	goldDrop := 10
-	switch difficulty {
-	case models.DifficultyEasy:
-		goldDrop = 5
-	case models.DifficultyNormal:
-		goldDrop = 10
-	case models.DifficultyHard:
-		goldDrop = 20
-	case models.DifficultyElite:
-		goldDrop = 50
-	case models.DifficultyBoss:
-		goldDrop = 100
-	}
-
 	// Create a temporary mob instance for loot generation
 	mobInstance := &models.MobInstance{
 		ID:         entity.ID,
@@ -496,7 +481,13 @@ func (s *GameServer) handleEntityDeath(entity models.Entity) {
 		Name:       entity.Name,
 		Difficulty: difficulty,
 		Position:   entity.Position,
-		GoldDrop:   goldDrop,
+		Health:     entity.Health,
+		MaxHealth:  entity.MaxHealth,
+		Damage:     entity.Damage,
+		Defense:    entity.Defense,
+		Speed:      entity.Speed,
+		GoldDrop:   calculateGoldDrop(difficulty, currentFloor+1),
+		Status:     entity.Status,
 	}
 
 	// Generate loot
@@ -525,6 +516,26 @@ func (s *GameServer) handleEntityDeath(entity models.Entity) {
 			break
 		}
 	}
+}
+
+// calculateGoldDrop calculates the gold drop based on difficulty and floor level
+func calculateGoldDrop(difficulty models.MobDifficulty, floorLevel int) int {
+	baseGold := 0
+	switch difficulty {
+	case models.DifficultyEasy:
+		baseGold = 5
+	case models.DifficultyNormal:
+		baseGold = 10
+	case models.DifficultyHard:
+		baseGold = 20
+	case models.DifficultyElite:
+		baseGold = 50
+	case models.DifficultyBoss:
+		baseGold = 100
+	}
+
+	// Scale with floor level
+	return baseGold * (1 + floorLevel/3)
 }
 
 // DescendStairs handles descending stairs
@@ -962,6 +973,9 @@ func (s *GameServer) InitializeGameWorld() {
 	// Spawn mobs on all floors
 	s.MobSpawner.SpawnMobsOnAllFloors()
 
+	// Spawn a boss on the last floor
+	s.SpawnBossOnLastFloor()
+
 	// Update visibility
 	UpdateVisibility(s.Game.Dungeon)
 
@@ -972,4 +986,71 @@ func (s *GameServer) InitializeGameWorld() {
 	}
 
 	log.Println("Game world initialization complete")
+}
+
+// SpawnBossOnLastFloor spawns a boss mob on the last floor
+func (s *GameServer) SpawnBossOnLastFloor() {
+	// Get the last floor
+	lastFloorIndex := len(s.Game.Dungeon.Floors) - 1
+	if lastFloorIndex < 0 {
+		return
+	}
+
+	floor := s.Game.Dungeon.Floors[lastFloorIndex]
+	floorLevel := lastFloorIndex + 1
+
+	// Find a suitable room for the boss (preferably the last room)
+	if len(floor.Rooms) == 0 {
+		return
+	}
+
+	bossRoom := floor.Rooms[len(floor.Rooms)-1]
+
+	// Get the center of the room for the boss position
+	x, y := bossRoom.Center()
+	bossPosition := models.Position{X: x, Y: y}
+
+	// Choose a boss type based on the floor level
+	var bossType models.MobType
+
+	// Higher level bosses for deeper floors
+	if floorLevel >= 8 {
+		bossType = models.MobDragon
+	} else if floorLevel >= 6 {
+		bossType = models.MobLich
+	} else if floorLevel >= 4 {
+		bossType = models.MobOgre
+	} else {
+		bossType = models.MobTroll
+	}
+
+	// Create the boss with boss difficulty
+	bossInstance := models.CreateMobInstance(bossType, models.DifficultyBoss, floorLevel, bossPosition)
+
+	// Enhance the boss stats further (make it more challenging)
+	bossInstance.Health *= 2
+	bossInstance.MaxHealth *= 2
+	bossInstance.Damage *= 2
+
+	// Add a special prefix to the boss name
+	bossInstance.Name = "Ancient " + bossInstance.Name
+
+	// Convert to Entity for the floor
+	bossEntity := models.Entity{
+		ID:        bossInstance.ID,
+		Type:      string(bossInstance.Type),
+		Name:      bossInstance.Name,
+		Position:  bossInstance.Position,
+		Health:    bossInstance.Health,
+		MaxHealth: bossInstance.MaxHealth,
+		Damage:    bossInstance.Damage,
+		Defense:   bossInstance.Defense,
+		Speed:     bossInstance.Speed,
+		Status:    bossInstance.Status,
+	}
+
+	// Add the boss to the floor
+	floor.Entities = append(floor.Entities, bossEntity)
+
+	log.Printf("Spawned boss %s on floor %d", bossEntity.Name, floorLevel)
 }

@@ -2,9 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { Box, Spinner, Text, useToast, Button } from '@chakra-ui/react';
 import { sendWebSocketMessage } from '../../services/api';
 import { CLASS_COLORS } from '../../constants/gameConstants';
+import { MapLegend } from './MapLegend';
 
 // Define tile types and their colors
-const TILE_COLORS = {
+export const TILE_COLORS = {
   wall: '#333',
   floor: '#555',
   door: '#855',
@@ -13,22 +14,40 @@ const TILE_COLORS = {
 };
 
 // Define entity types and their colors
-const ENTITY_COLORS = {
+export const ENTITY_COLORS = {
   player: '#ff0',
   goblin: '#0f0',
   orc: '#0a0',
   skeleton: '#fff',
   rat: '#a50',
   bat: '#a0a',
+  troll: '#0aa',
+  ogre: '#a00',
+  wraith: '#aaf',
+  lich: '#a0f',
+  ooze: '#0ff',
+  ratman: '#a70',
+  drake: '#f70',
+  dragon: '#f00',
+  elemental: '#7af',
 };
 
 // Define item types and their colors
-const ITEM_COLORS = {
+export const ITEM_COLORS = {
   potion: '#f0f',
   scroll: '#ff0',
   weapon: '#aaa',
   armor: '#00f',
   gold: '#ff0',
+};
+
+// Define difficulty colors for mobs
+export const DIFFICULTY_COLORS = {
+  easy: '#aaa',    // Light gray border for easy mobs
+  normal: '#fff',  // White border for normal mobs
+  hard: '#ff0',    // Yellow border for hard mobs
+  elite: '#f0f',   // Purple border for elite mobs
+  boss: '#f00',    // Red border for boss mobs
 };
 
 // Define character class-specific colors and symbols
@@ -63,6 +82,10 @@ interface Entity {
   health?: number; // Add health for status indicators
   maxHealth?: number;
   status?: string[]; // Add status effects array
+  damage?: number; // Add damage for mob entities
+  defense?: number; // Add defense for mob entities
+  speed?: number; // Add speed for mob entities
+  difficulty?: string; // Add difficulty for mob entities
 }
 
 interface Item {
@@ -119,12 +142,13 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   const [floor, setFloor] = useState<Floor | null>(null);
   const [playerPos, setPlayerPos] = useState<Position | null>(null);
   const [currentFloor, setCurrentFloor] = useState(1);
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [viewportSize, setViewportSize] = useState({ width: 800, height: 600 });
   const [error, setError] = useState<string | null>(null);
+  const [hoveredEntity, setHoveredEntity] = useState<Entity | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<Position | null>(null);
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // toast is used for future error handling
-  // @ts-ignore
   const toast = useToast();
 
   // Process floor data when it changes
@@ -462,9 +486,21 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           );
           ctx.fill();
           
-          // Add a border
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 1;
+          // Determine difficulty from entity name
+          let difficulty = 'normal';
+          if (entity.name.startsWith('easy')) {
+            difficulty = 'easy';
+          } else if (entity.name.startsWith('hard')) {
+            difficulty = 'hard';
+          } else if (entity.name.startsWith('elite')) {
+            difficulty = 'elite';
+          } else if (entity.name.startsWith('boss')) {
+            difficulty = 'boss';
+          }
+          
+          // Add a border with difficulty color
+          ctx.strokeStyle = DIFFICULTY_COLORS[difficulty as keyof typeof DIFFICULTY_COLORS] || '#000';
+          ctx.lineWidth = difficulty === 'boss' ? 3 : difficulty === 'elite' ? 2 : 1;
           ctx.stroke();
           
           // Add a letter indicator for entity type
@@ -477,6 +513,29 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
             viewportX * tileSize + tileSize / 2,
             viewportY * tileSize + tileSize / 2
           );
+          
+          // Draw health bar if health is available
+          if (entity.health !== undefined && entity.maxHealth !== undefined && entity.health < entity.maxHealth) {
+            const healthPercentage = entity.health / entity.maxHealth;
+            
+            // Health bar background
+            ctx.fillStyle = '#500';
+            ctx.fillRect(
+              viewportX * tileSize,
+              viewportY * tileSize - tileSize / 5,
+              tileSize,
+              tileSize / 10
+            );
+            
+            // Health bar fill
+            ctx.fillStyle = healthPercentage > 0.5 ? '#0f0' : healthPercentage > 0.25 ? '#ff0' : '#f00';
+            ctx.fillRect(
+              viewportX * tileSize,
+              viewportY * tileSize - tileSize / 5,
+              tileSize * healthPercentage,
+              tileSize / 10
+            );
+          }
         });
       }
 
@@ -591,6 +650,136 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     }
   };
 
+  // Handle mouse move to show entity tooltips
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!floor || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Calculate the visible area (viewport)
+    const visibleTiles = {
+      width: Math.min(floor.width, 40), // Limit to 40 tiles wide
+      height: Math.min(floor.height, 25) // Limit to 25 tiles high
+    };
+    
+    // Calculate tile size
+    const tileSize = Math.max(
+      1,
+      Math.min(
+        Math.floor(viewportSize.width / visibleTiles.width),
+        Math.floor(viewportSize.height / visibleTiles.height)
+      )
+    );
+
+    // Calculate viewport center (player position)
+    const viewportCenterX = Math.floor(visibleTiles.width / 2);
+    const viewportCenterY = Math.floor(visibleTiles.height / 2);
+    
+    // Calculate top-left corner of viewport in dungeon coordinates
+    const viewportStartX = Math.max(0, playerPos!.x - viewportCenterX);
+    const viewportStartY = Math.max(0, playerPos!.y - viewportCenterY);
+    
+    // Adjust if we're near the edge of the map
+    const maxStartX = Math.max(0, floor.width - visibleTiles.width);
+    const maxStartY = Math.max(0, floor.height - visibleTiles.height);
+    
+    const adjustedStartX = Math.min(viewportStartX, maxStartX);
+    const adjustedStartY = Math.min(viewportStartY, maxStartY);
+
+    // Convert mouse position to tile coordinates
+    const tileX = Math.floor(mouseX / tileSize);
+    const tileY = Math.floor(mouseY / tileSize);
+
+    // Convert viewport coordinates to dungeon coordinates
+    const dungeonX = adjustedStartX + tileX;
+    const dungeonY = adjustedStartY + tileY;
+
+    // Find entity at this position
+    const entity = floor.entities.find(e => 
+      e.position.x === dungeonX && e.position.y === dungeonY
+    );
+
+    if (entity) {
+      setHoveredEntity(entity);
+      setTooltipPosition({ x: e.clientX, y: e.clientY });
+    } else {
+      setHoveredEntity(null);
+      setTooltipPosition(null);
+    }
+  };
+
+  // Handle mouse leave to hide tooltips
+  const handleMouseLeave = () => {
+    setHoveredEntity(null);
+    setTooltipPosition(null);
+  };
+
+  // Focus the container to capture keyboard events
+  const focusContainer = () => {
+    if (containerRef.current) {
+      containerRef.current.focus();
+    }
+  };
+
+  // Handle key down events
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!floor) return;
+
+    // Prevent default behavior for arrow keys to avoid scrolling
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+      e.preventDefault();
+    }
+
+    // Toggle legend with 'L' key
+    if (e.key.toLowerCase() === 'l') {
+      setIsLegendOpen(!isLegendOpen);
+      return;
+    }
+
+    // Handle movement with arrow keys
+    switch (e.key) {
+      case 'ArrowUp':
+        sendWebSocketMessage({ type: 'move', direction: 'up' });
+        break;
+      case 'ArrowDown':
+        sendWebSocketMessage({ type: 'move', direction: 'down' });
+        break;
+      case 'ArrowLeft':
+        sendWebSocketMessage({ type: 'move', direction: 'left' });
+        break;
+      case 'ArrowRight':
+        sendWebSocketMessage({ type: 'move', direction: 'right' });
+        break;
+      case ' ': // Space bar for attack
+        sendWebSocketMessage({ type: 'action', action: 'attack' });
+        break;
+      case 'p': // 'p' for pickup
+      case 'P':
+        sendWebSocketMessage({ type: 'action', action: 'pickup' });
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Set up the game board when floor data changes
+  useEffect(() => {
+    if (floorData) {
+      setLoading(false);
+      setFloor(floorData.floor);
+      setPlayerPos(floorData.playerPosition);
+      setCurrentFloor(floorData.currentFloor);
+      
+      // Focus the container to capture keyboard events
+      if (containerRef.current) {
+        containerRef.current.focus();
+      }
+    }
+  }, [floorData]);
+
   if (loading) {
     return (
       <Box
@@ -643,40 +832,83 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   }
 
   return (
-    <Box
+    <Box 
       ref={containerRef}
-      width="100%"
-      height="100%"
-      bg="#291326"
-      p={4}
-      borderRadius="md"
+      position="relative" 
+      width="100%" 
+      height="100%" 
+      bg="gray.900"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onClick={focusContainer}
       overflow="hidden"
-      position="relative"
-      tabIndex={0} // Make the container focusable
-      outline="none" // Remove the focus outline
-      _focus={{ boxShadow: "none" }} // Remove focus shadow
-      display="flex"
-      flexDirection="column"
     >
-      <Text color="white" mb={2} fontSize="lg">
-        Floor {currentFloor}
-      </Text>
-      <Box
-        flex="1"
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        border="1px solid #444"
-        borderRadius="md"
-        bg="#1a1a1a"
-      >
-        <canvas
-          ref={canvasRef}
-          style={{
-            imageRendering: 'pixelated',
-          }}
-        />
-      </Box>
+      {loading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+          <Spinner size="xl" color="blue.500" />
+          <Text ml={4} color="white">Loading dungeon...</Text>
+        </Box>
+      ) : (
+        <>
+          <canvas 
+            ref={canvasRef} 
+            style={{ 
+              display: 'block',
+              margin: '0 auto',
+              imageRendering: 'pixelated'
+            }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          />
+          
+          {/* Entity tooltip */}
+          {hoveredEntity && tooltipPosition && (
+            <Box
+              position="fixed"
+              left={`${tooltipPosition.x + 10}px`}
+              top={`${tooltipPosition.y + 10}px`}
+              bg="gray.800"
+              color="white"
+              p={2}
+              borderRadius="md"
+              boxShadow="md"
+              zIndex={1000}
+              maxWidth="250px"
+            >
+              <Text fontWeight="bold">{hoveredEntity.name}</Text>
+              {hoveredEntity.health !== undefined && hoveredEntity.maxHealth !== undefined && (
+                <Text>Health: {hoveredEntity.health}/{hoveredEntity.maxHealth}</Text>
+              )}
+              {hoveredEntity.damage !== undefined && (
+                <Text>Damage: {hoveredEntity.damage}</Text>
+              )}
+              {hoveredEntity.defense !== undefined && (
+                <Text>Defense: {hoveredEntity.defense}</Text>
+              )}
+              {hoveredEntity.speed !== undefined && (
+                <Text>Speed: {hoveredEntity.speed}</Text>
+              )}
+              {hoveredEntity.status && hoveredEntity.status.length > 0 && (
+                <Text>Status: {hoveredEntity.status.join(', ')}</Text>
+              )}
+            </Box>
+          )}
+
+          {/* Legend button */}
+          <Box position="absolute" top="10px" right="10px">
+            <Button 
+              colorScheme="blue" 
+              size="sm" 
+              onClick={() => setIsLegendOpen(true)}
+            >
+              Legend (L)
+            </Button>
+          </Box>
+
+          {/* Map Legend Modal */}
+          <MapLegend isOpen={isLegendOpen} onClose={() => setIsLegendOpen(false)} />
+        </>
+      )}
     </Box>
   );
 }; 
