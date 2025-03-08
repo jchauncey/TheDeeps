@@ -344,15 +344,11 @@ func generateEntities(floor *Floor, level int) []Entity {
 	numEntities := 5 + level*2 + len(floor.Rooms)/2
 	entities := make([]Entity, 0, numEntities)
 
-	// Entity types with weights (higher level = more dangerous entities)
-	entityTypes := []string{"rat", "bat", "goblin", "skeleton", "orc"}
-
-	// Add more dangerous entities on deeper levels
-	if level > 3 {
-		entityTypes = append(entityTypes, "troll", "ogre")
-	}
-	if level > 6 {
-		entityTypes = append(entityTypes, "demon", "dragon")
+	// Get available mob types for this floor level
+	availableMobTypes := GetMobsForFloorLevel(level)
+	if len(availableMobTypes) == 0 {
+		// Fallback to basic mobs if none are available
+		availableMobTypes = []MobType{MobRatman, MobGoblin, MobSkeleton}
 	}
 
 	// Generate entities
@@ -368,26 +364,26 @@ func generateEntities(floor *Floor, level int) []Entity {
 		x := room.X + rand.Intn(room.Width)
 		y := room.Y + rand.Intn(room.Height)
 
-		// Pick a random entity type (weighted toward more dangerous types on deeper levels)
-		typeIndex := rand.Intn(len(entityTypes))
-		if level > 5 && rand.Intn(10) < 5 {
-			// 50% chance to pick from the second half of the list on deeper levels
-			typeIndex = len(entityTypes)/2 + rand.Intn(len(entityTypes)/2+1)
-			if typeIndex >= len(entityTypes) {
-				typeIndex = len(entityTypes) - 1
-			}
-		}
-		entityType := entityTypes[typeIndex]
+		// Pick a random mob type from available types
+		mobTypeIndex := rand.Intn(len(availableMobTypes))
+		mobType := availableMobTypes[mobTypeIndex]
 
-		// Create the entity
+		// Determine difficulty based on floor level
+		difficulty := GetRandomDifficulty(level)
+
+		// Create mob instance
+		mobPosition := Position{X: x, Y: y}
+		mobInstance := CreateMobInstance(mobType, difficulty, level, mobPosition)
+
+		// Convert to Entity for the floor
 		entity := Entity{
-			ID:   generateID(),
-			Type: entityType,
-			Name: entityType, // Simple name for now
-			Position: Position{
-				X: x,
-				Y: y,
-			},
+			ID:        mobInstance.ID,
+			Type:      string(mobInstance.Type),
+			Name:      mobInstance.Name,
+			Position:  mobInstance.Position,
+			Health:    mobInstance.Health,
+			MaxHealth: mobInstance.MaxHealth,
+			Status:    mobInstance.Status,
 		}
 
 		entities = append(entities, entity)

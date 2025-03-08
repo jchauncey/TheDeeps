@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +30,7 @@ type GameServer struct {
 	Game                *Game
 	Clients             map[*websocket.Conn]bool
 	CharacterRepository *repositories.CharacterRepository
+	MobSpawner          *MobSpawner
 	Upgrader            websocket.Upgrader
 }
 
@@ -71,8 +73,10 @@ type CreateCharacterRequest struct {
 
 // NewGameServer creates a new game server instance
 func NewGameServer() *GameServer {
-	return &GameServer{
-		Game:                initGame(),
+	game := initGame()
+
+	server := &GameServer{
+		Game:                game,
 		Clients:             make(map[*websocket.Conn]bool),
 		CharacterRepository: repositories.NewCharacterRepository(),
 		Upgrader: websocket.Upgrader{
@@ -81,6 +85,14 @@ func NewGameServer() *GameServer {
 			CheckOrigin:     func(r *http.Request) bool { return true },
 		},
 	}
+
+	// Initialize the mob spawner
+	server.MobSpawner = NewMobSpawner(game)
+
+	// Initialize the game world
+	server.InitializeGameWorld()
+
+	return server
 }
 
 // Initialize game state
@@ -90,8 +102,7 @@ func initGame() *Game {
 
 	log.Printf("Created dungeon with %d floors", len(dungeon.Floors))
 	for i, floor := range dungeon.Floors {
-		log.Printf("Floor %d: %d rooms, %d entities, %d items",
-			i+1, len(floor.Rooms), len(floor.Entities), len(floor.Items))
+		log.Printf("Floor %d: %d rooms", i+1, len(floor.Rooms))
 	}
 
 	game := &Game{
@@ -99,7 +110,6 @@ func initGame() *Game {
 		Players: make(map[string]*models.Character),
 	}
 
-	UpdateVisibility(game.Dungeon)
 	return game
 }
 
@@ -430,10 +440,91 @@ func (s *GameServer) AttackEntity() {
 			log.Printf("Player attacked %s", entity.Name)
 			floor.Entities = append(floor.Entities[:i], floor.Entities[i+1:]...)
 			s.BroadcastFloorData()
+			s.handleEntityDeath(entity)
 			return
 		}
 	}
 	log.Println("No entity to attack")
+}
+
+// handleEntityDeath handles the death of an entity
+func (s *GameServer) handleEntityDeath(entity models.Entity) {
+	log.Printf("Entity %s (%s) has been defeated", entity.Name, entity.ID)
+
+	// Get the current floor
+	currentFloor := s.Game.Dungeon.CurrentFloor
+	if currentFloor < 0 || currentFloor >= len(s.Game.Dungeon.Floors) {
+		return
+	}
+	floor := s.Game.Dungeon.Floors[currentFloor]
+
+	// Create a mob instance from the entity for loot generation
+	mobType := models.MobType(entity.Type)
+
+	// Determine difficulty from the entity name
+	// This is a simple approach - in a real game, you might store this in the entity data
+	difficulty := models.DifficultyNormal
+	if strings.HasPrefix(entity.Name, "easy") {
+		difficulty = models.DifficultyEasy
+	} else if strings.HasPrefix(entity.Name, "hard") {
+		difficulty = models.DifficultyHard
+	} else if strings.HasPrefix(entity.Name, "elite") {
+		difficulty = models.DifficultyElite
+	} else if strings.HasPrefix(entity.Name, "boss") {
+		difficulty = models.DifficultyBoss
+	}
+
+	// Calculate gold drop based on difficulty
+	goldDrop := 10
+	switch difficulty {
+	case models.DifficultyEasy:
+		goldDrop = 5
+	case models.DifficultyNormal:
+		goldDrop = 10
+	case models.DifficultyHard:
+		goldDrop = 20
+	case models.DifficultyElite:
+		goldDrop = 50
+	case models.DifficultyBoss:
+		goldDrop = 100
+	}
+
+	// Create a temporary mob instance for loot generation
+	mobInstance := &models.MobInstance{
+		ID:         entity.ID,
+		Type:       mobType,
+		Name:       entity.Name,
+		Difficulty: difficulty,
+		Position:   entity.Position,
+		GoldDrop:   goldDrop,
+	}
+
+	// Generate loot
+	loot := models.GenerateLootFromMob(mobInstance, currentFloor+1)
+
+	// Add items to the floor
+	for _, item := range loot {
+		// Convert to the floor's Item type
+		floorItem := models.Item{
+			ID:       item.ID,
+			Type:     string(item.Type),
+			Name:     item.Name,
+			Position: item.Position,
+		}
+
+		floor.Items = append(floor.Items, floorItem)
+		log.Printf("Added item %s at position (%d, %d)", item.Name, item.Position.X, item.Position.Y)
+	}
+
+	// Remove the entity from the floor
+	for i, e := range floor.Entities {
+		if e.ID == entity.ID {
+			// Remove the entity by replacing it with the last one and truncating the slice
+			floor.Entities[i] = floor.Entities[len(floor.Entities)-1]
+			floor.Entities = floor.Entities[:len(floor.Entities)-1]
+			break
+		}
+	}
 }
 
 // DescendStairs handles descending stairs
@@ -502,6 +593,9 @@ func (s *GameServer) DescendStairs() {
 			UpdateVisibility(s.Game.Dungeon)
 			log.Printf("Player descended to floor %d", s.Game.Dungeon.CurrentFloor+1)
 			s.BroadcastFloorData()
+
+			// After changing floors, respawn mobs on the new floor
+			s.MobSpawner.SpawnMobsOnFloor(s.Game.Dungeon.CurrentFloor)
 		}
 	} else {
 		log.Println("No stairs to descend")
@@ -574,6 +668,9 @@ func (s *GameServer) AscendStairs() {
 			UpdateVisibility(s.Game.Dungeon)
 			log.Printf("Player ascended to floor %d", s.Game.Dungeon.CurrentFloor+1)
 			s.BroadcastFloorData()
+
+			// After changing floors, respawn mobs on the new floor
+			s.MobSpawner.SpawnMobsOnFloor(s.Game.Dungeon.CurrentFloor)
 		}
 	} else {
 		log.Println("No stairs to ascend")
@@ -856,4 +953,23 @@ func (s *GameServer) SaveGame(conn *websocket.Conn) {
 	} else {
 		log.Printf("Game saved successfully for %s", character.Name)
 	}
+}
+
+// InitializeGameWorld initializes the game world by spawning mobs on all floors
+func (s *GameServer) InitializeGameWorld() {
+	log.Println("Initializing game world...")
+
+	// Spawn mobs on all floors
+	s.MobSpawner.SpawnMobsOnAllFloors()
+
+	// Update visibility
+	UpdateVisibility(s.Game.Dungeon)
+
+	// Log initialization complete
+	for i, floor := range s.Game.Dungeon.Floors {
+		log.Printf("Floor %d: %d rooms, %d entities, %d items",
+			i+1, len(floor.Rooms), len(floor.Entities), len(floor.Items))
+	}
+
+	log.Println("Game world initialization complete")
 }
