@@ -47,6 +47,8 @@
 7. **Navigation and Exploration**
    - Unexplored areas should be hidden until discovered
    - Map should track discovered rooms, doors, and stairs
+   - Map should be fully visible when character profile modal is open
+   - Player position should be clearly indicated on the map
 
 8. **Technical Requirements**
    - Map data structure should be serializable for saving/loading
@@ -54,3 +56,14 @@
    - Map should support dynamic modifications during gameplay
    - Collision detection system for walls and obstacles
    - Pathfinding system for AI navigation
+   - Map rendering should be optimized for performance
+   - Map should maintain visibility when UI modals are displayed
+
+9. **UI Integration**
+   - Map should be the primary focus of the game interface
+   - Map should occupy the majority of the screen space
+   - Map should be responsive to window size changes
+   - Map should maintain proper aspect ratio
+   - Map should have clear visual indicators for player, enemies, and objects
+   - Map should be accessible via keyboard navigation
+   - Map should support hotkeys for common actions (movement, interaction)
