@@ -13,7 +13,16 @@ This document lists the missing UI elements that need to be implemented to fully
 
 ## Dungeon Window
 - [ ] Ensure the character icon is a stylized @ symbol
-- [ ] Implement unique colors for each character class's @ symbol
+- [x] Implement unique colors for each character class's @ symbol
+
+## Menu System
+- [x] Implement main menu accessible via Escape key
+- [x] Add Save Game functionality
+- [x] Add Load Game option
+- [x] Add New Game option
+- [x] Add Return to Game option
+- [x] Add Quit to Main Menu option
+- [ ] Implement Settings menu with audio, video, and gameplay options
 
 ## General UI Improvements
 - [ ] Verify that toast banners automatically disappear after 5 seconds
@@ -30,5 +39,13 @@ This document lists the missing UI elements that need to be implemented to fully
   - Use @ as the base symbol
   - Apply different colors based on character class
   - Stand out clearly against the dungeon background
+
+- The menu system now includes:
+  - Main menu accessible via Escape key
+  - Save game functionality that stores character state
+  - Load game option to retrieve saved characters
+  - New game option to start a fresh character
+  - Return to game option to continue playing
+  - Quit option to return to the start screen
 
 This TODO list should be updated as items are completed or new requirements are identified. 
