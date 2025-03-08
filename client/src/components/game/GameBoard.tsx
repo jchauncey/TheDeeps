@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Box, Spinner, Text, useToast, Button } from '@chakra-ui/react';
 import { sendWebSocketMessage } from '../../services/api';
+import { CLASS_COLORS } from '../../constants/gameConstants';
 
 // Define tile types and their colors
 const TILE_COLORS = {
@@ -32,20 +33,20 @@ const ITEM_COLORS = {
 
 // Define character class-specific colors and symbols
 const CHARACTER_CLASS_STYLES = {
-  warrior: { color: '#f55', symbol: '@', secondaryColor: '#922' },
-  mage: { color: '#55f', symbol: '@', secondaryColor: '#229' },
-  rogue: { color: '#5c5', symbol: '@', secondaryColor: '#292' },
-  cleric: { color: '#ff5', symbol: '@', secondaryColor: '#992' },
-  ranger: { color: '#5f5', symbol: '@', secondaryColor: '#292' },
-  paladin: { color: '#f5f', symbol: '@', secondaryColor: '#929' },
-  bard: { color: '#f95', symbol: '@', secondaryColor: '#952' },
-  monk: { color: '#5ff', symbol: '@', secondaryColor: '#299' },
-  druid: { color: '#9f5', symbol: '@', secondaryColor: '#592' },
-  barbarian: { color: '#f55', symbol: '@', secondaryColor: '#922' },
-  sorcerer: { color: '#95f', symbol: '@', secondaryColor: '#529' },
-  warlock: { color: '#a5f', symbol: '@', secondaryColor: '#529' },
+  warrior: { color: CLASS_COLORS.warrior.primary, symbol: '@', secondaryColor: CLASS_COLORS.warrior.secondary },
+  mage: { color: CLASS_COLORS.mage.primary, symbol: '@', secondaryColor: CLASS_COLORS.mage.secondary },
+  rogue: { color: CLASS_COLORS.rogue.primary, symbol: '@', secondaryColor: CLASS_COLORS.rogue.secondary },
+  cleric: { color: CLASS_COLORS.cleric.primary, symbol: '@', secondaryColor: CLASS_COLORS.cleric.secondary },
+  ranger: { color: CLASS_COLORS.ranger.primary, symbol: '@', secondaryColor: CLASS_COLORS.ranger.secondary },
+  paladin: { color: CLASS_COLORS.paladin.primary, symbol: '@', secondaryColor: CLASS_COLORS.paladin.secondary },
+  bard: { color: CLASS_COLORS.bard.primary, symbol: '@', secondaryColor: CLASS_COLORS.bard.secondary },
+  monk: { color: CLASS_COLORS.monk.primary, symbol: '@', secondaryColor: CLASS_COLORS.monk.secondary },
+  druid: { color: CLASS_COLORS.druid.primary, symbol: '@', secondaryColor: CLASS_COLORS.druid.secondary },
+  barbarian: { color: CLASS_COLORS.barbarian.primary, symbol: '@', secondaryColor: CLASS_COLORS.barbarian.secondary },
+  sorcerer: { color: CLASS_COLORS.sorcerer.primary, symbol: '@', secondaryColor: CLASS_COLORS.sorcerer.secondary },
+  warlock: { color: CLASS_COLORS.warlock.primary, symbol: '@', secondaryColor: CLASS_COLORS.warlock.secondary },
   // Default for any unspecified class
-  default: { color: '#ff0', symbol: '@', secondaryColor: '#990' },
+  default: { color: CLASS_COLORS.default.primary, symbol: '@', secondaryColor: CLASS_COLORS.default.secondary },
 };
 
 interface Position {

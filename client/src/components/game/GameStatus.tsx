@@ -1,28 +1,13 @@
 import { Box, Flex, Text, Progress, Stat, StatLabel, StatNumber, StatHelpText, Divider, Tooltip, Badge, Avatar, Icon, Grid, GridItem } from '@chakra-ui/react';
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game';
 import { FaHeart, FaFlask, FaBrain, FaShieldAlt, FaRunning, FaStar } from 'react-icons/fa';
+import { CLASS_COLORS } from '../../constants/gameConstants';
 
 interface GameStatusProps {
   character: CharacterData | null;
 }
 
-// Define character class-specific colors for styling
-const CLASS_COLORS = {
-  warrior: { primary: '#f55', secondary: '#922', icon: '⚔️' },
-  mage: { primary: '#55f', secondary: '#229', icon: '🔮' },
-  rogue: { primary: '#5c5', secondary: '#292', icon: '🗡️' },
-  cleric: { primary: '#ff5', secondary: '#992', icon: '✨' },
-  ranger: { primary: '#5f5', secondary: '#292', icon: '🏹' },
-  paladin: { primary: '#f5f', secondary: '#929', icon: '🛡️' },
-  bard: { primary: '#f95', secondary: '#952', icon: '🎵' },
-  monk: { primary: '#5ff', secondary: '#299', icon: '👊' },
-  druid: { primary: '#9f5', secondary: '#592', icon: '🍃' },
-  barbarian: { primary: '#f55', secondary: '#922', icon: '🪓' },
-  sorcerer: { primary: '#95f', secondary: '#529', icon: '🌟' },
-  warlock: { primary: '#a5f', secondary: '#529', icon: '👁️' },
-  // Default for any unspecified class
-  default: { primary: '#ff0', secondary: '#990', icon: '🧙' },
-};
+// No longer need to define CLASS_COLORS here as we're importing it
 
 export const GameStatus = ({ character }: GameStatusProps) => {
   if (!character) {
