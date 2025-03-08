@@ -8,25 +8,21 @@ import (
 )
 
 // MobSpawner handles the spawning of mobs on the map
-type MobSpawner struct {
-	game *Game
-}
+type MobSpawner struct{}
 
 // NewMobSpawner creates a new mob spawner
-func NewMobSpawner(game *Game) *MobSpawner {
-	return &MobSpawner{
-		game: game,
-	}
+func NewMobSpawner(_ interface{}) *MobSpawner {
+	return &MobSpawner{}
 }
 
 // SpawnMobsOnFloor spawns mobs on the specified floor
-func (ms *MobSpawner) SpawnMobsOnFloor(floorLevel int) {
-	if floorLevel < 0 || floorLevel >= len(ms.game.Dungeon.Floors) {
+func (ms *MobSpawner) SpawnMobsOnFloor(dungeon *models.Dungeon, floorLevel int) {
+	if floorLevel < 0 || floorLevel >= len(dungeon.Floors) {
 		log.Printf("Invalid floor level for spawning mobs: %d", floorLevel)
 		return
 	}
 
-	floor := ms.game.Dungeon.Floors[floorLevel]
+	floor := dungeon.Floors[floorLevel]
 
 	// Clear existing entities
 	floor.Entities = []models.Entity{}
@@ -94,22 +90,22 @@ func (ms *MobSpawner) generateEntities(floor *models.Floor, level int) []models.
 	return entities
 }
 
-// SpawnMobsOnAllFloors spawns mobs on all floors
-func (ms *MobSpawner) SpawnMobsOnAllFloors() {
-	for i := range ms.game.Dungeon.Floors {
-		ms.SpawnMobsOnFloor(i)
+// SpawnMobsOnAllFloors spawns mobs on all floors of a dungeon
+func (ms *MobSpawner) SpawnMobsOnAllFloors(dungeon *models.Dungeon) {
+	for i := range dungeon.Floors {
+		ms.SpawnMobsOnFloor(dungeon, i)
 	}
 }
 
 // SpawnAdditionalMobs spawns additional mobs on the current floor
 // This can be used for events, reinforcements, etc.
-func (ms *MobSpawner) SpawnAdditionalMobs(count int) {
-	currentFloor := ms.game.Dungeon.CurrentFloor
-	if currentFloor < 0 || currentFloor >= len(ms.game.Dungeon.Floors) {
+func (ms *MobSpawner) SpawnAdditionalMobs(dungeon *models.Dungeon, count int) {
+	currentFloor := dungeon.CurrentFloor
+	if currentFloor < 0 || currentFloor >= len(dungeon.Floors) {
 		return
 	}
 
-	floor := ms.game.Dungeon.Floors[currentFloor]
+	floor := dungeon.Floors[currentFloor]
 	floorLevel := currentFloor + 1
 
 	// Get available mob types for this floor level
@@ -121,7 +117,7 @@ func (ms *MobSpawner) SpawnAdditionalMobs(count int) {
 
 	// Find rooms that are not the player's current room
 	var availableRooms []models.Room
-	playerRoom := ms.getPlayerRoom()
+	playerRoom := ms.getPlayerRoom(dungeon)
 
 	for _, room := range floor.Rooms {
 		if playerRoom == nil || !roomsOverlap(&room, playerRoom, 0) {
@@ -175,14 +171,14 @@ func (ms *MobSpawner) SpawnAdditionalMobs(count int) {
 }
 
 // getPlayerRoom returns the room that contains the player
-func (ms *MobSpawner) getPlayerRoom() *models.Room {
-	currentFloor := ms.game.Dungeon.CurrentFloor
-	if currentFloor < 0 || currentFloor >= len(ms.game.Dungeon.Floors) {
+func (ms *MobSpawner) getPlayerRoom(dungeon *models.Dungeon) *models.Room {
+	currentFloor := dungeon.CurrentFloor
+	if currentFloor < 0 || currentFloor >= len(dungeon.Floors) {
 		return nil
 	}
 
-	floor := ms.game.Dungeon.Floors[currentFloor]
-	playerPos := ms.game.Dungeon.PlayerPosition
+	floor := dungeon.Floors[currentFloor]
+	playerPos := dungeon.PlayerPosition
 
 	for _, room := range floor.Rooms {
 		if room.Contains(playerPos.X, playerPos.Y) {

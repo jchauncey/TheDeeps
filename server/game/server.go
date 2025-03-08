@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -17,7 +18,8 @@ import (
 
 // Game constants
 const (
-	VisibilityRange = 10 // Adjust this value to change the fog of war size
+	VisibilityRange = 10             // Adjust this value to change the fog of war size
+	MaxInactivity   = 24 * time.Hour // Maximum inactivity before dungeon cleanup
 )
 
 // Debug flags
@@ -27,9 +29,10 @@ var (
 
 // GameServer manages the game state and client connections
 type GameServer struct {
-	Game                *Game
-	Clients             map[*websocket.Conn]bool
+	Game                *Game                      // Keep for backward compatibility
+	Clients             map[*websocket.Conn]string // Map of connections to character IDs
 	CharacterRepository *repositories.CharacterRepository
+	DungeonRepository   *repositories.DungeonRepository
 	MobSpawner          *MobSpawner
 	Upgrader            websocket.Upgrader
 }
@@ -71,14 +74,50 @@ type CreateCharacterRequest struct {
 	Stats          models.Stats `json:"stats"`
 }
 
+// New message types for dungeon management
+type CreateDungeonMessage struct {
+	Type      string `json:"type"`
+	Name      string `json:"name"`
+	NumFloors int    `json:"numFloors"`
+}
+
+type JoinDungeonMessage struct {
+	Type      string `json:"type"`
+	DungeonID string `json:"dungeonId"`
+}
+
+type ListDungeonsMessage struct {
+	Type string `json:"type"`
+}
+
+type DungeonListResponse struct {
+	Type     string                    `json:"type"`
+	Dungeons []DungeonListItemResponse `json:"dungeons"`
+}
+
+type DungeonListItemResponse struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	PlayerCount  int       `json:"playerCount"`
+	CreatedAt    time.Time `json:"createdAt"`
+	LastActivity time.Time `json:"lastActivity"`
+}
+
 // NewGameServer creates a new game server instance
 func NewGameServer() *GameServer {
-	game := initGame()
+	// Create a default dungeon for backward compatibility
+	defaultDungeon := models.NewDungeon(5)
+
+	game := &Game{
+		Dungeon: defaultDungeon,
+		Players: make(map[string]*models.Character),
+	}
 
 	server := &GameServer{
 		Game:                game,
-		Clients:             make(map[*websocket.Conn]bool),
+		Clients:             make(map[*websocket.Conn]string),
 		CharacterRepository: repositories.NewCharacterRepository(),
+		DungeonRepository:   repositories.NewDungeonRepository(),
 		Upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -87,10 +126,14 @@ func NewGameServer() *GameServer {
 	}
 
 	// Initialize the mob spawner
-	server.MobSpawner = NewMobSpawner(game)
+	server.MobSpawner = NewMobSpawner(nil)
 
-	// Initialize the game world
-	server.InitializeGameWorld()
+	// Start dungeon cleanup routine
+	go server.cleanupInactiveDungeons()
+
+	// Create a default dungeon instance with the default dungeon
+	defaultInstance := server.DungeonRepository.Create("Default Dungeon", 5)
+	defaultInstance.Dungeon = defaultDungeon
 
 	return server
 }
@@ -120,6 +163,10 @@ func (s *GameServer) SetupRoutes(handler any) *mux.Router {
 		HandleGetCharacter(w http.ResponseWriter, r *http.Request)
 		HandleGetCharacters(w http.ResponseWriter, r *http.Request)
 		HandleGetFloor(w http.ResponseWriter, r *http.Request)
+		HandleGetCharacterFloor(w http.ResponseWriter, r *http.Request)
+		HandleCreateDungeon(w http.ResponseWriter, r *http.Request)
+		HandleListDungeons(w http.ResponseWriter, r *http.Request)
+		HandleJoinDungeon(w http.ResponseWriter, r *http.Request)
 	})
 
 	r := mux.NewRouter()
@@ -131,9 +178,13 @@ func (s *GameServer) SetupRoutes(handler any) *mux.Router {
 	r.HandleFunc("/character", h.HandleCreateCharacter).Methods("POST")
 	r.HandleFunc("/character/{id}", h.HandleGetCharacter).Methods("GET")
 	r.HandleFunc("/characters", h.HandleGetCharacters).Methods("GET")
+	r.HandleFunc("/character/{characterId}/floor", h.HandleGetCharacterFloor).Methods("GET")
 
 	// Dungeon endpoints
-	r.HandleFunc("/dungeon/floor/{level}", h.HandleGetFloor).Methods("GET")
+	r.HandleFunc("/dungeon", h.HandleCreateDungeon).Methods("POST")
+	r.HandleFunc("/dungeons", h.HandleListDungeons).Methods("GET")
+	r.HandleFunc("/dungeon/{dungeonId}/join", h.HandleJoinDungeon).Methods("POST")
+	r.HandleFunc("/dungeon/{dungeonId}/floor/{level}", h.HandleGetFloor).Methods("GET")
 
 	return r
 }
@@ -180,7 +231,7 @@ func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Register client
-	s.Clients[conn] = true
+	s.Clients[conn] = ""
 
 	// Ensure proper cleanup when function returns
 	defer func() {
@@ -251,6 +302,12 @@ func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.HandleAction(conn, p)
 		case "create_character":
 			s.HandleCreateCharacter(conn, p)
+		case "create_dungeon":
+			s.HandleCreateDungeon(conn, p)
+		case "join_dungeon":
+			s.HandleJoinDungeon(conn, p)
+		case "list_dungeons":
+			s.HandleListDungeons(conn)
 		default:
 			log.Printf("Unknown message type: %s", msgType)
 			conn.WriteJSON(DebugMessage{
@@ -562,7 +619,7 @@ func (s *GameServer) DescendStairs() {
 			// Get the player character for the current connection
 			playerAddr := ""
 			for client := range s.Clients {
-				if s.Clients[client] {
+				if s.Clients[client] != "" {
 					playerAddr = client.RemoteAddr().String()
 					break
 				}
@@ -606,7 +663,7 @@ func (s *GameServer) DescendStairs() {
 			s.BroadcastFloorData()
 
 			// After changing floors, respawn mobs on the new floor
-			s.MobSpawner.SpawnMobsOnFloor(s.Game.Dungeon.CurrentFloor)
+			s.MobSpawner.SpawnMobsOnFloor(s.Game.Dungeon, s.Game.Dungeon.CurrentFloor)
 		}
 	} else {
 		log.Println("No stairs to descend")
@@ -637,7 +694,7 @@ func (s *GameServer) AscendStairs() {
 			// Get the player character for the current connection
 			playerAddr := ""
 			for client := range s.Clients {
-				if s.Clients[client] {
+				if s.Clients[client] != "" {
 					playerAddr = client.RemoteAddr().String()
 					break
 				}
@@ -681,7 +738,7 @@ func (s *GameServer) AscendStairs() {
 			s.BroadcastFloorData()
 
 			// After changing floors, respawn mobs on the new floor
-			s.MobSpawner.SpawnMobsOnFloor(s.Game.Dungeon.CurrentFloor)
+			s.MobSpawner.SpawnMobsOnFloor(s.Game.Dungeon, s.Game.Dungeon.CurrentFloor)
 		}
 	} else {
 		log.Println("No stairs to ascend")
@@ -916,15 +973,15 @@ func (s *GameServer) HandleCreateCharacter(conn *websocket.Conn, payload []byte)
 	}
 }
 
-// Helper function to send error messages
+// sendError sends an error message to the client
 func sendError(conn *websocket.Conn, message string) {
-	err := conn.WriteJSON(DebugMessage{
-		Message:   message,
-		Level:     "error",
-		Timestamp: time.Now().Unix(),
-	})
+	errorMsg := map[string]interface{}{
+		"type":      "error",
+		"message":   message,
+		"timestamp": time.Now().Unix(),
+	}
 
-	if err != nil {
+	if err := conn.WriteJSON(errorMsg); err != nil {
 		log.Printf("Error sending error message: %v", err)
 	}
 }
@@ -966,12 +1023,12 @@ func (s *GameServer) SaveGame(conn *websocket.Conn) {
 	}
 }
 
-// InitializeGameWorld initializes the game world by spawning mobs on all floors
+// InitializeGameWorld initializes the game world
 func (s *GameServer) InitializeGameWorld() {
 	log.Println("Initializing game world...")
 
 	// Spawn mobs on all floors
-	s.MobSpawner.SpawnMobsOnAllFloors()
+	s.MobSpawner.SpawnMobsOnAllFloors(s.Game.Dungeon)
 
 	// Spawn a boss on the last floor
 	s.SpawnBossOnLastFloor()
@@ -1053,4 +1110,196 @@ func (s *GameServer) SpawnBossOnLastFloor() {
 	floor.Entities = append(floor.Entities, bossEntity)
 
 	log.Printf("Spawned boss %s on floor %d", bossEntity.Name, floorLevel)
+}
+
+// cleanupInactiveDungeons periodically removes inactive dungeons
+func (s *GameServer) cleanupInactiveDungeons() {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		count := s.DungeonRepository.CleanupInactive(MaxInactivity)
+		if count > 0 {
+			log.Printf("Cleaned up %d inactive dungeons", count)
+		}
+	}
+}
+
+// HandleCreateDungeon handles creating a new dungeon
+func (s *GameServer) HandleCreateDungeon(conn *websocket.Conn, payload []byte) {
+	var createDungeonMsg CreateDungeonMessage
+	if err := json.Unmarshal(payload, &createDungeonMsg); err != nil {
+		log.Printf("Error parsing create dungeon message: %v", err)
+		sendError(conn, fmt.Sprintf("Error creating dungeon: %v", err))
+		return
+	}
+
+	// Validate dungeon data
+	if createDungeonMsg.Name == "" {
+		log.Println("Dungeon name is required")
+		sendError(conn, "Dungeon name is required")
+		return
+	}
+
+	if createDungeonMsg.NumFloors <= 0 {
+		log.Println("Invalid number of floors")
+		sendError(conn, "Invalid number of floors")
+		return
+	}
+
+	// Log the dungeon creation
+	log.Printf("Creating dungeon: %s with %d floors", createDungeonMsg.Name, createDungeonMsg.NumFloors)
+
+	// Create a new dungeon instance
+	dungeon := s.DungeonRepository.Create(createDungeonMsg.Name, createDungeonMsg.NumFloors)
+
+	// Initialize mobs on all floors
+	s.initializeDungeonMobs(dungeon)
+
+	// Send success message
+	response := map[string]interface{}{
+		"type":      "dungeon_created",
+		"dungeonId": dungeon.ID,
+		"message":   fmt.Sprintf("Dungeon %s created successfully with %d floors", createDungeonMsg.Name, createDungeonMsg.NumFloors),
+		"timestamp": time.Now().Unix(),
+	}
+
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending dungeon creation response: %v", err)
+	} else {
+		log.Printf("Dungeon creation response sent successfully for %s", createDungeonMsg.Name)
+	}
+}
+
+// initializeDungeonMobs initializes mobs on all floors of a dungeon
+func (s *GameServer) initializeDungeonMobs(dungeon *models.DungeonInstance) {
+	for i := range dungeon.Dungeon.Floors {
+		s.MobSpawner.SpawnMobsOnFloor(dungeon.Dungeon, i)
+	}
+
+	// Spawn a boss on the last floor
+	s.spawnBossOnLastFloor(dungeon.Dungeon)
+}
+
+// spawnBossOnLastFloor spawns a boss mob on the last floor of a dungeon
+func (s *GameServer) spawnBossOnLastFloor(dungeon *models.Dungeon) {
+	// Get the last floor
+	lastFloorIndex := len(dungeon.Floors) - 1
+	if lastFloorIndex < 0 {
+		return
+	}
+
+	floor := dungeon.Floors[lastFloorIndex]
+	floorLevel := lastFloorIndex + 1
+
+	// Choose a random room (not the first one)
+	roomIndex := 0
+	if len(floor.Rooms) > 1 {
+		roomIndex = 1 + rand.Intn(len(floor.Rooms)-1)
+	}
+	room := floor.Rooms[roomIndex]
+
+	// Get boss position
+	centerX, centerY := room.Center()
+	bossPosition := models.Position{X: centerX, Y: centerY}
+
+	// Create a boss entity - use a specific mob type based on floor level
+	var bossType models.MobType
+	switch {
+	case floorLevel >= 10:
+		bossType = models.MobDragon
+	case floorLevel >= 7:
+		bossType = models.MobLich
+	case floorLevel >= 5:
+		bossType = models.MobOgre
+	case floorLevel >= 3:
+		bossType = models.MobTroll
+	default:
+		bossType = models.MobGoblin
+	}
+
+	bossInstance := models.CreateMobInstance(bossType, models.DifficultyBoss, floorLevel, bossPosition)
+
+	// Convert to Entity
+	bossEntity := models.Entity{
+		ID:        bossInstance.ID,
+		Type:      string(bossInstance.Type),
+		Name:      bossInstance.Name,
+		Position:  bossInstance.Position,
+		Health:    bossInstance.Health,
+		MaxHealth: bossInstance.MaxHealth,
+		Damage:    bossInstance.Damage,
+		Defense:   bossInstance.Defense,
+		Speed:     bossInstance.Speed,
+		Status:    bossInstance.Status,
+	}
+
+	// Add boss to floor
+	floor.Entities = append(floor.Entities, bossEntity)
+
+	log.Printf("Spawned boss %s on floor %d", bossEntity.Name, floorLevel)
+}
+
+// HandleJoinDungeon handles joining a dungeon
+func (s *GameServer) HandleJoinDungeon(conn *websocket.Conn, payload []byte) {
+	var joinDungeonMsg JoinDungeonMessage
+	if err := json.Unmarshal(payload, &joinDungeonMsg); err != nil {
+		log.Printf("Error parsing join dungeon message: %v", err)
+		sendError(conn, fmt.Sprintf("Error joining dungeon: %v", err))
+		return
+	}
+
+	// Validate dungeon ID
+	if joinDungeonMsg.DungeonID == "" {
+		log.Println("Dungeon ID is required")
+		sendError(conn, "Dungeon ID is required")
+		return
+	}
+
+	// Log the dungeon join
+	log.Printf("Player joining dungeon: %s", joinDungeonMsg.DungeonID)
+
+	// Associate the dungeon with the connection
+	s.Clients[conn] = joinDungeonMsg.DungeonID
+
+	// Send success message
+	response := map[string]interface{}{
+		"type":      "dungeon_joined",
+		"message":   fmt.Sprintf("Player joined dungeon %s", joinDungeonMsg.DungeonID),
+		"timestamp": time.Now().Unix(),
+	}
+
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending dungeon join response: %v", err)
+	} else {
+		log.Printf("Player joined dungeon %s", joinDungeonMsg.DungeonID)
+	}
+}
+
+// HandleListDungeons handles listing all dungeons
+func (s *GameServer) HandleListDungeons(conn *websocket.Conn) {
+	// Get all dungeons from the repository
+	dungeons := s.DungeonRepository.GetAll()
+
+	// Create a response with dungeon list
+	response := DungeonListResponse{
+		Type:     "dungeon_list",
+		Dungeons: make([]DungeonListItemResponse, len(dungeons)),
+	}
+
+	for i, dungeon := range dungeons {
+		response.Dungeons[i] = DungeonListItemResponse{
+			ID:           dungeon.ID,
+			Name:         dungeon.Name,
+			PlayerCount:  len(dungeon.Players),
+			CreatedAt:    dungeon.CreatedAt,
+			LastActivity: dungeon.LastActivity,
+		}
+	}
+
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending dungeon list response: %v", err)
+	} else {
+		log.Printf("Dungeon list sent successfully")
+	}
 }

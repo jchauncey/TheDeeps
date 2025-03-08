@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // TileType represents the type of a dungeon tile
@@ -96,6 +98,17 @@ type Dungeon struct {
 	Floors         []*Floor `json:"floors"`
 	CurrentFloor   int      `json:"currentFloor"`
 	PlayerPosition Position `json:"playerPosition"`
+}
+
+// DungeonInstance represents a specific instance of a dungeon that players can join
+type DungeonInstance struct {
+	ID           string               `json:"id"`
+	Name         string               `json:"name"`
+	Dungeon      *Dungeon             `json:"dungeon"`
+	CreatedAt    time.Time            `json:"createdAt"`
+	LastActivity time.Time            `json:"lastActivity"`
+	Players      map[string]*Position `json:"players"`      // Map of character IDs to their positions
+	PlayerFloors map[string]int       `json:"playerFloors"` // Map of character IDs to their current floor
 }
 
 // NewDungeon creates a new dungeon with the specified number of floors
@@ -484,4 +497,73 @@ func abs(x int) int {
 		return -x
 	}
 	return x
+}
+
+// NewDungeonInstance creates a new dungeon instance with the given name and number of floors
+func NewDungeonInstance(name string, numFloors int) *DungeonInstance {
+	return &DungeonInstance{
+		ID:           uuid.New().String(),
+		Name:         name,
+		Dungeon:      NewDungeon(numFloors),
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		Players:      make(map[string]*Position),
+		PlayerFloors: make(map[string]int),
+	}
+}
+
+// AddPlayer adds a player to the dungeon instance
+func (di *DungeonInstance) AddPlayer(characterID string) {
+	// Get the starting position (first room of first floor)
+	firstRoom := di.Dungeon.Floors[0].Rooms[0]
+	centerX, centerY := firstRoom.Center()
+	startPos := Position{X: centerX, Y: centerY}
+
+	// Add player to the dungeon
+	di.Players[characterID] = &startPos
+	di.PlayerFloors[characterID] = 0 // Start at first floor (index 0)
+	di.LastActivity = time.Now()
+}
+
+// RemovePlayer removes a player from the dungeon instance
+func (di *DungeonInstance) RemovePlayer(characterID string) {
+	delete(di.Players, characterID)
+	delete(di.PlayerFloors, characterID)
+	di.LastActivity = time.Now()
+}
+
+// GetPlayerPosition gets a player's position in the dungeon
+func (di *DungeonInstance) GetPlayerPosition(characterID string) *Position {
+	return di.Players[characterID]
+}
+
+// GetPlayerFloor gets a player's current floor in the dungeon
+func (di *DungeonInstance) GetPlayerFloor(characterID string) int {
+	return di.PlayerFloors[characterID]
+}
+
+// UpdatePlayerPosition updates a player's position in the dungeon
+func (di *DungeonInstance) UpdatePlayerPosition(characterID string, position Position) {
+	if _, exists := di.Players[characterID]; exists {
+		di.Players[characterID] = &position
+		di.LastActivity = time.Now()
+	}
+}
+
+// UpdatePlayerFloor updates a player's current floor in the dungeon
+func (di *DungeonInstance) UpdatePlayerFloor(characterID string, floor int) {
+	if _, exists := di.PlayerFloors[characterID]; exists {
+		di.PlayerFloors[characterID] = floor
+		di.LastActivity = time.Now()
+	}
+}
+
+// IsActive checks if the dungeon instance has had activity within the given duration
+func (di *DungeonInstance) IsActive(duration time.Duration) bool {
+	return time.Since(di.LastActivity) < duration
+}
+
+// HasPlayers checks if the dungeon instance has any players
+func (di *DungeonInstance) HasPlayers() bool {
+	return len(di.Players) > 0
 }
