@@ -1,96 +1,81 @@
-import { Box, Flex, Text, Progress, Stat, StatLabel, StatNumber, StatHelpText, Divider, Tooltip, Badge } from '@chakra-ui/react';
+import { Box, Flex, Text, Progress, Stat, StatLabel, StatNumber, StatHelpText, Divider, Tooltip, Badge, Avatar, Icon, Grid, GridItem } from '@chakra-ui/react';
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game';
+import { FaHeart, FaFlask, FaBrain, FaShieldAlt, FaRunning, FaStar } from 'react-icons/fa';
 
 interface GameStatusProps {
   character: CharacterData | null;
 }
 
+// Define character class-specific colors for styling
+const CLASS_COLORS = {
+  warrior: { primary: '#f55', secondary: '#922', icon: '⚔️' },
+  mage: { primary: '#55f', secondary: '#229', icon: '🔮' },
+  rogue: { primary: '#5c5', secondary: '#292', icon: '🗡️' },
+  cleric: { primary: '#ff5', secondary: '#992', icon: '✨' },
+  ranger: { primary: '#5f5', secondary: '#292', icon: '🏹' },
+  paladin: { primary: '#f5f', secondary: '#929', icon: '🛡️' },
+  bard: { primary: '#f95', secondary: '#952', icon: '🎵' },
+  monk: { primary: '#5ff', secondary: '#299', icon: '👊' },
+  druid: { primary: '#9f5', secondary: '#592', icon: '🍃' },
+  barbarian: { primary: '#f55', secondary: '#922', icon: '🪓' },
+  sorcerer: { primary: '#95f', secondary: '#529', icon: '🌟' },
+  warlock: { primary: '#a5f', secondary: '#529', icon: '👁️' },
+  // Default for any unspecified class
+  default: { primary: '#ff0', secondary: '#990', icon: '🧙' },
+};
+
 export const GameStatus = ({ character }: GameStatusProps) => {
   if (!character) {
-    return null;
+    return (
+      <Box
+        height="100%"
+        width="100%"
+        bg="rgba(0, 0, 0, 0.7)"
+        p={4}
+        borderRadius="md"
+        color="white"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+      >
+        <Text>No character data available</Text>
+      </Box>
+    );
   }
 
-  // Calculate modifier for a stat
-  const calculateModifier = (score: number): number => {
-    return Math.floor((score - 10) / 2);
-  };
-
-  // Format modifier with + sign for positive values
-  const formatModifier = (modifier: number): string => {
-    return modifier >= 0 ? `+${modifier}` : `${modifier}`;
-  };
-
-  // Calculate max health based on constitution and class hit die
-  const calculateMaxHealth = (constitution: number): number => {
-    const conModifier = calculateModifier(constitution);
-    const classInfo = CHARACTER_CLASSES.find(c => c.id === character.characterClass);
-    const hitDie = classInfo?.hitDie || 8;
-    
-    // Base health + constitution modifier * level
-    return hitDie + conModifier;
-  };
-
-  // Calculate max mana based on primary spellcasting ability
-  const calculateMaxMana = (): number => {
-    const classInfo = CHARACTER_CLASSES.find(c => c.id === character.characterClass);
-    
-    if (!classInfo) return 0;
-    
-    // For wizard, sorcerer, warlock
-    if (['wizard', 'sorcerer'].includes(character.characterClass)) {
-      const intModifier = calculateModifier(character.stats.intelligence);
-      return 10 + intModifier * 3;
-    }
-    // For cleric, druid
-    else if (['cleric', 'druid'].includes(character.characterClass)) {
-      const wisModifier = calculateModifier(character.stats.wisdom);
-      return 10 + wisModifier * 3;
-    }
-    // For bard, paladin, warlock
-    else if (['bard', 'paladin', 'warlock'].includes(character.characterClass)) {
-      const chaModifier = calculateModifier(character.stats.charisma);
-      return 10 + chaModifier * 3;
-    }
-    // For other classes
-    else {
-      const bestModifier = Math.max(
-        calculateModifier(character.stats.intelligence),
-        calculateModifier(character.stats.wisdom),
-        calculateModifier(character.stats.charisma)
-      );
-      return 5 + bestModifier * 2;
-    }
-  };
-
-  // Calculate armor class based on dexterity
-  const calculateArmorClass = (): number => {
-    const dexModifier = calculateModifier(character.stats.dexterity);
-    
-    // Unarmored AC is 10 + DEX modifier
-    let ac = 10 + dexModifier;
-    
-    // Monk and Barbarian have special unarmored defense
-    if (character.characterClass === 'monk') {
-      const wisModifier = calculateModifier(character.stats.wisdom);
-      ac += wisModifier;
-    } else if (character.characterClass === 'barbarian') {
-      const conModifier = calculateModifier(character.stats.constitution);
-      ac += conModifier;
-    }
-    
-    return ac;
-  };
-
-  const maxHealth = calculateMaxHealth(character.stats.constitution);
-  const maxMana = calculateMaxMana();
-  const armorClass = calculateArmorClass();
-  
-  // Current values (in a real game, these would come from the game state)
-  const currentHealth = maxHealth; // For now, assume full health
-  const currentMana = maxMana; // For now, assume full mana
-
-  // Get class info
+  // Find class info
   const classInfo = CHARACTER_CLASSES.find(c => c.id === character.characterClass);
+  
+  // Get class colors
+  const classColors = CLASS_COLORS[character.characterClass as keyof typeof CLASS_COLORS] || CLASS_COLORS.default;
+  
+  // Calculate derived stats
+  const calculateModifier = (stat: number) => Math.floor((stat - 10) / 2);
+  const formatModifier = (mod: number) => mod >= 0 ? `+${mod}` : `${mod}`;
+  
+  // Calculate health, mana, and AC
+  const constitutionMod = calculateModifier(character.stats.constitution);
+  const intelligenceMod = calculateModifier(character.stats.intelligence);
+  const dexterityMod = calculateModifier(character.stats.dexterity);
+  
+  // Get character level with default value of 1
+  const characterLevel = character.level || 1;
+  
+  const maxHealth = classInfo ? 
+    classInfo.hitDie + constitutionMod + (characterLevel - 1) * (Math.floor(classInfo.hitDie / 2) + 1 + constitutionMod) : 
+    10 + constitutionMod;
+  
+  const maxMana = classInfo?.primaryAbility.toLowerCase().includes('intelligence') ? 
+    10 + intelligenceMod * 2 + (characterLevel - 1) * (4 + intelligenceMod) : 
+    5 + intelligenceMod + (characterLevel - 1) * (2 + Math.floor(intelligenceMod / 2));
+  
+  const armorClass = 10 + dexterityMod;
+  
+  // Current values (in a real game, these would come from the character state)
+  const currentHealth = character.health || maxHealth;
+  const currentMana = character.mana || maxMana;
+  const currentXP = character.experience || 0;
+  const nextLevelXP = characterLevel * 100;
 
   return (
     <Box
@@ -101,178 +86,250 @@ export const GameStatus = ({ character }: GameStatusProps) => {
       borderRadius="md"
       color="white"
       overflowY="auto"
+      borderLeft={`4px solid ${classColors.primary}`}
     >
-      <Text fontSize="xl" fontWeight="bold" mb={1}>
-        {character.name}
-      </Text>
-      <Text fontSize="md" color="gray.300" mb={3}>
-        Level 1 {classInfo?.name || character.characterClass}
-      </Text>
+      {/* Character Header with Avatar */}
+      <Flex align="center" mb={3}>
+        <Avatar 
+          size="md" 
+          name={character.name} 
+          bg={classColors.primary}
+          color="white"
+          icon={<Text fontSize="xl">{classColors.icon}</Text>}
+          mr={3}
+        />
+        <Box>
+          <Text fontSize="xl" fontWeight="bold" mb={0}>
+            {character.name}
+          </Text>
+          <Flex align="center">
+            <Badge 
+              colorScheme="purple" 
+              mr={2}
+              px={2}
+              py={0.5}
+              borderRadius="full"
+              bg={classColors.primary}
+              color="white"
+            >
+              Level {characterLevel}
+            </Badge>
+            <Text fontSize="sm" color="gray.300">
+              {classInfo?.name || character.characterClass}
+            </Text>
+          </Flex>
+        </Box>
+      </Flex>
 
-      <Divider mb={3} />
+      <Divider mb={4} />
 
-      {/* Health, Mana, and AC */}
+      {/* Health, Mana, and AC with Icons */}
       <Box mb={4}>
         <Tooltip label={`Health: ${currentHealth}/${maxHealth}`}>
           <Box>
-            <Flex justify="space-between" mb={1}>
-              <Text fontSize="sm">Health</Text>
+            <Flex justify="space-between" mb={1} align="center">
+              <Flex align="center">
+                <Icon as={FaHeart} color="red.400" mr={2} />
+                <Text fontSize="sm">Health</Text>
+              </Flex>
               <Text fontSize="sm">{currentHealth}/{maxHealth}</Text>
             </Flex>
             <Progress 
               value={(currentHealth / maxHealth) * 100} 
               colorScheme="red" 
               size="sm" 
-              mb={2}
+              mb={3}
               borderRadius="md"
+              bg="whiteAlpha.200"
             />
           </Box>
         </Tooltip>
 
         <Tooltip label={`Mana: ${currentMana}/${maxMana}`}>
           <Box>
-            <Flex justify="space-between" mb={1}>
-              <Text fontSize="sm">Mana</Text>
+            <Flex justify="space-between" mb={1} align="center">
+              <Flex align="center">
+                <Icon as={FaFlask} color="blue.400" mr={2} />
+                <Text fontSize="sm">Mana</Text>
+              </Flex>
               <Text fontSize="sm">{currentMana}/{maxMana}</Text>
             </Flex>
             <Progress 
               value={(currentMana / maxMana) * 100} 
               colorScheme="blue" 
               size="sm" 
-              mb={2}
+              mb={3}
               borderRadius="md"
+              bg="whiteAlpha.200"
             />
           </Box>
         </Tooltip>
 
-        <Flex justify="space-between" mb={1}>
-          <Text fontSize="sm">Experience</Text>
-          <Text fontSize="sm">0/100</Text>
-        </Flex>
-        <Progress 
-          value={0} 
-          colorScheme="purple" 
-          size="sm"
-          borderRadius="md"
-        />
-        
-        <Flex justify="space-between" mt={3}>
-          <Text fontSize="sm" fontWeight="bold">Armor Class</Text>
-          <Badge colorScheme="green" fontSize="sm">{armorClass}</Badge>
-        </Flex>
-      </Box>
-
-      <Divider mb={3} />
-
-      {/* Stats */}
-      <Flex justify="space-between" align="center" mb={2}>
-        <Text fontSize="md" fontWeight="bold">Stats</Text>
-        <Text fontSize="xs" color="gray.400">Value (Modifier)</Text>
-      </Flex>
-      <Flex flexWrap="wrap" justifyContent="space-between">
-        {Object.entries(character.stats).map(([statName, value]) => {
-          const modifier = calculateModifier(value);
-          const formattedModifier = formatModifier(modifier);
-          const modifierColor = modifier >= 0 ? "green.300" : "red.300";
-          
-          // Check if this is a primary ability for the class
-          const isPrimary = classInfo?.primaryAbility.toLowerCase().includes(statName.toLowerCase());
-          
-          return (
-            <Stat 
-              key={statName} 
-              flex="0 0 48%" 
-              mb={2}
-              borderLeft={isPrimary ? "2px solid" : "none"}
-              borderColor="purple.400"
-              pl={isPrimary ? 2 : 0}
-            >
-              <StatLabel textTransform="capitalize" fontSize="xs">{statName}</StatLabel>
-              <Flex align="baseline">
-                <StatNumber fontSize="md" mr={1}>{value}</StatNumber>
-                <StatHelpText fontSize="xs" color={modifierColor} mt={0}>
-                  ({formattedModifier})
-                </StatHelpText>
+        <Tooltip label={`Experience: ${currentXP}/${nextLevelXP}`}>
+          <Box>
+            <Flex justify="space-between" mb={1} align="center">
+              <Flex align="center">
+                <Icon as={FaStar} color="purple.400" mr={2} />
+                <Text fontSize="sm">Experience</Text>
               </Flex>
-            </Stat>
-          );
-        })}
-      </Flex>
-
-      <Divider my={3} />
-
-      {/* Class Abilities */}
-      <Text fontSize="md" fontWeight="bold" mb={2}>
-        Class Abilities
-      </Text>
-      <Box fontSize="sm" color="gray.300" mb={3}>
-        {character.abilities.map((ability, index) => (
-          <Badge key={index} colorScheme="purple" mr={2} mb={2}>
-            {ability}
-          </Badge>
-        ))}
-      </Box>
-
-      {/* Equipment */}
-      <Text fontSize="md" fontWeight="bold" mb={2}>
-        Equipment
-      </Text>
-      <Box fontSize="sm" color="gray.300">
-        <Flex mb={1}>
-          <Text width="80px" color="gray.400">Weapon:</Text>
-          <Text>None</Text>
-        </Flex>
-        <Flex mb={1}>
-          <Text width="80px" color="gray.400">Armor:</Text>
-          <Text>None</Text>
-        </Flex>
-        <Flex mb={1}>
-          <Text width="80px" color="gray.400">Shield:</Text>
-          <Text>None</Text>
-        </Flex>
-        <Flex>
-          <Text width="80px" color="gray.400">Accessory:</Text>
-          <Text>None</Text>
-        </Flex>
-      </Box>
-
-      <Divider my={3} />
-
-      {/* Proficiencies */}
-      <Text fontSize="md" fontWeight="bold" mb={2}>
-        Proficiencies
-      </Text>
-      <Box fontSize="sm" color="gray.300" mb={3}>
-        {character.proficiencies.map((prof, index) => (
-          <Badge key={index} colorScheme="blue" mr={2} mb={2} variant="outline">
-            {prof}
-          </Badge>
-        ))}
-      </Box>
-
-      {/* Inventory */}
-      <Text fontSize="md" fontWeight="bold" mb={2}>
-        Inventory
-      </Text>
-      <Box fontSize="sm" color="gray.300">
-        <Flex mb={1} align="center">
-          <Text width="80px" color="gray.400">Gold:</Text>
+              <Text fontSize="sm">{currentXP}/{nextLevelXP}</Text>
+            </Flex>
+            <Progress 
+              value={(currentXP / nextLevelXP) * 100} 
+              colorScheme="purple" 
+              size="sm"
+              mb={3}
+              borderRadius="md"
+              bg="whiteAlpha.200"
+            />
+          </Box>
+        </Tooltip>
+        
+        <Flex justify="space-between" mt={2} align="center">
           <Flex align="center">
-            <Text mr={1}>{character.gold || 0}</Text>
-            <Box as="span" color="yellow.400" fontSize="xs">●</Box>
+            <Icon as={FaShieldAlt} color="green.400" mr={2} />
+            <Text fontSize="sm" fontWeight="bold">Armor Class</Text>
           </Flex>
+          <Badge 
+            fontSize="sm" 
+            px={2} 
+            py={0.5} 
+            borderRadius="full"
+            bg="green.700"
+            color="white"
+          >
+            {armorClass}
+          </Badge>
         </Flex>
-        <Text>Empty</Text>
       </Box>
 
-      <Divider my={3} />
+      <Divider mb={4} />
 
-      {/* Status Effects */}
-      <Text fontSize="md" fontWeight="bold" mb={2}>
-        Status Effects
-      </Text>
-      <Box fontSize="sm" color="gray.300">
-        <Text>None</Text>
+      {/* Stats with improved layout */}
+      <Box mb={4}>
+        <Text fontSize="md" fontWeight="bold" mb={3}>
+          Attributes
+        </Text>
+        
+        <Grid templateColumns="repeat(2, 1fr)" gap={3}>
+          {Object.entries(character.stats).map(([statName, value]) => {
+            const modifier = calculateModifier(value);
+            const formattedModifier = formatModifier(modifier);
+            const modifierColor = modifier >= 0 ? "green.300" : "red.300";
+            
+            // Check if this is a primary ability for the class
+            const isPrimary = classInfo?.primaryAbility.toLowerCase().includes(statName.toLowerCase());
+            
+            // Choose icon based on stat
+            let StatIcon;
+            switch(statName.toLowerCase()) {
+              case 'strength': StatIcon = FaRunning; break;
+              case 'dexterity': StatIcon = FaRunning; break;
+              case 'constitution': StatIcon = FaHeart; break;
+              case 'intelligence': StatIcon = FaBrain; break;
+              case 'wisdom': StatIcon = FaBrain; break;
+              case 'charisma': StatIcon = FaStar; break;
+              default: StatIcon = FaStar;
+            }
+            
+            return (
+              <GridItem 
+                key={statName}
+                p={2}
+                borderRadius="md"
+                bg={isPrimary ? `${classColors.secondary}30` : "whiteAlpha.100"}
+                borderLeft={isPrimary ? "3px solid" : "none"}
+                borderColor={classColors.primary}
+              >
+                <Flex justify="space-between" align="center">
+                  <Flex align="center">
+                    <Icon as={StatIcon} color={isPrimary ? classColors.primary : "gray.400"} mr={2} />
+                    <Text textTransform="capitalize" fontSize="sm">{statName}</Text>
+                  </Flex>
+                  <Flex align="center">
+                    <Text fontWeight="bold" mr={1}>{value}</Text>
+                    <Text fontSize="xs" color={modifierColor}>
+                      ({formattedModifier})
+                    </Text>
+                  </Flex>
+                </Flex>
+              </GridItem>
+            );
+          })}
+        </Grid>
+      </Box>
+
+      <Divider mb={4} />
+
+      {/* Class Abilities with improved styling */}
+      <Box mb={4}>
+        <Text fontSize="md" fontWeight="bold" mb={2}>
+          Class Abilities
+        </Text>
+        <Flex flexWrap="wrap" gap={2}>
+          {character.abilities.map((ability, index) => (
+            <Badge 
+              key={index} 
+              px={2} 
+              py={1}
+              borderRadius="full"
+              bg={`${classColors.secondary}90`}
+              color="white"
+            >
+              {ability}
+            </Badge>
+          ))}
+        </Flex>
+      </Box>
+
+      {/* Equipment Section */}
+      <Box mb={4}>
+        <Text fontSize="md" fontWeight="bold" mb={2}>
+          Equipment
+        </Text>
+        <Grid templateColumns="repeat(2, 1fr)" gap={2}>
+          {character.equipment ? (
+            Object.entries(character.equipment).map(([slot, item], index) => (
+              <GridItem 
+                key={index}
+                p={2}
+                borderRadius="md"
+                bg="whiteAlpha.100"
+              >
+                <Text fontSize="xs" color="gray.400" textTransform="capitalize">{slot}</Text>
+                <Text fontSize="sm">{item?.name || "Empty"}</Text>
+              </GridItem>
+            ))
+          ) : (
+            <Text fontSize="sm" color="gray.400">No equipment</Text>
+          )}
+        </Grid>
+      </Box>
+
+      {/* Inventory Section */}
+      <Box>
+        <Text fontSize="md" fontWeight="bold" mb={2}>
+          Inventory
+        </Text>
+        <Flex justify="space-between" mb={2}>
+          <Badge colorScheme="yellow">Gold: {character.gold || 0}</Badge>
+          <Badge colorScheme="red">Potions: {character.potions || 0}</Badge>
+        </Flex>
+        <Box 
+          p={2} 
+          borderRadius="md" 
+          bg="whiteAlpha.100" 
+          height="100px"
+          overflowY="auto"
+        >
+          {character.inventory && character.inventory.length > 0 ? (
+            character.inventory.map((item, index) => (
+              <Text key={index} fontSize="sm" mb={1}>{item.name}</Text>
+            ))
+          ) : (
+            <Text fontSize="sm" color="gray.400">Inventory empty</Text>
+          )}
+        </Box>
       </Box>
     </Box>
   );

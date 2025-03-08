@@ -13,6 +13,16 @@ export interface CharacterData {
   abilities: string[];
   proficiencies: string[];
   gold: number; // Amount of gold the character has
+  level?: number; // Character level
+  health?: number; // Current health
+  maxHealth?: number; // Maximum health
+  mana?: number; // Current mana
+  maxMana?: number; // Maximum mana
+  experience?: number; // Current experience points
+  status?: string[]; // Status effects
+  equipment?: { [slot: string]: Item | null }; // Equipped items
+  inventory?: Item[]; // Inventory items
+  potions?: number; // Number of potions
 }
 
 // Character class definitions

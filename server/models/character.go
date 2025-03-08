@@ -12,8 +12,25 @@ type Character struct {
 	Name           string    `json:"name"`
 	CharacterClass string    `json:"characterClass"`
 	Stats          Stats     `json:"stats"`
+	Level          int       `json:"level"`
+	Health         int       `json:"health"`
+	MaxHealth      int       `json:"maxHealth"`
+	Mana           int       `json:"mana"`
+	MaxMana        int       `json:"maxMana"`
+	Experience     int       `json:"experience"`
+	Gold           int       `json:"gold"`
+	Abilities      []string  `json:"abilities"`
+	Status         []string  `json:"status"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+// CharacterCreate represents the data needed to create a character
+type CharacterCreate struct {
+	Name           string   `json:"name"`
+	CharacterClass string   `json:"characterClass"`
+	Stats          Stats    `json:"stats"`
+	Abilities      []string `json:"abilities"`
 }
 
 // Stats represents character statistics
@@ -34,6 +51,15 @@ func NewCharacter(name, class string, stats Stats) *Character {
 		Name:           name,
 		CharacterClass: class,
 		Stats:          stats,
+		Level:          1,
+		Health:         100,
+		MaxHealth:      100,
+		Mana:           50,
+		MaxMana:        50,
+		Experience:     0,
+		Gold:           10,
+		Abilities:      []string{},
+		Status:         []string{},
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}

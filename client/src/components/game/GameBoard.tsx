@@ -30,6 +30,24 @@ const ITEM_COLORS = {
   gold: '#ff0',
 };
 
+// Define character class-specific colors and symbols
+const CHARACTER_CLASS_STYLES = {
+  warrior: { color: '#f55', symbol: '@', secondaryColor: '#922' },
+  mage: { color: '#55f', symbol: '@', secondaryColor: '#229' },
+  rogue: { color: '#5c5', symbol: '@', secondaryColor: '#292' },
+  cleric: { color: '#ff5', symbol: '@', secondaryColor: '#992' },
+  ranger: { color: '#5f5', symbol: '@', secondaryColor: '#292' },
+  paladin: { color: '#f5f', symbol: '@', secondaryColor: '#929' },
+  bard: { color: '#f95', symbol: '@', secondaryColor: '#952' },
+  monk: { color: '#5ff', symbol: '@', secondaryColor: '#299' },
+  druid: { color: '#9f5', symbol: '@', secondaryColor: '#592' },
+  barbarian: { color: '#f55', symbol: '@', secondaryColor: '#922' },
+  sorcerer: { color: '#95f', symbol: '@', secondaryColor: '#529' },
+  warlock: { color: '#a5f', symbol: '@', secondaryColor: '#529' },
+  // Default for any unspecified class
+  default: { color: '#ff0', symbol: '@', secondaryColor: '#990' },
+};
+
 interface Position {
   x: number;
   y: number;
@@ -40,6 +58,10 @@ interface Entity {
   type: string;
   name: string;
   position: Position;
+  characterClass?: string; // Add character class for player entities
+  health?: number; // Add health for status indicators
+  maxHealth?: number;
+  status?: string[]; // Add status effects array
 }
 
 interface Item {
@@ -79,6 +101,12 @@ interface FloorData {
   floor: Floor;
   playerPosition: Position;
   currentFloor: number;
+  playerData?: {
+    characterClass?: string;
+    health?: number;
+    maxHealth?: number;
+    status?: string[];
+  };
 }
 
 interface GameBoardProps {
@@ -418,17 +446,40 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
             return;
           }
           
-          ctx.fillStyle = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
-          ctx.fillRect(
-            viewportX * tileSize + tileSize / 4,
-            viewportY * tileSize + tileSize / 4,
-            tileSize / 2,
-            tileSize / 2
+          // Draw entity with improved visuals
+          const baseColor = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
+          ctx.fillStyle = baseColor;
+          
+          // Draw entity as a circle with a border
+          ctx.beginPath();
+          ctx.arc(
+            viewportX * tileSize + tileSize / 2,
+            viewportY * tileSize + tileSize / 2,
+            tileSize / 3,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+          
+          // Add a border
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Add a letter indicator for entity type
+          ctx.fillStyle = '#000';
+          ctx.font = `${Math.max(8, tileSize / 2)}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(
+            entity.type.charAt(0).toUpperCase(),
+            viewportX * tileSize + tileSize / 2,
+            viewportY * tileSize + tileSize / 2
           );
         });
       }
 
-      // Draw player
+      // Draw player with class-specific styling
       // Convert dungeon coordinates to viewport coordinates
       const playerViewportX = playerPos.x - adjustedStartX;
       const playerViewportY = playerPos.y - adjustedStartY;
@@ -438,26 +489,97 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       // Only draw player if within viewport
       if (playerViewportX >= 0 && playerViewportX < visibleTiles.width &&
           playerViewportY >= 0 && playerViewportY < visibleTiles.height) {
-        // Draw a more visible player marker
-        ctx.fillStyle = ENTITY_COLORS.player;
         
-        // Draw a larger square for the player
-        ctx.fillRect(
-          playerViewportX * tileSize + tileSize / 6,
-          playerViewportY * tileSize + tileSize / 6,
-          tileSize * 2/3,
-          tileSize * 2/3
+        // Find player entity to get class and health info
+        const playerEntity = floor.entities?.find(e => e.type === 'player');
+        const characterClass = playerEntity?.characterClass || floorData?.playerData?.characterClass || 'default';
+        const classStyle = CHARACTER_CLASS_STYLES[characterClass as keyof typeof CHARACTER_CLASS_STYLES] || 
+                           CHARACTER_CLASS_STYLES.default;
+        
+        // Calculate health percentage if available
+        const healthPercentage = playerEntity?.health && playerEntity?.maxHealth 
+          ? playerEntity.health / playerEntity.maxHealth 
+          : floorData?.playerData?.health && floorData?.playerData?.maxHealth
+            ? floorData.playerData.health / floorData.playerData.maxHealth
+            : 1;
+        
+        // Draw a more visible player marker with class-specific styling
+        ctx.fillStyle = classStyle.color;
+        
+        // Draw player as a circle
+        ctx.beginPath();
+        ctx.arc(
+          playerViewportX * tileSize + tileSize / 2,
+          playerViewportY * tileSize + tileSize / 2,
+          tileSize / 2.5,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+        
+        // Add a border
+        ctx.strokeStyle = classStyle.secondaryColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Add the class symbol
+        ctx.fillStyle = '#000';
+        ctx.font = `bold ${Math.max(10, tileSize / 1.5)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+          classStyle.symbol,
+          playerViewportX * tileSize + tileSize / 2,
+          playerViewportY * tileSize + tileSize / 2
         );
         
-        // Add a border to make the player more visible
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(
-          playerViewportX * tileSize + tileSize / 6,
-          playerViewportY * tileSize + tileSize / 6,
-          tileSize * 2/3,
-          tileSize * 2/3
-        );
+        // Draw health indicator if health is less than 100%
+        if (healthPercentage < 1) {
+          // Health bar background
+          ctx.fillStyle = '#500';
+          ctx.fillRect(
+            playerViewportX * tileSize,
+            playerViewportY * tileSize - tileSize / 5,
+            tileSize,
+            tileSize / 10
+          );
+          
+          // Health bar fill
+          ctx.fillStyle = healthPercentage > 0.5 ? '#0f0' : healthPercentage > 0.25 ? '#ff0' : '#f00';
+          ctx.fillRect(
+            playerViewportX * tileSize,
+            playerViewportY * tileSize - tileSize / 5,
+            tileSize * healthPercentage,
+            tileSize / 10
+          );
+        }
+        
+        // Draw status effects if any
+        if (playerEntity?.status && playerEntity.status.length > 0) {
+          const statusColors = {
+            poisoned: '#0f0',
+            burning: '#f50',
+            frozen: '#0ff',
+            blessed: '#ff0',
+            cursed: '#f0f',
+            default: '#fff'
+          };
+          
+          // Draw status indicator
+          playerEntity.status.slice(0, 3).forEach((status, index) => {
+            const statusColor = statusColors[status as keyof typeof statusColors] || statusColors.default;
+            ctx.fillStyle = statusColor;
+            ctx.beginPath();
+            ctx.arc(
+              playerViewportX * tileSize + tileSize / 4 + (index * tileSize / 4),
+              playerViewportY * tileSize + tileSize - tileSize / 6,
+              tileSize / 10,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+          });
+        }
       }
       
       console.log('Drawing complete');

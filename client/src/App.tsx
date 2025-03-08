@@ -1,10 +1,12 @@
 import { ChakraProvider, Box, Flex, extendTheme } from '@chakra-ui/react'
 import { useState, useEffect, useCallback } from 'react'
-import { StartScreen } from './components/game/StartScreen'
-import { CharacterCreation } from './components/game/CharacterCreation'
-import { GameBoard } from './components/game/GameBoard'
-import { GameControls } from './components/game/GameControls'
-import { GameStatus } from './components/game/GameStatus'
+import { 
+  StartScreen, 
+  CharacterCreation, 
+  GameBoard, 
+  GameControls, 
+  GameStatusSimple 
+} from './components/game'
 import { connectWebSocket, sendWebSocketMessage } from './services/api'
 import { CharacterData } from './types/game'
 import { useClickableToast } from './components/ui/ClickableToast'
@@ -52,82 +54,132 @@ function App() {
   const toast = useClickableToast();
 
   // Handle WebSocket messages
-  const handleWebSocketMessage = useCallback((data: any) => {
-    console.log('App received WebSocket message:', data);
+  const handleWebSocketMessage = useCallback((event: Event) => {
+    const customEvent = event as CustomEvent;
+    const data = customEvent.detail;
     
-    // Handle floor data
+    console.log('WebSocket message received:', data);
+    
     if (data.type === 'floor_data') {
-      console.log('App received floor data:', data);
       setFloorData(data);
+      
+      // Update character data if playerData is provided
+      if (data.playerData && character) {
+        // Convert server character data to client format
+        const updatedCharacter = {
+          ...character,
+          health: data.playerData.health,
+          maxHealth: data.playerData.maxHealth,
+          mana: data.playerData.mana,
+          maxMana: data.playerData.maxMana,
+          experience: data.playerData.experience,
+          level: data.playerData.level,
+          gold: data.playerData.gold,
+          status: data.playerData.status || [],
+          // Add other properties as needed
+        };
+        
+        setCharacter(updatedCharacter);
+      }
+    } else if (data.type === 'character_created') {
+      // Handle character creation success
+      console.log('Character created successfully:', data.character);
+      
+      // Request floor data once after character creation
+      sendWebSocketMessage({ 
+        type: 'get_floor',
+        characterId: data.character.name
+      });
+      
+      toast({
+        title: "Character Created",
+        description: data.message,
+        status: "success",
+      });
+    } else if (data.type === 'debug') {
+      // Handle debug messages
+      toast({
+        title: "Debug",
+        description: data.message,
+        status: data.level === "error" ? "error" : "info",
+        duration: 3000,
+        isClosable: true,
+      });
     }
-    
-    // Dispatch a custom event for other components to listen to
-    const event = new CustomEvent('websocket_message', { detail: data });
-    window.dispatchEvent(event);
-  }, []);
+  }, [character, toast]);
 
   // Connect to WebSocket when component mounts
   useEffect(() => {
     console.log('Connecting to WebSocket...');
     const socket = connectWebSocket(handleWebSocketMessage);
     
-    // Clean up WebSocket connection when component unmounts
+    // Add event listener for reconnection failures
+    const handleReconnectFailed = () => {
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to the game server. Please refresh the page.",
+        status: "error",
+        duration: null, // Don't auto-dismiss
+        isClosable: true,
+      });
+    };
+    
+    // Add event listener for successful connections
+    const handleConnected = () => {
+      // If we're in the game screen, request floor data if we don't have it yet
+      if (currentScreen === 'game' && character && !floorData) {
+        console.log('Connected, no floor data yet, requesting floor data...');
+        sendWebSocketMessage({ 
+          type: 'get_floor',
+          characterId: character.name // Use character name as ID for now
+        });
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('websocket_reconnect_failed', handleReconnectFailed);
+    window.addEventListener('websocket_connected', handleConnected);
+    
+    // Clean up WebSocket connection and event listeners when component unmounts
     return () => {
+      window.removeEventListener('websocket_reconnect_failed', handleReconnectFailed);
+      window.removeEventListener('websocket_connected', handleConnected);
+      
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.close();
       }
     };
-  }, [handleWebSocketMessage]);
+  }, [handleWebSocketMessage, currentScreen, character, toast]);
 
   // Request floor data when entering game screen
   useEffect(() => {
-    if (currentScreen === 'game' && character) {
-      console.log('Requesting floor data...');
-      const success = sendWebSocketMessage({ 
-        type: 'get_floor',
-        characterId: character.name // Use character name as ID for now
-      });
-      console.log('Floor data request sent:', success);
+    if (currentScreen === 'game' && character && !floorData) {
+      console.log('Game screen active, no floor data yet, requesting floor data...');
+      // Add a small delay to ensure WebSocket is connected
+      const timeoutId = setTimeout(() => {
+        const success = sendWebSocketMessage({ 
+          type: 'get_floor',
+          characterId: character.name // Use character name as ID for now
+        });
+        console.log('Floor data request sent:', success);
+        
+        if (!success) {
+          toast({
+            title: "Connection Issue",
+            description: "Having trouble connecting to the game server. Retrying...",
+            status: "warning",
+          });
+        }
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [currentScreen, character]);
+  }, [currentScreen, character, floorData, toast]);
 
   // Handle keyboard controls at the App level
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (currentScreen !== 'game') return;
-      
-      let direction = '';
-      
-      // Handle both key and code
-      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        direction = 'up';
-      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
-        direction = 'down';
-      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-        direction = 'left';
-      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-        direction = 'right';
-      } else {
-        return; // Not a movement key
-      }
-      
-      // Prevent default behavior (scrolling)
-      e.preventDefault();
-      
-      // Send move command to server
-      console.log(`Sending move command: ${direction}`);
-      sendWebSocketMessage({
-        type: 'move',
-        direction
-      });
-    };
-    
-    // Add event listener
-    window.addEventListener('keydown', handleKeyDown);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    // We're removing the keyboard handling from App.tsx since it's already in GameControls.tsx
+    // This avoids conflicts between the two handlers
   }, [currentScreen]);
 
   const handleNewGame = () => {
@@ -151,17 +203,27 @@ function App() {
     setCharacter(characterData)
     setCurrentScreen('game')
     
-    // Send character data to server
-    sendWebSocketMessage({
-      type: 'create_character',
-      character: characterData
-    });
+    // Ensure WebSocket connection is established before sending character data
+    console.log('Creating character, ensuring WebSocket connection...');
     
-    toast({
-      title: "Character Created",
-      description: `${characterData.name} the ${characterData.characterClass} is ready for adventure!`,
-      status: "success",
-    })
+    // Add a small delay to ensure WebSocket is connected
+    setTimeout(() => {
+      const success = sendWebSocketMessage({
+        type: 'create_character',
+        character: characterData
+      });
+      
+      if (!success) {
+        toast({
+          title: "Connection Issue",
+          description: "Having trouble connecting to the game server. Your character will be created when the connection is established.",
+          status: "warning",
+          duration: 5000,
+        });
+      }
+    }, 500);
+    
+    // Don't show toast here, we'll show it when we receive the character_created message
   }
 
   // Render the appropriate screen
@@ -198,14 +260,14 @@ function App() {
                 <GameBoard floorData={floorData} />
               </Box>
               
-              {/* Right side - Character Status */}
+              {/* Right side - Character Status (simplified) */}
               <Box 
                 w="280px" 
                 h="100%" 
                 position="relative"
                 flexShrink={0} // Prevent shrinking
               >
-                <GameStatus character={character} />
+                <GameStatusSimple character={character} />
               </Box>
             </Flex>
             

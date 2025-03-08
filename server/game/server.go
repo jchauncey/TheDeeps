@@ -2,10 +2,12 @@ package game
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/jchauncey/TheDeeps/server/models"
@@ -44,10 +46,11 @@ type DebugMessage struct {
 }
 
 type FloorMessage struct {
-	Type         string          `json:"type"`
-	Floor        *models.Floor   `json:"floor"`
-	PlayerPos    models.Position `json:"playerPosition"`
-	CurrentFloor int             `json:"currentFloor"`
+	Type         string            `json:"type"`
+	Floor        *models.Floor     `json:"floor"`
+	PlayerPos    models.Position   `json:"playerPosition"`
+	CurrentFloor int               `json:"currentFloor"`
+	PlayerData   *models.Character `json:"playerData"`
 }
 
 type MoveMessage struct {
@@ -127,46 +130,107 @@ func (s *GameServer) SetupRoutes(handler any) *mux.Router {
 
 // HandleWebSocket processes WebSocket connections
 func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Configure WebSocket upgrader with more robust settings
+	s.Upgrader.HandshakeTimeout = 10 * time.Second
+	s.Upgrader.EnableCompression = true
+
 	conn, err := s.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading to WebSocket:", err)
 		return
 	}
-	defer conn.Close()
+
+	// Set read/write deadlines
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		// Reset read deadline on pong
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	// Start a ping-pong keepalive goroutine
+	stopPinger := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				// Send ping
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(5*time.Second)); err != nil {
+					log.Println("Ping error:", err)
+					return
+				}
+			case <-stopPinger:
+				return
+			}
+		}
+	}()
 
 	// Register client
 	s.Clients[conn] = true
-	defer delete(s.Clients, conn)
+
+	// Ensure proper cleanup when function returns
+	defer func() {
+		close(stopPinger)
+		delete(s.Clients, conn)
+		conn.Close()
+		log.Println("WebSocket connection closed and cleaned up")
+	}()
 
 	// Send welcome message
-	conn.WriteJSON(DebugMessage{
+	err = conn.WriteJSON(DebugMessage{
 		Message:   "Connected to game server",
 		Level:     "info",
 		Timestamp: time.Now().Unix(),
 	})
 
-	// Send current floor data
-	s.SendFloorData(conn)
+	if err != nil {
+		log.Println("Error sending welcome message:", err)
+		return
+	}
 
 	// Message handling loop
 	for {
+		// Reset read deadline for each message
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
 		_, p, err := conn.ReadMessage()
 		if err != nil {
-			log.Println("Error reading message:", err)
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("Unexpected close error: %v", err)
+			} else {
+				log.Println("Error reading message:", err)
+			}
 			break
 		}
 
 		var message map[string]interface{}
 		if err := json.Unmarshal(p, &message); err != nil {
 			log.Println("Error parsing message:", err)
+			conn.WriteJSON(DebugMessage{
+				Message:   fmt.Sprintf("Error parsing message: %v", err),
+				Level:     "error",
+				Timestamp: time.Now().Unix(),
+			})
 			continue
 		}
 
 		msgType, ok := message["type"].(string)
 		if !ok {
 			log.Println("Message missing 'type' field")
+			conn.WriteJSON(DebugMessage{
+				Message:   "Message missing 'type' field",
+				Level:     "error",
+				Timestamp: time.Now().Unix(),
+			})
 			continue
 		}
+
+		// Reset write deadline for response
+		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 
 		switch msgType {
 		case "get_floor":
@@ -175,8 +239,15 @@ func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.HandleMove(conn, p)
 		case "action":
 			s.HandleAction(conn, p)
+		case "create_character":
+			s.HandleCreateCharacter(conn, p)
 		default:
 			log.Printf("Unknown message type: %s", msgType)
+			conn.WriteJSON(DebugMessage{
+				Message:   fmt.Sprintf("Unknown message type: %s", msgType),
+				Level:     "error",
+				Timestamp: time.Now().Unix(),
+			})
 		}
 	}
 }
@@ -188,6 +259,8 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 		log.Printf("Error parsing move message: %v", err)
 		return
 	}
+
+	log.Printf("Received move command: %s", moveMsg.Direction)
 
 	currentPos := s.Game.Dungeon.PlayerPosition
 	newPos := currentPos
@@ -207,6 +280,8 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 		return
 	}
 
+	log.Printf("Current position: (%d, %d), New position: (%d, %d)", currentPos.X, currentPos.Y, newPos.X, newPos.Y)
+
 	// Move if valid
 	if s.IsValidMove(newPos) {
 		s.Game.Dungeon.PlayerPosition = newPos
@@ -214,7 +289,8 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 		log.Printf("Player moved %s to (%d, %d)", moveMsg.Direction, newPos.X, newPos.Y)
 		s.BroadcastFloorData()
 	} else {
-		log.Printf("Invalid move to (%d, %d)", newPos.X, newPos.Y)
+		log.Printf("Invalid move to (%d, %d) - Tile type: %s", newPos.X, newPos.Y,
+			s.Game.Dungeon.Floors[s.Game.Dungeon.CurrentFloor].Tiles[newPos.Y][newPos.X].Type)
 	}
 }
 
@@ -263,15 +339,22 @@ func (s *GameServer) IsValidMove(pos models.Position) bool {
 
 	// Check bounds
 	if pos.X < 0 || pos.X >= floor.Width || pos.Y < 0 || pos.Y >= floor.Height {
+		log.Printf("Move out of bounds: (%d, %d), floor dimensions: %dx%d", pos.X, pos.Y, floor.Width, floor.Height)
 		return false
 	}
 
 	// Check walkable
 	tile := floor.Tiles[pos.Y][pos.X]
-	return tile.Type == models.TileFloor ||
+	isWalkable := tile.Type == models.TileFloor ||
 		tile.Type == models.TileStairsUp ||
 		tile.Type == models.TileStairsDown ||
 		tile.Type == models.TileDoor
+
+	if !isWalkable {
+		log.Printf("Tile at (%d, %d) is not walkable: %s", pos.X, pos.Y, tile.Type)
+	}
+
+	return isWalkable
 }
 
 // PickupItem handles item pickup
@@ -376,6 +459,10 @@ func (s *GameServer) SendFloorData(conn *websocket.Conn) {
 	currentFloor := s.Game.Dungeon.CurrentFloor
 	floor := s.Game.Dungeon.Floors[currentFloor]
 
+	// Get the player character associated with this connection
+	player := s.Game.Players[conn.RemoteAddr().String()]
+
+	// If no player is associated with this connection yet, just send the floor without player data
 	floorMsg := FloorMessage{
 		Type:         "floor_data",
 		Floor:        floor,
@@ -383,17 +470,23 @@ func (s *GameServer) SendFloorData(conn *websocket.Conn) {
 		CurrentFloor: currentFloor + 1, // 1-indexed for display
 	}
 
+	// Add player data if available
+	if player != nil {
+		floorMsg.PlayerData = player
+	}
+
 	if err := conn.WriteJSON(floorMsg); err != nil {
 		log.Printf("Error sending floor data: %v", err)
-	} else {
-		log.Printf("Sent floor %d data to client", currentFloor+1)
 	}
 }
 
 // BroadcastFloorData sends floor data to all clients
 func (s *GameServer) BroadcastFloorData() {
 	for client := range s.Clients {
-		s.SendFloorData(client)
+		// Only send floor data to clients that have a player associated with them
+		if _, ok := s.Game.Players[client.RemoteAddr().String()]; ok {
+			s.SendFloorData(client)
+		}
 	}
 }
 
@@ -449,4 +542,123 @@ func Max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// HandleCreateCharacter processes character creation requests
+func (s *GameServer) HandleCreateCharacter(conn *websocket.Conn, payload []byte) {
+	var createCharMsg struct {
+		Type      string                 `json:"type"`
+		Character models.CharacterCreate `json:"character"`
+	}
+
+	if err := json.Unmarshal(payload, &createCharMsg); err != nil {
+		log.Printf("Error parsing create character message: %v", err)
+		sendError(conn, fmt.Sprintf("Error creating character: %v", err))
+		return
+	}
+
+	// Validate character data
+	if createCharMsg.Character.Name == "" {
+		log.Println("Character name is required")
+		sendError(conn, "Character name is required")
+		return
+	}
+
+	if createCharMsg.Character.CharacterClass == "" {
+		log.Println("Character class is required")
+		sendError(conn, "Character class is required")
+		return
+	}
+
+	// Log the character creation
+	log.Printf("Creating character: %s (%s)", createCharMsg.Character.Name, createCharMsg.Character.CharacterClass)
+
+	// Create a new character
+	character := &models.Character{
+		ID:             uuid.New().String(),
+		Name:           createCharMsg.Character.Name,
+		CharacterClass: createCharMsg.Character.CharacterClass,
+		Stats:          createCharMsg.Character.Stats,
+		Level:          1,
+		Health:         100,
+		MaxHealth:      100,
+		Mana:           50,
+		MaxMana:        50,
+		Experience:     0,
+		Gold:           10,
+		Abilities:      []string{},
+		Status:         []string{},
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+
+	// Set abilities based on class
+	switch character.CharacterClass {
+	case "warrior":
+		character.Abilities = []string{"Slash", "Block", "Charge"}
+	case "mage":
+		character.Abilities = []string{"Fireball", "Frost Nova", "Blink"}
+	case "rogue":
+		character.Abilities = []string{"Backstab", "Stealth", "Evade"}
+	case "cleric":
+		character.Abilities = []string{"Heal", "Smite", "Bless"}
+	case "bard":
+		character.Abilities = []string{"Inspire", "Charm", "Mockery"}
+	case "druid":
+		character.Abilities = []string{"Shapeshift", "Entangle", "Rejuvenate"}
+	case "paladin":
+		character.Abilities = []string{"Smite", "Lay on Hands", "Divine Shield"}
+	case "ranger":
+		character.Abilities = []string{"Aimed Shot", "Track", "Animal Companion"}
+	case "warlock":
+		character.Abilities = []string{"Eldritch Blast", "Hex", "Dark Pact"}
+	case "monk":
+		character.Abilities = []string{"Flurry of Blows", "Stunning Strike", "Patient Defense"}
+	case "barbarian":
+		character.Abilities = []string{"Rage", "Reckless Attack", "Danger Sense"}
+	case "sorcerer":
+		character.Abilities = []string{"Chaos Bolt", "Metamagic", "Wild Magic"}
+	default:
+		character.Abilities = []string{"Attack"}
+	}
+
+	// Store the character
+	if s.CharacterRepository != nil {
+		err := s.CharacterRepository.Create(character)
+		if err != nil {
+			log.Printf("Error saving character: %v", err)
+			sendError(conn, fmt.Sprintf("Error saving character: %v", err))
+			return
+		}
+	}
+
+	// Associate the character with the connection
+	s.Game.Players[conn.RemoteAddr().String()] = character
+
+	// Send success message
+	response := map[string]interface{}{
+		"type":      "character_created",
+		"character": character,
+		"message":   fmt.Sprintf("Character %s created successfully", character.Name),
+		"timestamp": time.Now().Unix(),
+	}
+
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending character creation response: %v", err)
+	} else {
+		log.Printf("Character creation response sent successfully for %s", character.Name)
+	}
+}
+
+// Helper function to send error messages
+func sendError(conn *websocket.Conn, message string) {
+	err := conn.WriteJSON(DebugMessage{
+		Message:   message,
+		Level:     "error",
+		Timestamp: time.Now().Unix(),
+	})
+
+	if err != nil {
+		log.Printf("Error sending error message: %v", err)
+	}
 }
