@@ -169,15 +169,40 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
         // For now, we'll simulate a successful join after a short delay
         // In a real implementation, we would wait for the server's response
         setTimeout(() => {
-          // Create a simple floor data object for demonstration
+          // Create a proper floor data object with valid tiles
+          const width = 20;
+          const height = 20;
+          
+          // Create a 2D array of tiles
+          const tiles = Array(height).fill(null).map(() => 
+            Array(width).fill(null).map(() => ({
+              type: 'floor',
+              explored: true,
+              visible: true
+            }))
+          );
+          
+          // Add some walls around the edges
+          for (let x = 0; x < width; x++) {
+            tiles[0][x].type = 'wall';
+            tiles[height-1][x].type = 'wall';
+          }
+          
+          for (let y = 0; y < height; y++) {
+            tiles[y][0].type = 'wall';
+            tiles[y][width-1].type = 'wall';
+          }
+          
           const dummyFloorData: FloorData = {
             type: 'floor_data',
             floor: {
-              width: 20,
-              height: 20,
-              tiles: [],
+              width: width,
+              height: height,
+              tiles: tiles,
               entities: [],
-              items: []
+              items: [],
+              level: 1,
+              rooms: []
             },
             playerPosition: { x: 10, y: 10 },
             currentFloor: 0,
