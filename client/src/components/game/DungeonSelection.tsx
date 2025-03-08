@@ -179,13 +179,12 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
 
   return (
     <Box
-      maxW="1200px"
-      mx="auto"
+      w="100%"
+      h="100%"
       p={6}
       bg="gray.800"
-      borderRadius="md"
-      boxShadow="xl"
       color="white"
+      overflow="auto"
     >
       <Heading mb={6}>Dungeon Selection</Heading>
       

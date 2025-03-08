@@ -152,9 +152,11 @@ function App() {
     // Send character creation message
     const success = sendWebSocketMessage({
       type: 'create_character',
-      name: characterData.name,
-      characterClass: characterData.characterClass,
-      stats: characterData.stats
+      character: {
+        name: characterData.name,
+        characterClass: characterData.characterClass,
+        stats: characterData.stats
+      }
     })
     
     if (success) {
@@ -199,6 +201,7 @@ function App() {
       <Flex 
         direction="column" 
         h="100vh" 
+        w="100vw"
         bg="gray.900" 
         color="white"
         overflow="hidden"
@@ -218,11 +221,13 @@ function App() {
         )}
         
         {currentScreen === 'dungeonSelection' && character && (
-          <DungeonSelection 
-            onDungeonSelected={handleDungeonSelected}
-            onBack={handleBackToCharacterCreation}
-            characterId={character.id || ''}
-          />
+          <Box flex="1" overflow="hidden" position="relative" w="100%" h="100%">
+            <DungeonSelection 
+              onDungeonSelected={handleDungeonSelected}
+              onBack={handleBackToCharacterCreation}
+              characterId={character.id || ''}
+            />
+          </Box>
         )}
         
         {currentScreen === 'game' && floorData && (
