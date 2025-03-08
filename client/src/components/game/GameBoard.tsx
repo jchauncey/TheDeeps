@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Box, Spinner, Text, useToast, Button } from '@chakra-ui/react';
+import { Box, Spinner, Text, useToast, Button, Flex } from '@chakra-ui/react';
 import { sendWebSocketMessage } from '../../services/api';
 import { CLASS_COLORS } from '../../constants/gameConstants';
 import { MapLegend } from './MapLegend';
@@ -69,6 +69,11 @@ const CHARACTER_CLASS_STYLES = {
   default: { color: CLASS_COLORS.default.primary, symbol: '@', secondaryColor: CLASS_COLORS.default.secondary },
 };
 
+// Update the Entity interface to include description
+interface EnhancedEntity extends Entity {
+  description?: string;
+}
+
 interface GameBoardProps {
   floorData: FloorData | null;
 }
@@ -80,7 +85,7 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   const [currentFloor, setCurrentFloor] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 600 });
   const [error, setError] = useState<string | null>(null);
-  const [hoveredEntity, setHoveredEntity] = useState<Entity | null>(null);
+  const [hoveredEntity, setHoveredEntity] = useState<EnhancedEntity | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<Position | null>(null);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -137,9 +142,16 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
         console.log('Container size:', rect.width, rect.height);
+        
+        // Set the canvas dimensions to match the container
+        if (canvasRef.current) {
+          canvasRef.current.width = rect.width;
+          canvasRef.current.height = rect.height;
+        }
+        
         setViewportSize({
-          width: Math.floor(rect.width - 30), // Account for padding
-          height: Math.floor(rect.height - 60) // Account for header and padding
+          width: Math.floor(rect.width),
+          height: Math.floor(rect.height)
         });
       }
     };
@@ -248,15 +260,19 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Calculate tile size based on viewport
+    // Calculate the ideal number of tiles to show
+    const idealVisibleTilesX = 30; // Show more tiles horizontally
+    const idealVisibleTilesY = 20; // Show more tiles vertically
+    
+    // Calculate tile size based on viewport and ideal number of tiles
     const tileSize = Math.min(
-      viewportSize.width / Math.min(floor.width, 40),
-      viewportSize.height / Math.min(floor.height, 25)
+      canvas.width / idealVisibleTilesX,
+      canvas.height / idealVisibleTilesY
     );
     
     // Calculate viewport boundaries to only render what's visible
-    const visibleTilesX = Math.ceil(viewportSize.width / tileSize);
-    const visibleTilesY = Math.ceil(viewportSize.height / tileSize);
+    const visibleTilesX = Math.ceil(canvas.width / tileSize);
+    const visibleTilesY = Math.ceil(canvas.height / tileSize);
     
     // Center the viewport on the player
     const startX = Math.max(0, playerPos.x - Math.floor(visibleTilesX / 2));
@@ -264,12 +280,16 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     const endX = Math.min(floor.width, startX + visibleTilesX);
     const endY = Math.min(floor.height, startY + visibleTilesY);
     
+    // Calculate offset to center the map in the viewport
+    const offsetX = (canvas.width - (endX - startX) * tileSize) / 2;
+    const offsetY = (canvas.height - (endY - startY) * tileSize) / 2;
+    
     // Draw tiles
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
         const tile = floor.tiles[y][x];
-        const screenX = (x - startX) * tileSize;
-        const screenY = (y - startY) * tileSize;
+        const screenX = (x - startX) * tileSize + offsetX;
+        const screenY = (y - startY) * tileSize + offsetY;
         
         // Draw tile background
         ctx.fillStyle = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
@@ -296,8 +316,8 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
         entity.position.y >= startY && 
         entity.position.y < endY
       ) {
-        const screenX = (entity.position.x - startX) * tileSize;
-        const screenY = (entity.position.y - startY) * tileSize;
+        const screenX = (entity.position.x - startX) * tileSize + offsetX;
+        const screenY = (entity.position.y - startY) * tileSize + offsetY;
         drawEntity(ctx, entity, screenX, screenY, tileSize);
       }
     }
@@ -402,64 +422,63 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     }
   };
 
-  // Handle mouse move to show entity tooltips
+  // Update the handleMouseMove function to account for the new offset
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!floor || !canvasRef.current) return;
-
+    if (!floor || !playerPos || !canvasRef.current) return;
+    
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-
-    // Calculate the visible area (viewport)
-    const visibleTiles = {
-      width: Math.min(floor.width, 40), // Limit to 40 tiles wide
-      height: Math.min(floor.height, 25) // Limit to 25 tiles high
-    };
+    
+    // Calculate the ideal number of tiles to show
+    const idealVisibleTilesX = 30;
+    const idealVisibleTilesY = 20;
     
     // Calculate tile size
-    const tileSize = Math.max(
-      1,
-      Math.min(
-        Math.floor(viewportSize.width / visibleTiles.width),
-        Math.floor(viewportSize.height / visibleTiles.height)
-      )
+    const tileSize = Math.min(
+      canvas.width / idealVisibleTilesX,
+      canvas.height / idealVisibleTilesY
     );
-
-    // Calculate viewport center (player position)
-    const viewportCenterX = Math.floor(visibleTiles.width / 2);
-    const viewportCenterY = Math.floor(visibleTiles.height / 2);
     
-    // Calculate top-left corner of viewport in dungeon coordinates
-    const viewportStartX = Math.max(0, playerPos!.x - viewportCenterX);
-    const viewportStartY = Math.max(0, playerPos!.y - viewportCenterY);
+    // Calculate viewport boundaries
+    const visibleTilesX = Math.ceil(canvas.width / tileSize);
+    const visibleTilesY = Math.ceil(canvas.height / tileSize);
     
-    // Adjust if we're near the edge of the map
-    const maxStartX = Math.max(0, floor.width - visibleTiles.width);
-    const maxStartY = Math.max(0, floor.height - visibleTiles.height);
+    // Center the viewport on the player
+    const startX = Math.max(0, playerPos.x - Math.floor(visibleTilesX / 2));
+    const startY = Math.max(0, playerPos.y - Math.floor(visibleTilesY / 2));
+    const endX = Math.min(floor.width, startX + visibleTilesX);
+    const endY = Math.min(floor.height, startY + visibleTilesY);
     
-    const adjustedStartX = Math.min(viewportStartX, maxStartX);
-    const adjustedStartY = Math.min(viewportStartY, maxStartY);
-
+    // Calculate offset to center the map in the viewport
+    const offsetX = (canvas.width - (endX - startX) * tileSize) / 2;
+    const offsetY = (canvas.height - (endY - startY) * tileSize) / 2;
+    
     // Convert mouse position to tile coordinates
-    const tileX = Math.floor(mouseX / tileSize);
-    const tileY = Math.floor(mouseY / tileSize);
-
-    // Convert viewport coordinates to dungeon coordinates
-    const dungeonX = adjustedStartX + tileX;
-    const dungeonY = adjustedStartY + tileY;
-
-    // Find entity at this position
-    const entity = floor.entities.find(e => 
-      e.position.x === dungeonX && e.position.y === dungeonY
-    );
-
-    if (entity) {
-      setHoveredEntity(entity);
-      setTooltipPosition({ x: e.clientX, y: e.clientY });
+    const tileX = Math.floor((mouseX - offsetX) / tileSize) + startX;
+    const tileY = Math.floor((mouseY - offsetY) / tileSize) + startY;
+    
+    // Check if mouse is over a valid tile
+    if (
+      tileX >= startX && 
+      tileX < endX && 
+      tileY >= startY && 
+      tileY < endY
+    ) {
+      // Check if there's an entity at this position
+      const entityAtPosition = floor.entities.find(
+        entity => entity.position.x === tileX && entity.position.y === tileY
+      );
+      
+      if (entityAtPosition) {
+        setHoveredEntity(entityAtPosition as EnhancedEntity);
+        setTooltipPosition({ x: mouseX, y: mouseY });
+      } else {
+        setHoveredEntity(null);
+      }
     } else {
       setHoveredEntity(null);
-      setTooltipPosition(null);
     }
   };
 
@@ -532,6 +551,13 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     }
   }, [floorData]);
 
+  // Update the MapLegend component to work without props
+  const MapLegendComponent = () => (
+    <Box>
+      <MapLegend isOpen={true} onClose={() => setIsLegendOpen(false)} />
+    </Box>
+  );
+
   if (loading) {
     return (
       <Box
@@ -585,80 +611,109 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
 
   return (
     <Box 
-      ref={containerRef}
-      position="relative" 
-      width="100%" 
-      height="100%" 
-      bg="gray.900"
-      tabIndex={0}
+      ref={containerRef} 
+      tabIndex={0} 
       onKeyDown={handleKeyDown}
       onClick={focusContainer}
+      position="relative"
+      width="100%"
+      height="100%"
       overflow="hidden"
+      bg="gray.900"
+      borderRadius="md"
     >
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-          <Spinner size="xl" color="blue.500" />
-          <Text ml={4} color="white">Loading dungeon...</Text>
-        </Box>
+        <Flex 
+          justify="center" 
+          align="center" 
+          height="100%" 
+          width="100%"
+          direction="column"
+        >
+          <Spinner size="xl" color="blue.500" mb={4} />
+          <Text>Loading dungeon...</Text>
+        </Flex>
+      ) : error ? (
+        <Flex 
+          justify="center" 
+          align="center" 
+          height="100%" 
+          width="100%"
+          direction="column"
+        >
+          <Text color="red.500" mb={4}>{error}</Text>
+          <Button 
+            colorScheme="blue" 
+            onClick={requestFloorData}
+          >
+            Retry
+          </Button>
+        </Flex>
       ) : (
         <>
-          <canvas 
-            ref={canvasRef} 
-            style={{ 
-              display: 'block',
-              margin: '0 auto',
-              imageRendering: 'pixelated'
-            }}
+          <canvas
+            ref={canvasRef}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              imageRendering: 'pixelated'
+            }}
           />
           
-          {/* Entity tooltip */}
+          {/* Tooltip for hovered entity */}
           {hoveredEntity && tooltipPosition && (
             <Box
-              position="fixed"
-              left={`${tooltipPosition.x + 10}px`}
-              top={`${tooltipPosition.y + 10}px`}
+              position="absolute"
+              left={`${tooltipPosition.x + 20}px`}
+              top={`${tooltipPosition.y}px`}
               bg="gray.800"
               color="white"
               p={2}
               borderRadius="md"
               boxShadow="md"
-              zIndex={1000}
-              maxWidth="250px"
+              zIndex={10}
+              pointerEvents="none"
             >
               <Text fontWeight="bold">{hoveredEntity.name}</Text>
-              {hoveredEntity.health !== undefined && hoveredEntity.maxHealth !== undefined && (
-                <Text>Health: {hoveredEntity.health}/{hoveredEntity.maxHealth}</Text>
-              )}
-              {hoveredEntity.damage !== undefined && (
-                <Text>Damage: {hoveredEntity.damage}</Text>
-              )}
-              {hoveredEntity.defense !== undefined && (
-                <Text>Defense: {hoveredEntity.defense}</Text>
-              )}
-              {hoveredEntity.speed !== undefined && (
-                <Text>Speed: {hoveredEntity.speed}</Text>
-              )}
-              {hoveredEntity.status && hoveredEntity.status.length > 0 && (
-                <Text>Status: {hoveredEntity.status.join(', ')}</Text>
+              {hoveredEntity.description && (
+                <Text fontSize="sm">{hoveredEntity.description}</Text>
               )}
             </Box>
           )}
-
-          {/* Legend button */}
-          <Box position="absolute" top="10px" right="10px">
-            <Button 
-              colorScheme="blue" 
-              size="sm" 
-              onClick={() => setIsLegendOpen(true)}
+          
+          {/* Map Legend Toggle Button */}
+          <Button
+            position="absolute"
+            top="10px"
+            right="10px"
+            size="sm"
+            onClick={() => setIsLegendOpen(!isLegendOpen)}
+            colorScheme="blue"
+            variant="outline"
+          >
+            {isLegendOpen ? 'Hide Legend' : 'Show Legend'}
+          </Button>
+          
+          {/* Map Legend */}
+          {isLegendOpen && (
+            <Box
+              position="absolute"
+              top="50px"
+              right="10px"
+              bg="gray.800"
+              p={3}
+              borderRadius="md"
+              boxShadow="lg"
+              maxHeight="80%"
+              overflowY="auto"
+              zIndex={5}
             >
-              Legend (L)
-            </Button>
-          </Box>
-
-          {/* Map Legend Modal */}
-          <MapLegend isOpen={isLegendOpen} onClose={() => setIsLegendOpen(false)} />
+              <MapLegendComponent />
+            </Box>
+          )}
         </>
       )}
     </Box>

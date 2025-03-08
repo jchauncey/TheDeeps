@@ -127,16 +127,24 @@ export const GameStatusSimple = ({ character }: GameStatusSimpleProps) => {
         color="white"
         borderLeft="4px solid"
         borderColor={classColors.primary}
+        display="flex"
+        flexDirection="column"
+        justifyContent="flex-start"
       >
         {/* Character Name and Level */}
         <Flex justify="space-between" align="center" mb={4}>
-          <Text fontSize="lg" fontWeight="bold">
-            {character.name}
-          </Text>
+          <Flex align="center">
+            <Icon as={ClassIcon} color={classColors.primary} mr={2} boxSize="20px" />
+            <Text fontSize="lg" fontWeight="bold">
+              {character.name}
+            </Text>
+            <Text fontSize="sm" ml={2} color="gray.300">
+              Lvl {characterLevel}
+            </Text>
+          </Flex>
           <Tooltip label="Open Character Profile (Press 'C')">
             <Button 
               size="sm" 
-              leftIcon={<Icon as={ClassIcon} />} 
               variant="outline"
               onClick={() => setIsProfileOpen(true)}
               _hover={{ bg: classColors.primary + '30' }}

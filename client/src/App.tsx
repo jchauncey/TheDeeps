@@ -290,17 +290,48 @@ function App() {
         )}
         
         {currentScreen === 'game' && floorData && (
-          <Box flex="1" overflow="hidden" position="relative">
-            <GameBoard floorData={floorData} />
-            <GameStatusSimple 
-              character={character} 
-            />
-            <GameControls 
-              character={character}
-              onNewGame={handleNewGame}
-              onLoadGame={handleLoadGame}
-            />
-          </Box>
+          <Flex 
+            flex="1" 
+            overflow="hidden" 
+            position="relative" 
+            width="100%" 
+            height="100%"
+          >
+            {/* Map window anchored to the left */}
+            <Box 
+              flex="1" 
+              height="100%" 
+              overflow="hidden"
+            >
+              <GameBoard floorData={floorData} />
+            </Box>
+            
+            {/* Character status panel anchored to the right */}
+            <Box 
+              width="300px" 
+              height="100%" 
+              position="relative"
+            >
+              <GameStatusSimple 
+                character={character} 
+              />
+            </Box>
+            
+            {/* Game controls positioned at the bottom */}
+            <Box 
+              position="absolute" 
+              bottom="0" 
+              left="0" 
+              width="100%" 
+              zIndex="10"
+            >
+              <GameControls 
+                character={character}
+                onNewGame={handleNewGame}
+                onLoadGame={handleLoadGame}
+              />
+            </Box>
+          </Flex>
         )}
       </Flex>
     </ChakraProvider>
