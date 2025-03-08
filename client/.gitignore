@@ -1,3 +1,28 @@
+# Dependencies
+node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Testing
+/coverage
+/cypress/videos/
+/cypress/screenshots/
+
+# Production
+/build
+/dist
+/dist-ssr
+
+# Misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+
 # Logs
 logs
 *.log
@@ -7,18 +32,41 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# TypeScript specific
+*.tsbuildinfo
+next-env.d.ts
+
+# Cache
+.eslintcache
+.stylelintcache
+.cache
+.parcel-cache
+
+# Local files
+*.local
+
+# Bundle analyzer output
+stats.html
+bundle-analysis.html
+
+# Storybook
+storybook-static/
+
+# Generated files
+.docusaurus
+.cache-loader
+
+client/.vite/*
