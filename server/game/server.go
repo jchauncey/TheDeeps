@@ -917,7 +917,7 @@ func (s *GameServer) SendFloorData(conn *websocket.Conn) {
 		Type:         "floor_data",
 		Floor:        floor,
 		PlayerPos:    *position,
-		CurrentFloor: floorIndex,
+		CurrentFloor: floorIndex + 1, // Convert to 1-indexed for the client
 		PlayerData:   character,
 		DungeonID:    dungeon.ID,
 	}
@@ -1467,7 +1467,7 @@ func (s *GameServer) HandleJoinDungeon(conn *websocket.Conn, payload []byte) {
 		Type:         "floor_data",
 		Floor:        floor,
 		PlayerPos:    *position,
-		CurrentFloor: floorIndex,
+		CurrentFloor: floorIndex + 1, // Convert to 1-indexed for the client
 		PlayerData:   character,
 		DungeonID:    joinDungeonMsg.DungeonID,
 	}
