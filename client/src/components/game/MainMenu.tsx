@@ -78,9 +78,13 @@ export const MainMenu = ({ isOpen, onClose, onNewGame, onLoadGame, character }: 
   };
 
   const handleQuitGame = () => {
-    // Return to start screen
-    onNewGame(); // This will take us to character creation, which has a back button to start screen
-    onClose();
+    // Confirm with the user before quitting the game
+    if (window.confirm('Quitting to the main menu will lose your current progress. Are you sure?')) {
+      // Return to start screen via the onNewGame callback
+      // This will handle removing the character from the dungeon
+      onNewGame();
+      onClose();
+    }
   };
 
   return (

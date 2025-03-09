@@ -160,8 +160,30 @@ export const isWebSocketConnected = (): boolean => {
 // Manually close the WebSocket connection
 export const closeWebSocketConnection = (): void => {
   if (ws) {
-    ws.close(1000, "Client closing connection");
-    ws = null;
+    // Set a flag to prevent reconnection attempts
+    const preventReconnect = true;
+    
+    try {
+      // Set a short timeout to ensure the connection is closed
+      ws.onclose = () => {
+        console.log('WebSocket connection closed by client');
+        ws = null;
+      };
+      
+      // Close the connection with a normal closure code
+      ws.close(1000, "Client closing connection");
+      
+      // If the close event doesn't fire within 100ms, force it
+      setTimeout(() => {
+        if (ws) {
+          console.log('Forcing WebSocket cleanup');
+          ws = null;
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error closing WebSocket connection:', error);
+      ws = null;
+    }
   }
   
   // Clear any pending reconnect timers

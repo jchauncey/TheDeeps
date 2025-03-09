@@ -105,6 +105,13 @@ type DungeonListItemResponse struct {
 	LastActivity time.Time `json:"lastActivity"`
 }
 
+// LeaveDungeonMessage represents a request to leave a dungeon
+type LeaveDungeonMessage struct {
+	Type        string `json:"type"`
+	DungeonID   string `json:"dungeonId"`
+	CharacterID string `json:"characterId"`
+}
+
 // NewGameServer creates a new game server instance
 func NewGameServer() *GameServer {
 	// Create a default dungeon for backward compatibility
@@ -219,6 +226,23 @@ func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		// Get character ID associated with this connection
 		characterID := s.Clients[conn]
 
+		// If there's a character associated with this connection, remove them from any dungeons
+		if characterID != "" {
+			// Find which dungeon the character is in
+			dungeonInstance := s.DungeonRepository.GetPlayerDungeon(characterID)
+			if dungeonInstance != nil {
+				// Remove the player from the dungeon
+				err := s.DungeonRepository.RemovePlayerFromDungeon(dungeonInstance.ID, characterID)
+				if err != nil {
+					log.Printf("Error removing character %s from dungeon %s during disconnect: %v",
+						characterID, dungeonInstance.ID, err)
+				} else {
+					log.Printf("Character %s removed from dungeon %s during disconnect",
+						characterID, dungeonInstance.ID)
+				}
+			}
+		}
+
 		// Clean up connection
 		conn.Close()
 		delete(s.Clients, conn)
@@ -298,6 +322,8 @@ func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.HandleCreateDungeon(conn, p)
 		case "join_dungeon":
 			s.HandleJoinDungeon(conn, p)
+		case "leave_dungeon":
+			s.HandleLeaveDungeon(conn, p)
 		case "list_dungeons":
 			s.HandleListDungeons(conn)
 		default:
@@ -1495,5 +1521,51 @@ func (s *GameServer) HandleListDungeons(conn *websocket.Conn) {
 		log.Printf("Error sending dungeon list response: %v", err)
 	} else {
 		log.Printf("Dungeon list sent successfully")
+	}
+}
+
+// HandleLeaveDungeon handles a request to leave a dungeon
+func (s *GameServer) HandleLeaveDungeon(conn *websocket.Conn, payload []byte) {
+	// Parse the message
+	var leaveDungeonMsg LeaveDungeonMessage
+	if err := json.Unmarshal(payload, &leaveDungeonMsg); err != nil {
+		log.Printf("Error parsing leave_dungeon message: %v", err)
+		sendError(conn, "Invalid leave_dungeon message format")
+		return
+	}
+
+	// Validate the message
+	if leaveDungeonMsg.DungeonID == "" {
+		sendError(conn, "Missing dungeonId in leave_dungeon message")
+		return
+	}
+
+	if leaveDungeonMsg.CharacterID == "" {
+		sendError(conn, "Missing characterId in leave_dungeon message")
+		return
+	}
+
+	// Remove the player from the dungeon
+	err := s.DungeonRepository.RemovePlayerFromDungeon(leaveDungeonMsg.DungeonID, leaveDungeonMsg.CharacterID)
+	if err != nil {
+		log.Printf("Error removing character %s from dungeon %s: %v", leaveDungeonMsg.CharacterID, leaveDungeonMsg.DungeonID, err)
+		sendError(conn, fmt.Sprintf("Error leaving dungeon: %v", err))
+		return
+	}
+
+	// Remove the character association from the connection
+	s.Clients[conn] = ""
+
+	log.Printf("Character %s left dungeon %s", leaveDungeonMsg.CharacterID, leaveDungeonMsg.DungeonID)
+
+	// Send a success response
+	response := map[string]interface{}{
+		"type":    "leave_dungeon_response",
+		"success": true,
+		"message": "Successfully left the dungeon",
+	}
+
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending leave_dungeon response: %v", err)
 	}
 }

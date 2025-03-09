@@ -343,17 +343,49 @@ function App() {
   
   // Handle new game
   const handleNewGame = () => {
-    // Reset game state
-    setCharacter(null)
-    setFloorData(null)
-    setDungeonId(null)
-    
-    // Close WebSocket connection if it exists
-    closeWebSocketConnection()
-    setIsConnected(false)
-    setConnectionAttempted(false)
-    
-    setCurrentScreen('characterCreation')
+    // If we have a character in a dungeon, send a message to remove them
+    if (character && character.id && dungeonId) {
+      console.log(`Removing character ${character.id} from dungeon ${dungeonId}`)
+      
+      // First send the leave_dungeon message
+      const success = sendWebSocketMessage({
+        type: 'leave_dungeon',
+        characterId: character.id,
+        dungeonId: dungeonId
+      })
+      
+      if (!success) {
+        console.warn('Failed to send leave_dungeon message, WebSocket not connected')
+      }
+      
+      // Give the server a moment to process the leave_dungeon message
+      // before closing the connection
+      setTimeout(() => {
+        // Reset game state
+        setCharacter(null)
+        setFloorData(null)
+        setDungeonId(null)
+        
+        // Close WebSocket connection if it exists
+        closeWebSocketConnection()
+        setIsConnected(false)
+        setConnectionAttempted(false)
+        
+        setCurrentScreen('characterCreation')
+      }, 200) // Increased timeout to 200ms to give more time for the server to process
+    } else {
+      // Reset game state
+      setCharacter(null)
+      setFloorData(null)
+      setDungeonId(null)
+      
+      // Close WebSocket connection if it exists
+      closeWebSocketConnection()
+      setIsConnected(false)
+      setConnectionAttempted(false)
+      
+      setCurrentScreen('characterCreation')
+    }
   }
   
   // Handle load game
