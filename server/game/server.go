@@ -455,6 +455,10 @@ func (s *GameServer) HandleAction(conn *websocket.Conn, payload []byte) {
 		return
 	}
 
+	// Get the player's current floor
+	currentFloorIndex := dungeon.GetPlayerFloor(characterID)
+	currentFloor := dungeon.Dungeon.Floors[currentFloorIndex]
+
 	switch message.Action {
 	case "pickup":
 		// TODO: Update this to work with the new dungeon model
@@ -463,11 +467,85 @@ func (s *GameServer) HandleAction(conn *websocket.Conn, payload []byte) {
 		// TODO: Update this to work with the new dungeon model
 		log.Printf("Attack action not yet implemented for new dungeon model")
 	case "descend":
-		// TODO: Update this to work with the new dungeon model
-		log.Printf("Descend action not yet implemented for new dungeon model")
+		// Check if player is standing on stairs down
+		if currentFloor.Tiles[currentPos.Y][currentPos.X].Type == models.TileStairsDown {
+			if currentFloorIndex < len(dungeon.Dungeon.Floors)-1 {
+				// Move player to next floor
+				nextFloorIndex := currentFloorIndex + 1
+				nextFloor := dungeon.Dungeon.Floors[nextFloorIndex]
+
+				// Find stairs up on the next floor
+				var stairsUpPos *models.Position
+				for y := 0; y < nextFloor.Height; y++ {
+					for x := 0; x < nextFloor.Width; x++ {
+						if nextFloor.Tiles[y][x].Type == models.TileStairsUp {
+							stairsUpPos = &models.Position{X: x, Y: y}
+							break
+						}
+					}
+					if stairsUpPos != nil {
+						break
+					}
+				}
+
+				if stairsUpPos != nil {
+					// Update player position and floor
+					dungeon.UpdatePlayerPosition(characterID, *stairsUpPos)
+					dungeon.UpdatePlayerFloor(characterID, nextFloorIndex)
+
+					// Update last activity time
+					dungeon.LastActivity = time.Now()
+
+					log.Printf("Player %s descended to floor %d", characterID, nextFloorIndex+1)
+				} else {
+					log.Printf("Could not find stairs up on floor %d", nextFloorIndex+1)
+				}
+			} else {
+				log.Println("Already at the bottom floor")
+			}
+		} else {
+			log.Println("Not standing on stairs down")
+		}
 	case "ascend":
-		// TODO: Update this to work with the new dungeon model
-		log.Printf("Ascend action not yet implemented for new dungeon model")
+		// Check if player is standing on stairs up
+		if currentFloor.Tiles[currentPos.Y][currentPos.X].Type == models.TileStairsUp {
+			if currentFloorIndex > 0 {
+				// Move player to previous floor
+				prevFloorIndex := currentFloorIndex - 1
+				prevFloor := dungeon.Dungeon.Floors[prevFloorIndex]
+
+				// Find stairs down on the previous floor
+				var stairsDownPos *models.Position
+				for y := 0; y < prevFloor.Height; y++ {
+					for x := 0; x < prevFloor.Width; x++ {
+						if prevFloor.Tiles[y][x].Type == models.TileStairsDown {
+							stairsDownPos = &models.Position{X: x, Y: y}
+							break
+						}
+					}
+					if stairsDownPos != nil {
+						break
+					}
+				}
+
+				if stairsDownPos != nil {
+					// Update player position and floor
+					dungeon.UpdatePlayerPosition(characterID, *stairsDownPos)
+					dungeon.UpdatePlayerFloor(characterID, prevFloorIndex)
+
+					// Update last activity time
+					dungeon.LastActivity = time.Now()
+
+					log.Printf("Player %s ascended to floor %d", characterID, prevFloorIndex+1)
+				} else {
+					log.Printf("Could not find stairs down on floor %d", prevFloorIndex+1)
+				}
+			} else {
+				log.Println("Already at the top floor")
+			}
+		} else {
+			log.Println("Not standing on stairs up")
+		}
 	default:
 		log.Printf("Unknown action: %s", message.Action)
 	}
