@@ -91,9 +91,17 @@ This document lists the character system features that need to be implemented to
 
 - [x] Implement main menu with save/load options
 - [x] Add save game functionality that preserves character state
-- [ ] Implement load game functionality to restore character state
-- [ ] Add game state tracking (position, health, inventory)
+- [x] Implement load game functionality to restore character state
+- [x] Add game state tracking (position, health, inventory)
 - [ ] Implement auto-save feature at key points (level changes, etc.)
+
+## Floor Navigation
+
+- [x] Implement ascending and descending stairs functionality
+- [x] Track character position when changing floors
+- [x] Validate that character is standing on stairs before allowing floor transitions
+- [x] Prevent ascending above the first floor or descending below the last floor
+- [x] Update floor data on the client after a successful floor transition
 
 ## Implementation Notes
 

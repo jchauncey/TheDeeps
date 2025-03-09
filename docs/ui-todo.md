@@ -12,7 +12,7 @@ This document lists the missing UI elements that need to be implemented to fully
 - [ ] Ensure experience points are properly tracked and updated during gameplay
 
 ## Dungeon Window
-- [ ] Ensure the character icon is a stylized @ symbol
+- [x] Ensure the character icon is a stylized @ symbol
 - [x] Implement unique colors for each character class's @ symbol
 
 ## Menu System
@@ -23,6 +23,14 @@ This document lists the missing UI elements that need to be implemented to fully
 - [x] Add Return to Game option
 - [x] Add Quit to Main Menu option
 - [ ] Implement Settings menu with audio, video, and gameplay options
+
+## Floor Navigation
+- [x] Visual indication when player is standing on stairs
+- [x] Tooltip or prompt showing available actions when standing on stairs
+- [x] Feedback message when attempting to ascend from the top floor or descend from the bottom floor
+- [x] Floor transition animation when moving between floors
+- [x] Floor number indicator that updates when changing floors
+- [x] Action buttons for ascending and descending when standing on appropriate stairs
 
 ## General UI Improvements
 - [ ] Verify that toast banners automatically disappear after 5 seconds
