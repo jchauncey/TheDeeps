@@ -274,15 +274,29 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     const visibleTilesX = Math.ceil(canvas.width / tileSize);
     const visibleTilesY = Math.ceil(canvas.height / tileSize);
     
-    // Center the viewport on the player
-    const startX = Math.max(0, playerPos.x - Math.floor(visibleTilesX / 2));
-    const startY = Math.max(0, playerPos.y - Math.floor(visibleTilesY / 2));
+    // Center the viewport on the player with improved edge handling
+    let startX = Math.max(0, playerPos.x - Math.floor(visibleTilesX / 2));
+    let startY = Math.max(0, playerPos.y - Math.floor(visibleTilesY / 2));
+    
+    // Ensure we always show the same number of tiles when possible
+    // This prevents the map from shrinking when reaching the edges
+    if (startX + visibleTilesX > floor.width) {
+      startX = Math.max(0, floor.width - visibleTilesX);
+    }
+    
+    if (startY + visibleTilesY > floor.height) {
+      startY = Math.max(0, floor.height - visibleTilesY);
+    }
+    
     const endX = Math.min(floor.width, startX + visibleTilesX);
     const endY = Math.min(floor.height, startY + visibleTilesY);
     
     // Calculate offset to center the map in the viewport
-    const offsetX = (canvas.width - (endX - startX) * tileSize) / 2;
-    const offsetY = (canvas.height - (endY - startY) * tileSize) / 2;
+    // Use fixed tile counts to maintain consistent sizing
+    const tilesShownX = endX - startX;
+    const tilesShownY = endY - startY;
+    const offsetX = (canvas.width - tilesShownX * tileSize) / 2;
+    const offsetY = (canvas.height - tilesShownY * tileSize) / 2;
     
     // Draw tiles
     for (let y = startY; y < endY; y++) {
