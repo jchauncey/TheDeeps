@@ -298,14 +298,17 @@ func (h *Handler) HandleJoinDungeon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add character to dungeon
-	dungeon.AddPlayer(character.ID)
+	// Add character to dungeon (this will place them on the first floor)
+	if err := h.Server.DungeonRepository.AddPlayerToDungeon(dungeonID, characterID); err != nil {
+		http.Error(w, "Failed to add player to dungeon", http.StatusInternalServerError)
+		return
+	}
 
-	log.Printf("[%s] Character %s (%s) joined dungeon %s (%s)",
+	log.Printf("[%s] Character %s (%s) joined dungeon %s (%s) on floor 1",
 		time.Now().Format("2006-01-02 15:04:05"),
 		character.Name, character.ID, dungeon.Name, dungeon.ID)
 
-	// Get the character's position and floor
+	// Get the character's position and floor (should be floor 0)
 	position := dungeon.GetPlayerPosition(character.ID)
 	floorIndex := dungeon.GetPlayerFloor(character.ID)
 	floor := dungeon.Dungeon.Floors[floorIndex]

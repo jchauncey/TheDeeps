@@ -47,6 +47,20 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
   useEffect(() => {
     console.log('DungeonSelection component mounted, loading dungeons...');
     console.log('Character ID:', characterId);
+    
+    if (!characterId) {
+      console.error('Character ID is missing in DungeonSelection component');
+      toast({
+        title: 'Error',
+        description: 'Character ID is missing. Please create a character first.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      onBack(); // Go back to character creation
+      return;
+    }
+    
     loadDungeons();
   }, [characterId]);
 
@@ -146,12 +160,41 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
   const handleJoinDungeon = async (dungeonId: string) => {
     setIsJoining(true);
     try {
+      // Set the selected dungeon ID
+      setSelectedDungeonId(dungeonId);
+      
+      // Log character ID for debugging
+      console.log('Joining dungeon with characterId:', characterId);
+      
+      if (!characterId) {
+        toast({
+          title: 'Error',
+          description: 'Character ID is missing. Please create a character first.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        setIsJoining(false);
+        return;
+      }
+      
+      // Store character ID in localStorage to ensure it's available when processing WebSocket messages
+      try {
+        localStorage.setItem('currentCharacterId', characterId);
+        console.log('Stored characterId in localStorage:', characterId);
+      } catch (error) {
+        console.error('Failed to store characterId in localStorage:', error);
+      }
+      
       // Use the WebSocket API instead of HTTP API
       const success = sendWebSocketMessage({
         type: 'join_dungeon',
         dungeonId: dungeonId,
         characterId: characterId
       });
+      
+      // Alternatively, use the updated joinDungeonWS function
+      // const success = joinDungeonWS(dungeonId, characterId);
       
       if (success) {
         toast({
@@ -163,61 +206,11 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
         });
         
         // Wait for the dungeon to be joined
-        // The server will send a dungeon_joined message
-        // which will be handled by the WebSocket message handler
+        // The server will send a dungeon_joined message and floor_data message
+        // which will be handled by the WebSocket message handler in App.tsx
         
-        // For now, we'll simulate a successful join after a short delay
-        // In a real implementation, we would wait for the server's response
-        setTimeout(() => {
-          // Create a proper floor data object with valid tiles
-          const width = 20;
-          const height = 20;
-          
-          // Create a 2D array of tiles
-          const tiles = Array(height).fill(null).map(() => 
-            Array(width).fill(null).map(() => ({
-              type: 'floor',
-              explored: true,
-              visible: true
-            }))
-          );
-          
-          // Add some walls around the edges
-          for (let x = 0; x < width; x++) {
-            tiles[0][x].type = 'wall';
-            tiles[height-1][x].type = 'wall';
-          }
-          
-          for (let y = 0; y < height; y++) {
-            tiles[y][0].type = 'wall';
-            tiles[y][width-1].type = 'wall';
-          }
-          
-          const dummyFloorData: FloorData = {
-            type: 'floor_data',
-            floor: {
-              width: width,
-              height: height,
-              tiles: tiles,
-              entities: [],
-              items: [],
-              level: 1,
-              rooms: []
-            },
-            playerPosition: { x: 10, y: 10 },
-            currentFloor: 0,
-            playerData: {
-              id: characterId,
-              name: 'Player',
-              characterClass: 'warrior',
-              health: 100,
-              maxHealth: 100
-            }
-          };
-          
-          // Notify parent component that a dungeon has been selected
-          onDungeonSelected(dungeonId, dummyFloorData);
-        }, 1000);
+        // Note: We no longer need to create a dummy floor data here
+        // as the server will send the real floor data
       } else {
         toast({
           title: 'Error',

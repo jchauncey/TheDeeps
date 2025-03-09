@@ -56,6 +56,7 @@ type FloorMessage struct {
 	PlayerPos    models.Position   `json:"playerPosition"`
 	CurrentFloor int               `json:"currentFloor"`
 	PlayerData   *models.Character `json:"playerData"`
+	DungeonID    string            `json:"dungeonId"`
 }
 
 type MoveMessage struct {
@@ -320,8 +321,31 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 
 	log.Printf("Received move command: %s", moveMsg.Direction)
 
-	currentPos := s.Game.Dungeon.PlayerPosition
-	newPos := currentPos
+	// Get the character ID associated with this connection
+	characterID, exists := s.Clients[conn]
+	if !exists {
+		log.Printf("No character associated with connection")
+		return
+	}
+
+	// Find the dungeon the player is in
+	dungeon := s.DungeonRepository.GetPlayerDungeon(characterID)
+	if dungeon == nil {
+		log.Printf("No dungeon found for character %s", characterID)
+		return
+	}
+
+	// Get the player's position and floor
+	currentPos := dungeon.GetPlayerPosition(characterID)
+	if currentPos == nil {
+		log.Printf("No position found for character %s", characterID)
+		return
+	}
+
+	floorIndex := dungeon.GetPlayerFloor(characterID)
+	floor := dungeon.Dungeon.Floors[floorIndex]
+
+	newPos := *currentPos
 
 	// Calculate new position
 	switch moveMsg.Direction {
@@ -338,67 +362,69 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 		return
 	}
 
-	log.Printf("Current position: (%d, %d), New position: (%d, %d)", currentPos.X, currentPos.Y, newPos.X, newPos.Y)
+	log.Printf("Character %s - Current position: (%d, %d), New position: (%d, %d)",
+		characterID, currentPos.X, currentPos.Y, newPos.X, newPos.Y)
 
-	// Move if valid
-	if s.IsValidMove(newPos) {
-		s.Game.Dungeon.PlayerPosition = newPos
+	// Check if the move is valid
+	if newPos.X >= 0 && newPos.X < floor.Width &&
+		newPos.Y >= 0 && newPos.Y < floor.Height &&
+		floor.Tiles[newPos.Y][newPos.X].Type != models.TileWall {
 
-		// Update player entity position
-		currentFloor := s.Game.Dungeon.CurrentFloor
-		floor := s.Game.Dungeon.Floors[currentFloor]
+		// Update player position in the dungeon
+		*currentPos = newPos
 
 		// Find and update player entity
 		for i, entity := range floor.Entities {
-			if entity.Type == "player" {
+			if entity.Type == "player" && entity.ID == characterID {
 				floor.Entities[i].Position = newPos
 				break
 			}
 		}
 
-		// Get the player character for the current connection
-		character := s.Game.Players[conn.RemoteAddr().String()]
+		// Get the character
+		character, err := s.CharacterRepository.GetByID(characterID)
+		if err != nil {
+			log.Printf("Error getting character: %v", err)
+			return
+		}
 
-		// If we have a player character but no player entity exists, create one
-		if character != nil {
-			playerEntityExists := false
-			for _, entity := range floor.Entities {
-				if entity.Type == "player" {
-					playerEntityExists = true
-					break
-				}
-			}
-
-			if !playerEntityExists {
-				playerEntity := models.Entity{
-					ID:             uuid.New().String(),
-					Type:           "player",
-					Name:           character.Name,
-					Position:       newPos,
-					CharacterClass: character.CharacterClass,
-					Health:         character.Health,
-					MaxHealth:      character.MaxHealth,
-				}
-				floor.Entities = append(floor.Entities, playerEntity)
+		// If no player entity exists for this character, create one
+		playerEntityExists := false
+		for _, entity := range floor.Entities {
+			if entity.Type == "player" && entity.ID == characterID {
+				playerEntityExists = true
+				break
 			}
 		}
 
-		UpdateVisibility(s.Game.Dungeon)
-		log.Printf("Player moved %s to (%d, %d)", moveMsg.Direction, newPos.X, newPos.Y)
-		s.BroadcastFloorData()
+		if !playerEntityExists {
+			playerEntity := models.Entity{
+				ID:             characterID,
+				Type:           "player",
+				Name:           character.Name,
+				Position:       newPos,
+				CharacterClass: character.CharacterClass,
+				Health:         character.Health,
+				MaxHealth:      character.MaxHealth,
+			}
+			floor.Entities = append(floor.Entities, playerEntity)
+		}
+
+		// Update visibility
+		// TODO: Update this to work with the new dungeon model
+		// UpdateVisibility(dungeon.Dungeon)
+
+		log.Printf("Player %s moved %s to (%d, %d)", characterID, moveMsg.Direction, newPos.X, newPos.Y)
+
+		// Send updated floor data to the player
+		s.SendFloorData(conn)
 	} else {
-		log.Printf("Invalid move to (%d, %d) - Tile type: %s", newPos.X, newPos.Y,
-			s.Game.Dungeon.Floors[s.Game.Dungeon.CurrentFloor].Tiles[newPos.Y][newPos.X].Type)
+		log.Printf("Invalid move to (%d, %d) for character %s", newPos.X, newPos.Y, characterID)
 	}
 }
 
 // HandleAction handles player actions
 func (s *GameServer) HandleAction(conn *websocket.Conn, payload []byte) {
-	if s.Game == nil || s.Game.Dungeon == nil {
-		log.Printf("Error: Game or dungeon is nil in HandleAction")
-		return
-	}
-
 	var message ActionMessage
 	err := json.Unmarshal(payload, &message)
 	if err != nil {
@@ -408,28 +434,46 @@ func (s *GameServer) HandleAction(conn *websocket.Conn, payload []byte) {
 
 	log.Printf("Received action: %s", message.Action)
 
+	// Get the character ID associated with this connection
+	characterID, exists := s.Clients[conn]
+	if !exists {
+		log.Printf("No character associated with connection")
+		return
+	}
+
+	// Find the dungeon the player is in
+	dungeon := s.DungeonRepository.GetPlayerDungeon(characterID)
+	if dungeon == nil {
+		log.Printf("No dungeon found for character %s", characterID)
+		return
+	}
+
+	// Get the player's position
+	currentPos := dungeon.GetPlayerPosition(characterID)
+	if currentPos == nil {
+		log.Printf("No position found for character %s", characterID)
+		return
+	}
+
 	switch message.Action {
 	case "pickup":
-		s.PickupItem()
+		// TODO: Update this to work with the new dungeon model
+		log.Printf("Pickup action not yet implemented for new dungeon model")
 	case "attack":
-		s.AttackEntity()
+		// TODO: Update this to work with the new dungeon model
+		log.Printf("Attack action not yet implemented for new dungeon model")
 	case "descend":
-		s.DescendStairs()
+		// TODO: Update this to work with the new dungeon model
+		log.Printf("Descend action not yet implemented for new dungeon model")
 	case "ascend":
-		s.AscendStairs()
-	case "save_game":
-		s.SaveGame(conn)
-	case "toggle_debug":
-		DebugMode = !DebugMode
-		log.Printf("Debug mode: %v", DebugMode)
-		// Debug mode no longer needs to reveal the map since all tiles are visible
-		// Send updated floor data to the client
-		if conn != nil {
-			s.SendFloorData(conn)
-		}
+		// TODO: Update this to work with the new dungeon model
+		log.Printf("Ascend action not yet implemented for new dungeon model")
 	default:
 		log.Printf("Unknown action: %s", message.Action)
 	}
+
+	// Send updated floor data to the player
+	s.SendFloorData(conn)
 }
 
 // IsValidMove checks if a move is valid
@@ -738,23 +782,40 @@ func (s *GameServer) AscendStairs() {
 
 // SendFloorData sends floor data to a client
 func (s *GameServer) SendFloorData(conn *websocket.Conn) {
-	currentFloor := s.Game.Dungeon.CurrentFloor
-	floor := s.Game.Dungeon.Floors[currentFloor]
+	// Get the character ID associated with this connection
+	characterID, exists := s.Clients[conn]
+	if !exists {
+		log.Printf("No character associated with connection")
+		return
+	}
 
-	// Get the player character associated with this connection
-	player := s.Game.Players[conn.RemoteAddr().String()]
+	// Find the dungeon the player is in
+	dungeon := s.DungeonRepository.GetPlayerDungeon(characterID)
+	if dungeon == nil {
+		log.Printf("No dungeon found for character %s", characterID)
+		return
+	}
 
-	// If no player is associated with this connection yet, just send the floor without player data
+	// Get the player's position and floor
+	position := dungeon.GetPlayerPosition(characterID)
+	floorIndex := dungeon.GetPlayerFloor(characterID)
+	floor := dungeon.Dungeon.Floors[floorIndex]
+
+	// Get the character
+	character, err := s.CharacterRepository.GetByID(characterID)
+	if err != nil {
+		log.Printf("Error getting character: %v", err)
+		return
+	}
+
+	// Create floor message
 	floorMsg := FloorMessage{
 		Type:         "floor_data",
 		Floor:        floor,
-		PlayerPos:    s.Game.Dungeon.PlayerPosition,
-		CurrentFloor: currentFloor + 1, // 1-indexed for display
-	}
-
-	// Add player data if available
-	if player != nil {
-		floorMsg.PlayerData = player
+		PlayerPos:    *position,
+		CurrentFloor: floorIndex,
+		PlayerData:   character,
+		DungeonID:    dungeon.ID,
 	}
 
 	if err := conn.WriteJSON(floorMsg); err != nil {
@@ -764,9 +825,9 @@ func (s *GameServer) SendFloorData(conn *websocket.Conn) {
 
 // BroadcastFloorData sends floor data to all clients
 func (s *GameServer) BroadcastFloorData() {
-	for client := range s.Clients {
-		// Only send floor data to clients that have a player associated with them
-		if _, ok := s.Game.Players[client.RemoteAddr().String()]; ok {
+	for client, characterID := range s.Clients {
+		// Only send floor data to clients that have a character ID associated with them
+		if characterID != "" {
 			s.SendFloorData(client)
 		}
 	}
@@ -1233,12 +1294,16 @@ func (s *GameServer) spawnBossOnLastFloor(dungeon *models.Dungeon) {
 
 // HandleJoinDungeon handles joining a dungeon
 func (s *GameServer) HandleJoinDungeon(conn *websocket.Conn, payload []byte) {
+	log.Printf("HandleJoinDungeon called with payload: %s", string(payload))
+
 	var joinDungeonMsg JoinDungeonMessage
 	if err := json.Unmarshal(payload, &joinDungeonMsg); err != nil {
 		log.Printf("Error parsing join dungeon message: %v", err)
 		sendError(conn, fmt.Sprintf("Error joining dungeon: %v", err))
 		return
 	}
+
+	log.Printf("Parsed join dungeon message: %+v", joinDungeonMsg)
 
 	// Validate dungeon ID
 	if joinDungeonMsg.DungeonID == "" {
@@ -1254,25 +1319,76 @@ func (s *GameServer) HandleJoinDungeon(conn *websocket.Conn, payload []byte) {
 		return
 	}
 
+	// Get the dungeon
+	dungeon, err := s.DungeonRepository.GetByID(joinDungeonMsg.DungeonID)
+	if err != nil {
+		log.Printf("Error getting dungeon: %v", err)
+		sendError(conn, fmt.Sprintf("Error getting dungeon: %v", err))
+		return
+	}
+	log.Printf("Found dungeon: %s (%s)", dungeon.Name, dungeon.ID)
+
+	// Get the character
+	character, err := s.CharacterRepository.GetByID(joinDungeonMsg.CharacterID)
+	if err != nil {
+		log.Printf("Error getting character: %v", err)
+		sendError(conn, fmt.Sprintf("Error getting character: %v", err))
+		return
+	}
+	log.Printf("Found character: %s (%s)", character.Name, character.ID)
+
+	// Add the player to the dungeon (this will place them on the first floor)
+	if err := s.DungeonRepository.AddPlayerToDungeon(joinDungeonMsg.DungeonID, joinDungeonMsg.CharacterID); err != nil {
+		log.Printf("Error adding player to dungeon: %v", err)
+		sendError(conn, fmt.Sprintf("Error adding player to dungeon: %v", err))
+		return
+	}
+	log.Printf("Added player %s to dungeon %s", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID)
+
 	// Log the dungeon join
 	log.Printf("Player %s joining dungeon: %s", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID)
 
 	// Associate the character with the connection
 	s.Clients[conn] = joinDungeonMsg.CharacterID
+	log.Printf("Associated character %s with WebSocket connection", joinDungeonMsg.CharacterID)
+
+	// Get the player's position and floor (should be floor 0)
+	position := dungeon.GetPlayerPosition(joinDungeonMsg.CharacterID)
+	floorIndex := dungeon.GetPlayerFloor(joinDungeonMsg.CharacterID)
+	floor := dungeon.Dungeon.Floors[floorIndex]
+	log.Printf("Player position: (%d, %d), floor: %d", position.X, position.Y, floorIndex)
+
+	// Send floor data
+	floorData := FloorMessage{
+		Type:         "floor_data",
+		Floor:        floor,
+		PlayerPos:    *position,
+		CurrentFloor: floorIndex,
+		PlayerData:   character,
+		DungeonID:    joinDungeonMsg.DungeonID,
+	}
+
+	log.Printf("Sending floor data for dungeon %s, floor %d", joinDungeonMsg.DungeonID, floorIndex)
+	if err := conn.WriteJSON(floorData); err != nil {
+		log.Printf("Error sending floor data: %v", err)
+	} else {
+		log.Printf("Successfully sent floor data")
+	}
 
 	// Send success message
 	response := map[string]interface{}{
 		"type":        "dungeon_joined",
 		"dungeonId":   joinDungeonMsg.DungeonID,
 		"characterId": joinDungeonMsg.CharacterID,
-		"message":     fmt.Sprintf("Player %s joined dungeon %s", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID),
+		"message":     fmt.Sprintf("Player %s joined dungeon %s on floor 1", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID),
 		"timestamp":   time.Now().Unix(),
 	}
 
+	log.Printf("Sending dungeon joined response")
 	if err := conn.WriteJSON(response); err != nil {
 		log.Printf("Error sending dungeon join response: %v", err)
 	} else {
-		log.Printf("Player %s joined dungeon %s", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID)
+		log.Printf("Player %s joined dungeon %s on floor 1", joinDungeonMsg.CharacterID, joinDungeonMsg.DungeonID)
 	}
 }
 

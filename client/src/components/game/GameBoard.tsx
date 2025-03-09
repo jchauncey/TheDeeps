@@ -190,7 +190,24 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     }
   }, [floor, playerPos, viewportSize]);
 
-  // Handle WebSocket messages for additional updates
+  // Effect to update the game board when floorData changes
+  useEffect(() => {
+    if (floorData) {
+      setFloor(floorData.floor);
+      setPlayerPos(floorData.playerPosition);
+      setCurrentFloor(floorData.currentFloor);
+      setLoading(false);
+      setError(null);
+      
+      // Dispatch a custom event to notify other components
+      const customEvent = new CustomEvent('websocket_message', {
+        detail: floorData
+      });
+      window.dispatchEvent(customEvent);
+    }
+  }, [floorData]);
+
+  // Effect to listen for WebSocket messages
   useEffect(() => {
     const handleWebSocketMessage = (e: Event) => {
       const customEvent = e as CustomEvent;

@@ -395,10 +395,11 @@ export const createDungeonWS = (name: string, numFloors: number): boolean => {
   });
 };
 
-export const joinDungeonWS = (dungeonId: string): boolean => {
+export const joinDungeonWS = (dungeonId: string, characterId: string): boolean => {
   return sendWebSocketMessage({
     type: 'join_dungeon',
-    dungeonId
+    dungeonId,
+    characterId
   });
 };
 

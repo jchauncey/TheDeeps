@@ -1,4 +1,4 @@
-import { ChakraProvider, Box, Flex, extendTheme } from '@chakra-ui/react'
+import { ChakraProvider, Box, Flex, extendTheme, Text, Button } from '@chakra-ui/react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   StartScreen, 
@@ -12,7 +12,8 @@ import {
   connectWebSocket, 
   sendWebSocketMessage, 
   isWebSocketConnected, 
-  setWebSocketCallbacks 
+  setWebSocketCallbacks,
+  loadCharacter
 } from './services/api'
 import { CharacterData, FloorData } from './types/game'
 import { useClickableToast } from './components/ui/ClickableToast'
@@ -41,6 +42,28 @@ function App() {
   const [connectionAttempted, setConnectionAttempted] = useState(false)
   const toast = useClickableToast()
   
+  // Function to check if we can transition to the game screen
+  const checkAndTransitionToGame = useCallback(() => {
+    console.log('Checking if we can transition to game screen:',
+      'character =', character ? `${character.name} (${character.id})` : 'null',
+      'floorData =', floorData ? 'exists' : 'null',
+      'dungeonId =', dungeonId || 'null')
+    
+    if (character && floorData && dungeonId) {
+      console.log('Transitioning to game screen with dungeonId:', dungeonId)
+      setCurrentScreen('game')
+      return true
+    }
+    return false
+  }, [character, floorData, dungeonId, setCurrentScreen])
+  
+  // Effect to check if we can transition to the game screen when any of the dependencies change
+  useEffect(() => {
+    if (currentScreen !== 'game') {
+      checkAndTransitionToGame()
+    }
+  }, [character, floorData, dungeonId, currentScreen, checkAndTransitionToGame])
+  
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((event: Event) => {
     try {
@@ -49,7 +72,32 @@ function App() {
       console.log('WebSocket message received:', data)
       
       if (data.type === 'floor_data') {
+        console.log('Received floor_data message:', data)
         setFloorData(data)
+        
+        // Dispatch a custom event to notify other components
+        const customEvent = new CustomEvent('websocket_message', {
+          detail: data
+        });
+        window.dispatchEvent(customEvent);
+        
+        // If we're not already on the game screen and we have a character and dungeon ID,
+        // transition to the game screen
+        if (currentScreen !== 'game' && character && data.dungeonId) {
+          console.log('Transitioning to game screen with dungeonId:', data.dungeonId)
+          setDungeonId(data.dungeonId)
+          setCurrentScreen('game')
+        } else {
+          console.log('Not transitioning to game screen:',
+            'currentScreen =', currentScreen,
+            'character =', character ? 'exists' : 'null',
+            'data.dungeonId =', data.dungeonId || 'missing')
+          
+          // Set the dungeonId anyway, so we can transition later when character is available
+          if (data.dungeonId) {
+            setDungeonId(data.dungeonId)
+          }
+        }
       } else if (data.type === 'welcome') {
         toast({
           title: 'Connected',
@@ -57,6 +105,7 @@ function App() {
           status: 'success',
         })
       } else if (data.type === 'error') {
+        console.error('Received error message:', data.message)
         toast({
           title: 'Error',
           description: data.message,
@@ -88,6 +137,13 @@ function App() {
           
           // Move to dungeon selection screen
           setCurrentScreen('dungeonSelection')
+          
+          // If we already have floor data, transition to the game screen
+          if (floorData && floorData.dungeonId) {
+            console.log('We have floor data, transitioning to game screen with dungeonId:', floorData.dungeonId)
+            setDungeonId(floorData.dungeonId)
+            setCurrentScreen('game')
+          }
         } else {
           console.error('Character created but no ID received');
           toast({
@@ -103,23 +159,75 @@ function App() {
           status: 'success',
         })
       } else if (data.type === 'dungeon_joined') {
+        console.log('Received dungeon_joined message:', data)
         toast({
           title: 'Success',
           description: data.message || 'Dungeon joined successfully',
           status: 'success',
         })
         
-        // Request floor data
-        if (character && character.id) {
-          sendWebSocketMessage({ 
-            type: 'get_floor'
-          });
+        // The server should automatically send floor_data after joining a dungeon
+        // We'll set the dungeonId here in case we need it
+        if (data.dungeonId) {
+          console.log('Setting dungeonId from dungeon_joined message:', data.dungeonId)
+          setDungeonId(data.dungeonId)
+          
+          // If we have both character and floor data, transition to the game screen
+          if (character && floorData) {
+            console.log('We have character and floor data, transitioning to game screen')
+            setCurrentScreen('game')
+          } else {
+            console.log('Not transitioning to game screen yet:',
+              'character =', character ? 'exists' : 'null',
+              'floorData =', floorData ? 'exists' : 'null')
+            
+            // Try to transition after a short delay to allow state updates to propagate
+            setTimeout(() => {
+              checkAndTransitionToGame()
+            }, 500)
+          }
+        } else {
+          console.warn('dungeon_joined message missing dungeonId')
         }
       }
     } catch (error) {
       console.error('Error handling WebSocket message:', error)
     }
-  }, [toast, character, setCharacter])
+  }, [toast, character, setCharacter, currentScreen, setDungeonId, setCurrentScreen, floorData, checkAndTransitionToGame])
+  
+  // Effect to load character from localStorage when component mounts
+  useEffect(() => {
+    const loadCharacterFromStorage = async () => {
+      try {
+        const storedCharacterId = localStorage.getItem('currentCharacterId');
+        if (storedCharacterId && !character) {
+          console.log('Found stored characterId in localStorage:', storedCharacterId);
+          
+          // Load character data from server
+          const result = await loadCharacter(storedCharacterId);
+          if (result.success && result.character) {
+            console.log('Loaded character from server:', result.character);
+            setCharacter(result.character);
+          } else {
+            console.error('Failed to load character from server:', result.message);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading character from localStorage:', error);
+      }
+    };
+    
+    loadCharacterFromStorage();
+  }, [character, setCharacter]);
+  
+  // Effect to log state changes for debugging
+  useEffect(() => {
+    console.log('App state changed:',
+      'currentScreen =', currentScreen,
+      'character =', character ? `${character.name} (${character.id})` : 'null',
+      'dungeonId =', dungeonId || 'null',
+      'floorData =', floorData ? 'exists' : 'null')
+  }, [currentScreen, character, dungeonId, floorData])
   
   // Handle WebSocket connection
   const initializeWebSocket = useCallback(() => {
@@ -144,10 +252,8 @@ function App() {
           setIsConnected(false)
           toast({
             title: 'Connection Failed',
-            description: 'Unable to connect to game server. Please refresh the page.',
+            description: 'Could not connect to server after multiple attempts',
             status: 'error',
-            duration: null,
-            isClosable: true,
           })
         },
         // onConnected
@@ -163,13 +269,6 @@ function App() {
       
       if (ws) {
         setIsConnected(true)
-      } else {
-        setIsConnected(false)
-        toast({
-          title: 'Connection Failed',
-          description: 'Unable to connect to game server',
-          status: 'error',
-        })
       }
     }
   }, [connectionAttempted, handleWebSocketMessage, toast])
@@ -279,15 +378,22 @@ function App() {
           />
         )}
         
-        {currentScreen === 'dungeonSelection' && character && (
+        {currentScreen === 'dungeonSelection' && character && character.id ? (
           <Box flex="1" overflow="hidden" position="relative" w="100%" h="100%">
             <DungeonSelection 
               onDungeonSelected={handleDungeonSelected}
               onBack={handleBackToCharacterCreation}
-              characterId={character.id || ''}
+              characterId={character.id}
             />
           </Box>
-        )}
+        ) : currentScreen === 'dungeonSelection' && (!character || !character.id) ? (
+          // If we're on the dungeon selection screen but don't have a character,
+          // show an error and redirect to character creation
+          <Box flex="1" display="flex" justifyContent="center" alignItems="center" flexDirection="column">
+            <Text fontSize="xl" mb={4}>No character selected. Please create a character first.</Text>
+            <Button colorScheme="blue" onClick={handleBackToCharacterCreation}>Create Character</Button>
+          </Box>
+        ) : null}
         
         {currentScreen === 'game' && floorData && (
           <Flex 
