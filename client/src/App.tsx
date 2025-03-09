@@ -13,7 +13,8 @@ import {
   sendWebSocketMessage, 
   isWebSocketConnected, 
   setWebSocketCallbacks,
-  loadCharacter
+  loadCharacter,
+  closeWebSocketConnection
 } from './services/api'
 import { CharacterData, FloorData } from './types/game'
 import { useClickableToast } from './components/ui/ClickableToast'
@@ -342,6 +343,16 @@ function App() {
   
   // Handle new game
   const handleNewGame = () => {
+    // Reset game state
+    setCharacter(null)
+    setFloorData(null)
+    setDungeonId(null)
+    
+    // Close WebSocket connection if it exists
+    closeWebSocketConnection()
+    setIsConnected(false)
+    setConnectionAttempted(false)
+    
     setCurrentScreen('characterCreation')
   }
   

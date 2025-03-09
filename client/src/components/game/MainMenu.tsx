@@ -61,8 +61,11 @@ export const MainMenu = ({ isOpen, onClose, onNewGame, onLoadGame, character }: 
   };
 
   const handleNewGame = () => {
-    onNewGame();
-    onClose();
+    // Confirm with the user before starting a new game
+    if (window.confirm('Starting a new game will lose your current progress. Are you sure?')) {
+      onNewGame();
+      onClose();
+    }
   };
 
   const handleLoadGame = () => {
