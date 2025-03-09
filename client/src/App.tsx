@@ -313,7 +313,9 @@ function App() {
               position="relative"
             >
               <GameStatusSimple 
-                character={character} 
+                character={character}
+                currentFloor={floorData.currentFloor}
+                dungeonName={floorData.dungeonName || 'The Deeps'}
               />
             </Box>
             

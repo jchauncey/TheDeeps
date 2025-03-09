@@ -1,6 +1,6 @@
-import { Box, Flex, Text, Progress, Icon, Button, Tooltip } from '@chakra-ui/react';
+import { Box, Flex, Text, Progress, Icon, Button, Tooltip, Divider } from '@chakra-ui/react';
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game';
-import { FaHeart, FaFlask, FaStar, FaUser } from 'react-icons/fa';
+import { FaHeart, FaFlask, FaStar, FaUser, FaDungeon } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
 import { CharacterProfileModal } from '../../components/game/CharacterProfileModal';
 import { CLASS_COLORS } from '../../constants/gameConstants';
@@ -24,9 +24,11 @@ import { OPEN_CHARACTER_PROFILE_EVENT } from './GameControls';
 
 interface GameStatusSimpleProps {
   character: CharacterData | null;
+  currentFloor?: number;
+  dungeonName?: string;
 }
 
-export const GameStatusSimple = ({ character }: GameStatusSimpleProps) => {
+export const GameStatusSimple = ({ character, currentFloor = 1, dungeonName = 'The Deeps' }: GameStatusSimpleProps) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // Listen for the custom event to open the profile
@@ -156,6 +158,19 @@ export const GameStatusSimple = ({ character }: GameStatusSimpleProps) => {
           </Tooltip>
         </Flex>
 
+        {/* Dungeon Information */}
+        <Box mb={3} p={2} bg="rgba(0, 0, 0, 0.3)" borderRadius="md">
+          <Flex align="center" mb={1}>
+            <Icon as={FaDungeon} color="purple.400" mr={2} />
+            <Text fontSize="sm" fontWeight="bold">{dungeonName}</Text>
+          </Flex>
+          <Flex align="center">
+            <Text fontSize="sm" color="gray.300">Floor {currentFloor}</Text>
+          </Flex>
+        </Box>
+
+        <Divider mb={3} borderColor="whiteAlpha.300" />
+
         {/* Health, Mana, and XP with Icons */}
         <Box>
           <Tooltip label={`Health: ${currentHealth}/${maxHealth}`}>
@@ -225,6 +240,8 @@ export const GameStatusSimple = ({ character }: GameStatusSimpleProps) => {
         character={character} 
         isOpen={isProfileOpen} 
         onClose={() => setIsProfileOpen(false)} 
+        currentFloor={currentFloor}
+        dungeonName={dungeonName}
       />
     </>
   );

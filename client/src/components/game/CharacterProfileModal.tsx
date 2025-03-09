@@ -17,7 +17,7 @@ import {
   Button
 } from '@chakra-ui/react';
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game';
-import { FaHeart, FaFlask, FaBrain, FaShieldAlt, FaRunning, FaStar, FaUser } from 'react-icons/fa';
+import { FaHeart, FaFlask, FaBrain, FaShieldAlt, FaRunning, FaStar, FaUser, FaDungeon } from 'react-icons/fa';
 // Import Game Icons for class-specific icons
 import { 
   GiSwordman, 
@@ -42,9 +42,17 @@ interface CharacterProfileModalProps {
   character: CharacterData | null;
   isOpen: boolean;
   onClose: () => void;
+  currentFloor?: number;
+  dungeonName?: string;
 }
 
-export const CharacterProfileModal = ({ character, isOpen, onClose }: CharacterProfileModalProps) => {
+export const CharacterProfileModal = ({ 
+  character, 
+  isOpen, 
+  onClose, 
+  currentFloor = 1, 
+  dungeonName = 'The Deeps' 
+}: CharacterProfileModalProps) => {
   if (!character) return null;
 
   // Find class info
@@ -107,7 +115,23 @@ export const CharacterProfileModal = ({ character, isOpen, onClose }: CharacterP
     <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside">
       <ModalOverlay backdropFilter="blur(2px)" />
       <ModalContent bg="gray.900" color="white" borderLeft={`4px solid ${classColors.primary}`}>
-        <ModalHeader>Character Profile</ModalHeader>
+        <ModalHeader borderBottom="1px solid" borderColor="gray.700" pb={4}>
+          <Flex justify="space-between" align="center">
+            <Flex align="center">
+              <Icon as={ClassIcon} color={classColors.primary} boxSize="30px" mr={3} />
+              <Box>
+                <Text fontSize="xl">{character.name}</Text>
+                <Flex align="center">
+                  <Text fontSize="sm" color="gray.400">Level {characterLevel} {classInfo?.name}</Text>
+                  <Text fontSize="sm" color="gray.400" ml={4}>
+                    <Icon as={FaDungeon} mr={1} />
+                    {dungeonName} • Floor {currentFloor}
+                  </Text>
+                </Flex>
+              </Box>
+            </Flex>
+          </Flex>
+        </ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           {/* Character Header */}
