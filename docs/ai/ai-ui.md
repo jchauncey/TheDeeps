@@ -27,6 +27,7 @@
    - Notification queue system for handling multiple notifications
    - Critical notifications should remain until dismissed
    - Notifications should not obstruct gameplay elements
+   - ✅ Floor transition notifications should display the floor number being entered
 
 4. **Input Controls**
    - Modal window that displays all available hotkeys
@@ -38,6 +39,7 @@
    - Customizable keybindings with reset to default option
    - Mouse controls for all actions with appropriate tooltips
    - 'C' key hotkey to open character profile modal
+   - ✅ Specific hotkeys for ascending ('u' key) and descending ('d' key) stairs
 
 5. **Loading Screen**
    - Display The Deeps logo (stored at client/public/logo.png)
@@ -71,6 +73,7 @@
    - Profile button with class-specific icon
    - Class-specific styling and colors
    - Responsive design that works well on smaller screens
+   - ✅ Current floor indicator showing which floor the player is on
 
 8. **Character Profile Modal**
    - Accessible via 'C' hotkey or Profile button in status panel
@@ -86,6 +89,7 @@
    - Inventory section with grid-based layout
    - Gold and potion counters with appropriate icons
    - Close button to return to gameplay
+   - ✅ Display of current floor and total dungeon depth
 
 9. **Dungeon Window**
    - Renders map in a nethack or rogue-style ASCII/tile-based format
@@ -98,6 +102,8 @@
    - Visual indicators for interactive objects (doors, chests, etc.)
    - Enemy representations with distinct symbols/colors
    - Turn counter or game clock display
+   - ✅ Distinct visual representation for up stairs (< symbol) and down stairs (> symbol)
+   - ✅ Smooth transition animations when changing floors
 
 10. **Combat Interface**
     - Visual feedback for attacks and damage
@@ -115,3 +121,12 @@
     - Save/Load game functionality
     - Help section with game mechanics explanation and hotkey reference
     - Exit game confirmation dialog
+    - ✅ Controls reference section explaining floor navigation mechanics
+
+12. **Floor Navigation**
+    - ✅ Visual indication when player is standing on stairs
+    - ✅ Tooltip or prompt showing available actions when standing on stairs
+    - ✅ Feedback message when attempting to ascend from the top floor or descend from the bottom floor
+    - ✅ Floor transition animation when moving between floors
+    - ✅ Floor number indicator that updates when changing floors
+    - ✅ Action buttons for ascending and descending when standing on appropriate stairs
