@@ -15,13 +15,22 @@ import {
   IconButton,
   Spinner,
   Divider,
-  Tooltip
+  Tooltip,
+  FormControl,
+  FormLabel,
+  useToast,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
+  Image
 } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
 import { AddIcon, MinusIcon, InfoIcon } from '@chakra-ui/icons'
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game'
-import { createCharacter } from '../../services/api'
+import { createCharacter, isWebSocketConnected, createCharacterWS } from '../../services/api'
 import { useClickableToast } from '../ui/ClickableToast'
+import { CHARACTER_CLASSES as CHARACTER_CLASSES_CONST, ATTRIBUTE_DESCRIPTIONS } from '../../constants/character'
 
 interface CharacterCreationProps {
   onCreateCharacter: (character: CharacterData) => void;
@@ -153,33 +162,54 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
     setIsSubmitting(true);
     
     try {
-      // Send character data to server
-      const result = await createCharacter(characterData);
-      
-      if (result.success) {
+      // Check WebSocket connection
+      const connected = isWebSocketConnected();
+      if (!connected) {
         toast({
-          title: "Character created",
-          description: "Your character has been saved successfully.",
-          status: "success",
+          title: "Connection Error",
+          description: "Not connected to server. Please try again.",
+          status: "error",
+          duration: 5000,
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Use WebSocket API directly
+      const success = createCharacterWS({
+        name: characterData.name,
+        characterClass: characterData.characterClass,
+        stats: characterData.stats,
+        abilities: characterData.abilities || []
+      });
+      
+      if (success) {
+        toast({
+          title: "Character Creation Request Sent",
+          description: "Creating your character...",
+          status: "info",
+          duration: 3000,
         });
         
         // Notify parent component
         onCreateCharacter(characterData);
       } else {
         toast({
-          title: "Error creating character",
-          description: result.message || "There was a problem saving your character.",
+          title: "Error Creating Character",
+          description: "Failed to send character data to server.",
           status: "error",
+          duration: 5000,
         });
+        setIsSubmitting(false);
       }
     } catch (error) {
+      console.error('Error creating character:', error);
       toast({
-        title: "Error creating character",
-        description: "There was a problem connecting to the server.",
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
         status: "error",
+        duration: 5000,
       });
-      console.error("Error creating character:", error);
-    } finally {
       setIsSubmitting(false);
     }
   };

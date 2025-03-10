@@ -129,8 +129,10 @@ export const setWebSocketCallbacks = (
 
 // Send a message through the WebSocket
 export const sendWebSocketMessage = (message: any): boolean => {
+  console.log('Attempting to send WebSocket message:', message)
+  
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    console.warn('WebSocket not connected, queueing message');
+    console.warn('WebSocket not connected, queueing message. WebSocket state:', ws ? ws.readyState : 'null')
     messageQueue.push(message);
     
     // Try to reconnect if not already reconnecting
@@ -144,7 +146,9 @@ export const sendWebSocketMessage = (message: any): boolean => {
   }
   
   try {
-    ws.send(JSON.stringify(message));
+    const messageStr = JSON.stringify(message);
+    console.log('Sending WebSocket message:', messageStr)
+    ws.send(messageStr);
     return true;
   } catch (error) {
     console.error('Error sending WebSocket message:', error);
@@ -154,7 +158,9 @@ export const sendWebSocketMessage = (message: any): boolean => {
 
 // Check if WebSocket is connected
 export const isWebSocketConnected = (): boolean => {
-  return ws !== null && ws.readyState === WebSocket.OPEN;
+  const connected = ws !== null && ws.readyState === WebSocket.OPEN;
+  console.log('WebSocket connection status:', connected, 'readyState:', ws ? ws.readyState : 'null');
+  return connected;
 };
 
 // Manually close the WebSocket connection
@@ -229,10 +235,19 @@ export const loadCharacter = async (characterId: string): Promise<{ success: boo
   try {
     const response = await fetch(`${API_BASE_URL}/character/${characterId}`);
     
+    // Check if the response is JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('Server returned non-JSON response');
+    }
+    
     const data = await response.json();
     
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to load character');
+      return { 
+        success: false, 
+        message: data.message || 'Failed to load character'
+      };
     }
     
     return { success: true, character: data };
@@ -449,5 +464,18 @@ export const performAction = (action: string): boolean => {
 export const getFloorData = (): boolean => {
   return sendWebSocketMessage({
     type: 'get_floor'
+  });
+};
+
+// WebSocket message types for character management
+export const createCharacterWS = (character: {
+  name: string;
+  characterClass: string;
+  stats: any;
+  abilities: string[];
+}): boolean => {
+  return sendWebSocketMessage({
+    type: 'create_character',
+    character
   });
 }; 

@@ -113,6 +113,8 @@ function App() {
           status: 'error',
         })
       } else if (data.type === 'character_created') {
+        console.log('Received character_created message:', data)
+        
         // Update character with ID from server
         if (data.character && data.character.id) {
           console.log('Setting character ID:', data.character.id)
@@ -127,6 +129,8 @@ function App() {
             id: data.character.id
           };
           
+          console.log('Updated character object:', updatedCharacter)
+          
           // Update the character state
           setCharacter(updatedCharacter);
           
@@ -137,6 +141,7 @@ function App() {
           })
           
           // Move to dungeon selection screen
+          console.log('Moving to dungeon selection screen')
           setCurrentScreen('dungeonSelection')
           
           // If we already have floor data, transition to the game screen
@@ -210,7 +215,22 @@ function App() {
             console.log('Loaded character from server:', result.character);
             setCharacter(result.character);
           } else {
-            console.error('Failed to load character from server:', result.message);
+            console.warn('Failed to load character from server:', result.message);
+            
+            // If character not found, clear the stored ID
+            if (result.message?.includes('not found')) {
+              console.log('Clearing invalid character ID from localStorage');
+              localStorage.removeItem('currentCharacterId');
+              
+              // Show a toast notification
+              toast({
+                title: "Character not found",
+                description: "The saved character could not be found. Starting with a new character.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+              });
+            }
           }
         }
       } catch (error) {
@@ -237,10 +257,18 @@ function App() {
       
       const ws = connectWebSocket(handleWebSocketMessage)
       
+      // Check if we're already connected
+      const connected = isWebSocketConnected()
+      if (connected) {
+        console.log('WebSocket already connected')
+        setIsConnected(true)
+      }
+      
       // Set up WebSocket event callbacks
       setWebSocketCallbacks(
         // onDisconnect
         () => {
+          console.log('WebSocket disconnected')
           setIsConnected(false)
           toast({
             title: 'Disconnected',
@@ -250,6 +278,7 @@ function App() {
         },
         // onReconnectFailed
         () => {
+          console.log('WebSocket reconnection failed')
           setIsConnected(false)
           toast({
             title: 'Connection Failed',
@@ -259,6 +288,7 @@ function App() {
         },
         // onConnected
         () => {
+          console.log('WebSocket connected')
           setIsConnected(true)
           toast({
             title: 'Connected',
@@ -276,13 +306,17 @@ function App() {
   
   // Initialize WebSocket on component mount
   useEffect(() => {
+    console.log('Initializing WebSocket connection')
     initializeWebSocket()
     
-    // Check connection status periodically
+    // Set up a periodic check for connection status
     const connectionCheck = setInterval(() => {
       const connected = isWebSocketConnected()
-      setIsConnected(connected)
-    }, 5000)
+      if (connected !== isConnected) {
+        console.log('Updating connection state:', connected)
+        setIsConnected(connected)
+      }
+    }, 2000)
     
     return () => {
       clearInterval(connectionCheck)
@@ -291,42 +325,12 @@ function App() {
   
   // Handle character creation
   const handleCreateCharacter = (characterData: CharacterData) => {
-    if (!isConnected) {
-      toast({
-        title: 'Not Connected',
-        description: 'Cannot create character: not connected to server',
-        status: 'error',
-      })
-      return
-    }
+    console.log('Character created:', characterData)
     
+    // Just update the character state
     setCharacter(characterData)
     
-    // Send character creation message
-    const success = sendWebSocketMessage({
-      type: 'create_character',
-      character: {
-        name: characterData.name,
-        characterClass: characterData.characterClass,
-        stats: characterData.stats
-      }
-    })
-    
-    if (!success) {
-      toast({
-        title: 'Error',
-        description: 'Failed to send character data to server',
-        status: 'error',
-      })
-    } else {
-      toast({
-        title: 'Creating Character',
-        description: 'Character creation request sent',
-        status: 'info',
-        duration: 3000,
-      })
-      // We'll wait for the character_created message before navigating
-    }
+    // The WebSocket message is now sent directly from the CharacterCreation component
   }
   
   // Handle dungeon selection
