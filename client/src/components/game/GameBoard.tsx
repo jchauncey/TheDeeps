@@ -16,7 +16,6 @@ export const TILE_COLORS = {
 
 // Define entity types and their colors
 export const ENTITY_COLORS = {
-  player: '#ff0',
   goblin: '#0f0',
   orc: '#0a0',
   skeleton: '#fff',
@@ -384,50 +383,87 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     y: number, 
     size: number
   ) => {
-    // Draw entity
-    const entityColor = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
-    ctx.fillStyle = entityColor;
-    
-    // Draw entity as a circle
-    ctx.beginPath();
-    ctx.arc(
-      x + size / 2,
-      y + size / 2,
-      size / 3,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-    
-    // Determine difficulty from entity name or use the difficulty property
-    let difficulty = entity.difficulty || 'normal';
-    if (!entity.difficulty) {
-      if (entity.name.startsWith('easy')) {
-        difficulty = 'easy';
-      } else if (entity.name.startsWith('hard')) {
-        difficulty = 'hard';
-      } else if (entity.name.startsWith('elite')) {
-        difficulty = 'elite';
-      } else if (entity.name.startsWith('boss')) {
-        difficulty = 'boss';
+    // Check if this is a player entity
+    if (entity.type === 'player') {
+      // Get class-specific styling
+      const characterClass = entity.characterClass || 'default';
+      const classStyle = CHARACTER_CLASS_STYLES[characterClass as keyof typeof CHARACTER_CLASS_STYLES] || CHARACTER_CLASS_STYLES.default;
+      
+      // Draw player with class-specific color
+      ctx.fillStyle = classStyle.color;
+      
+      // Draw background for better visibility
+      ctx.beginPath();
+      ctx.arc(
+        x + size / 2,
+        y + size / 2,
+        size / 3,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+      
+      // Draw the @ symbol
+      ctx.fillStyle = '#000'; // Black text for contrast
+      ctx.font = `bold ${Math.max(12, size / 1.5)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(
+        '@',
+        x + size / 2,
+        y + size / 2
+      );
+      
+      // Add a border with class color
+      ctx.strokeStyle = classStyle.secondaryColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      // Draw non-player entity
+      const entityColor = ENTITY_COLORS[entity.type as keyof typeof ENTITY_COLORS] || '#f00';
+      ctx.fillStyle = entityColor;
+      
+      // Draw entity as a circle
+      ctx.beginPath();
+      ctx.arc(
+        x + size / 2,
+        y + size / 2,
+        size / 3,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+      
+      // Determine difficulty from entity name or use the difficulty property
+      let difficulty = entity.difficulty || 'normal';
+      if (!entity.difficulty) {
+        if (entity.name.startsWith('easy')) {
+          difficulty = 'easy';
+        } else if (entity.name.startsWith('hard')) {
+          difficulty = 'hard';
+        } else if (entity.name.startsWith('elite')) {
+          difficulty = 'elite';
+        } else if (entity.name.startsWith('boss')) {
+          difficulty = 'boss';
+        }
       }
+      
+      // Add a border with difficulty color
+      ctx.strokeStyle = DIFFICULTY_COLORS[difficulty as keyof typeof DIFFICULTY_COLORS] || '#000';
+      ctx.lineWidth = difficulty === 'boss' ? 3 : difficulty === 'elite' ? 2 : 1;
+      ctx.stroke();
+      
+      // Add a letter indicator for entity type
+      ctx.fillStyle = '#000';
+      ctx.font = `${Math.max(8, size / 2)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(
+        entity.type.charAt(0).toUpperCase(),
+        x + size / 2,
+        y + size / 2
+      );
     }
-    
-    // Add a border with difficulty color
-    ctx.strokeStyle = DIFFICULTY_COLORS[difficulty as keyof typeof DIFFICULTY_COLORS] || '#000';
-    ctx.lineWidth = difficulty === 'boss' ? 3 : difficulty === 'elite' ? 2 : 1;
-    ctx.stroke();
-    
-    // Add a letter indicator for entity type
-    ctx.fillStyle = '#000';
-    ctx.font = `${Math.max(8, size / 2)}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      entity.type.charAt(0).toUpperCase(),
-      x + size / 2,
-      y + size / 2
-    );
     
     // Draw health bar if health is available
     if (entity.health !== undefined && entity.maxHealth !== undefined && entity.health < entity.maxHealth) {
@@ -585,7 +621,132 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   // Update the MapLegend component to work without props
   const MapLegendComponent = () => (
     <Box>
-      <MapLegend isOpen={true} onClose={() => setIsLegendOpen(false)} />
+      <Text fontWeight="bold" fontSize="lg" mb={2}>
+        Map Legend
+      </Text>
+      
+      {/* Tiles Section */}
+      <Text fontWeight="bold" fontSize="md" mb={2}>
+        Tiles
+      </Text>
+      <Flex flexWrap="wrap" mb={4}>
+        {Object.entries(TILE_COLORS).map(([type, color]) => (
+          <Flex key={type} alignItems="center" mr={4} mb={2}>
+            <Box
+              w="20px"
+              h="20px"
+              bg={color as string}
+              mr={2}
+              border="1px solid"
+              borderColor="gray.500"
+            />
+            <Text fontSize="sm">{type.replace('_', ' ')}</Text>
+          </Flex>
+        ))}
+      </Flex>
+      
+      {/* Player Characters Section */}
+      <Text fontWeight="bold" fontSize="md" mb={2}>
+        Player Characters
+      </Text>
+      <Flex flexWrap="wrap" mb={4}>
+        {Object.entries(CHARACTER_CLASS_STYLES).slice(0, 6).map(([className, style]) => (
+          <Flex key={className} alignItems="center" mr={4} mb={2}>
+            <Box
+              w="20px"
+              h="20px"
+              bg={style.color}
+              mr={2}
+              borderRadius="full"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              border="2px solid"
+              borderColor={style.secondaryColor}
+            >
+              <Text fontSize="xs" fontWeight="bold" color="black">
+                @
+              </Text>
+            </Box>
+            <Text fontSize="sm">{className}</Text>
+          </Flex>
+        ))}
+      </Flex>
+      
+      {/* Entities Section */}
+      <Text fontWeight="bold" fontSize="md" mb={2}>
+        Monsters
+      </Text>
+      <Flex flexWrap="wrap" mb={4}>
+        {Object.entries(ENTITY_COLORS).map(([type, color]) => (
+          <Flex key={type} alignItems="center" mr={4} mb={2}>
+            <Box
+              w="20px"
+              h="20px"
+              bg={color as string}
+              mr={2}
+              borderRadius="full"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              border="1px solid"
+              borderColor="gray.500"
+            >
+              <Text fontSize="xs" fontWeight="bold" color="black">
+                {type.charAt(0).toUpperCase()}
+              </Text>
+            </Box>
+            <Text fontSize="sm">{type}</Text>
+          </Flex>
+        ))}
+      </Flex>
+      
+      {/* Items Section */}
+      <Text fontWeight="bold" fontSize="md" mb={2}>
+        Items
+      </Text>
+      <Flex flexWrap="wrap" mb={4}>
+        {Object.entries(ITEM_COLORS).map(([type, color]) => (
+          <Flex key={type} alignItems="center" mr={4} mb={2}>
+            <Box
+              w="20px"
+              h="20px"
+              bg={color as string}
+              mr={2}
+              border="1px solid"
+              borderColor="gray.500"
+            />
+            <Text fontSize="sm">{type}</Text>
+          </Flex>
+        ))}
+      </Flex>
+      
+      {/* Controls Section */}
+      <Text fontWeight="bold" fontSize="md" mb={2}>
+        Controls
+      </Text>
+      <Flex flexDirection="column">
+        <Flex mb={1}>
+          <Text fontWeight="bold" minWidth="80px" fontSize="sm">WASD:</Text>
+          <Text fontSize="sm">Move</Text>
+        </Flex>
+        <Flex mb={1}>
+          <Text fontWeight="bold" minWidth="80px" fontSize="sm">Space:</Text>
+          <Text fontSize="sm">Attack/Interact</Text>
+        </Flex>
+        <Flex mb={1}>
+          <Text fontWeight="bold" minWidth="80px" fontSize="sm">P:</Text>
+          <Text fontSize="sm">Pick up item</Text>
+        </Flex>
+        <Flex mb={1}>
+          <Text fontWeight="bold" minWidth="80px" fontSize="sm">U:</Text>
+          <Text fontSize="sm">Ascend stairs</Text>
+        </Flex>
+        <Flex mb={1}>
+          <Text fontWeight="bold" minWidth="80px" fontSize="sm">D:</Text>
+          <Text fontSize="sm">Descend stairs</Text>
+        </Flex>
+      </Flex>
     </Box>
   );
 

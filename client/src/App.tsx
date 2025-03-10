@@ -100,11 +100,7 @@ function App() {
           }
         }
       } else if (data.type === 'welcome') {
-        toast({
-          title: 'Connected',
-          description: data.message,
-          status: 'success',
-        })
+        console.log('Received welcome message:', data.message)
       } else if (data.type === 'error') {
         console.error('Received error message:', data.message)
         toast({
@@ -290,11 +286,6 @@ function App() {
         () => {
           console.log('WebSocket connected')
           setIsConnected(true)
-          toast({
-            title: 'Connected',
-            description: 'Connected to game server',
-            status: 'success',
-          })
         }
       )
       
