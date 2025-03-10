@@ -81,9 +81,27 @@ This document lists the character system features that need to be implemented to
 
 ## Backend Integration
 
-- [ ] Ensure character data is properly saved and loaded
+- [x] Implement basic character save functionality
+- [x] Add server-side save game endpoint
+- [ ] Implement full character data persistence
 - [ ] Implement server-side validation for equipment and inventory changes
 - [ ] Synchronize character stats between client and server
+
+## Character State Management
+
+- [x] Implement main menu with save/load options
+- [x] Add save game functionality that preserves character state
+- [x] Implement load game functionality to restore character state
+- [x] Add game state tracking (position, health, inventory)
+- [ ] Implement auto-save feature at key points (level changes, etc.)
+
+## Floor Navigation
+
+- [x] Implement ascending and descending stairs functionality
+- [x] Track character position when changing floors
+- [x] Validate that character is standing on stairs before allowing floor transitions
+- [x] Prevent ascending above the first floor or descending below the last floor
+- [x] Update floor data on the client after a successful floor transition
 
 ## Implementation Notes
 
@@ -91,5 +109,7 @@ This document lists the character system features that need to be implemented to
 - AC calculation should follow D&D formula: 10 + DEX modifier + armor bonus + shield bonus
 - Special class features like Unarmored Defense for Monks and Barbarians should be preserved
 - The inventory system should have reasonable limits based on character strength or other factors
+- The save game system now stores character data in the server's character repository
+- Character state includes position, health, mana, and other attributes
 
 This TODO list should be updated as items are completed or new requirements are identified. 

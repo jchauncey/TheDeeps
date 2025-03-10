@@ -15,12 +15,23 @@ import {
   IconButton,
   Spinner,
   Divider,
-  Tooltip
+  Tooltip,
+  FormControl,
+  FormLabel,
+  useToast,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
+  Image,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription
 } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
 import { AddIcon, MinusIcon, InfoIcon } from '@chakra-ui/icons'
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game'
-import { createCharacter } from '../../services/api'
 import { useClickableToast } from '../ui/ClickableToast'
 
 interface CharacterCreationProps {
@@ -57,32 +68,24 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useClickableToast();
 
-  // Auto-allocate points when class changes
+  // Check if we should auto-allocate points based on class selection
   useEffect(() => {
     if (characterClass && !autoAllocated) {
       const selectedClass = CHARACTER_CLASSES.find(c => c.id === characterClass);
       if (selectedClass && selectedClass.recommendedStats) {
-        // Reset stats to base
-        const newStats = {...BASE_STATS};
-        
-        // Apply class recommended stats
-        Object.entries(selectedClass.recommendedStats).forEach(([stat, value]) => {
-          newStats[stat as keyof typeof newStats] = value;
-        });
-        
-        setStats(newStats);
-        
-        // Calculate points used
-        let pointsUsed = 0;
-        Object.values(newStats).forEach(value => {
-          pointsUsed += calculatePointCost(value);
-        });
-        
-        setPointsRemaining(27 - pointsUsed);
+        // Auto-allocate points based on class recommendation
+        setStats(selectedClass.recommendedStats);
         setAutoAllocated(true);
         
+        // Calculate how many points were allocated
+        const baseTotal = Object.values(BASE_STATS).reduce((sum, val) => sum + val, 0);
+        const newTotal = Object.values(selectedClass.recommendedStats).reduce((sum, val) => sum + val, 0);
+        const pointsUsed = newTotal - baseTotal;
+        
+        setPointsRemaining(27 - pointsUsed);
+        
         toast({
-          title: "Stats auto-allocated",
+          title: `${selectedClass.name} Stats Applied`,
           description: `Points have been allocated based on the ${selectedClass.name} class. You can still adjust them manually.`,
           status: "info",
         });
@@ -135,6 +138,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
     setPointsRemaining(pointsRemaining - pointDifference);
   };
 
+  // Handle character creation
   const handleCreateCharacter = async () => {
     if (!name || !characterClass) return;
     
@@ -146,39 +150,24 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
       characterClass,
       stats,
       abilities: selectedClass.abilities,
-      proficiencies: selectedClass.proficiencies
+      proficiencies: selectedClass.proficiencies,
+      gold: 10 // Starting gold amount
     };
     
     setIsSubmitting(true);
     
     try {
-      // Send character data to server
-      const result = await createCharacter(characterData);
-      
-      if (result.success) {
-        toast({
-          title: "Character created",
-          description: "Your character has been saved successfully.",
-          status: "success",
-        });
-        
-        // Notify parent component
-        onCreateCharacter(characterData);
-      } else {
-        toast({
-          title: "Error creating character",
-          description: result.message || "There was a problem saving your character.",
-          status: "error",
-        });
-      }
+      // Call the parent component's callback with the character data
+      // The parent will handle the API call
+      onCreateCharacter(characterData);
     } catch (error) {
+      console.error('Error creating character:', error);
       toast({
-        title: "Error creating character",
-        description: "There was a problem connecting to the server.",
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
         status: "error",
+        duration: 5000,
       });
-      console.error("Error creating character:", error);
-    } finally {
       setIsSubmitting(false);
     }
   };

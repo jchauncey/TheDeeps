@@ -1,13 +1,25 @@
-import { Box, Image, HStack, Button, Text, Flex } from '@chakra-ui/react'
-import { useState } from 'react'
+import { Box, Image, Flex, Text, Spinner } from '@chakra-ui/react'
+import { useState, useEffect } from 'react'
 
 interface StartScreenProps {
-  onNewGame: () => void;
-  onLoadGame: () => void;
+  onCharactersLoaded: () => void;
+  isLoading?: boolean;
 }
 
-export const StartScreen = ({ onNewGame, onLoadGame }: StartScreenProps) => {
+export const StartScreen = ({ onCharactersLoaded, isLoading = false }: StartScreenProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  
+  // Trigger the onCharactersLoaded callback after the logo has loaded
+  useEffect(() => {
+    if (imageLoaded && !isLoading) {
+      // Add a small delay for a better visual experience
+      const timer = setTimeout(() => {
+        onCharactersLoaded();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [imageLoaded, isLoading, onCharactersLoaded]);
 
   return (
     <Box
@@ -35,6 +47,7 @@ export const StartScreen = ({ onNewGame, onLoadGame }: StartScreenProps) => {
           justifyContent="center" 
           alignItems="center"
           mb={12}
+          position="relative"
         >
           <Image
             src="/logo.png"
@@ -44,53 +57,20 @@ export const StartScreen = ({ onNewGame, onLoadGame }: StartScreenProps) => {
             objectFit="contain"
             onLoad={() => setImageLoaded(true)}
             onError={(e) => console.error('Logo failed to load:', e)}
+            opacity={imageLoaded ? 1 : 0}
+            transition="opacity 0.5s ease-in-out"
           />
           {!imageLoaded && (
             <Text color="white" fontSize="2xl" position="absolute">Loading logo...</Text>
           )}
         </Box>
-        <HStack spacing={6}>
-          <Button
-            size="md"
-            bg="#6B46C1"
-            color="white"
-            width="200px"
-            height="50px"
-            fontSize="xl"
-            onClick={onNewGame}
-            _hover={{
-              transform: 'scale(1.05)',
-              bg: '#805AD5'
-            }}
-            _active={{
-              bg: '#553C9A'
-            }}
-            border="2px solid"
-            borderColor="purple.200"
-          >
-            New Game
-          </Button>
-          <Button
-            size="md"
-            bg="transparent"
-            color="white"
-            width="200px"
-            height="50px"
-            fontSize="xl"
-            onClick={onLoadGame}
-            border="2px solid"
-            borderColor="purple.200"
-            _hover={{
-              transform: 'scale(1.05)',
-              bg: 'rgba(107, 70, 193, 0.2)'
-            }}
-            _active={{
-              bg: 'rgba(107, 70, 193, 0.4)'
-            }}
-          >
-            Load Game
-          </Button>
-        </HStack>
+        
+        {isLoading && (
+          <Flex direction="column" align="center" mt={8}>
+            <Spinner size="xl" color="purple.500" mb={4} />
+            <Text color="white" fontSize="xl">Loading game data...</Text>
+          </Flex>
+        )}
       </Flex>
     </Box>
   )

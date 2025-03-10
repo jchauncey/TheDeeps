@@ -7,6 +7,7 @@
    - The final floor must contain a boss room
    - Maps should have a logical layout with no disconnected areas
    - Hallways should connect rooms in a sensible manner
+   - ✅ Each floor must have both up and down staircases (except for the first and last floors)
 
 2. **Room Types**
    - Standard rooms (empty or with basic enemies)
@@ -43,10 +44,14 @@
    - Maps should have themes that affect visual appearance and enemy types
    - Generation should ensure all areas are accessible
    - Special rooms (boss, treasure) should be appropriately placed
+   - ✅ Staircases should be placed in accessible locations on each floor
 
 7. **Navigation and Exploration**
    - Unexplored areas should be hidden until discovered
    - Map should track discovered rooms, doors, and stairs
+   - Map should be fully visible when character profile modal is open
+   - Player position should be clearly indicated on the map
+   - ✅ Staircases should be clearly visible and distinguishable from other map elements
 
 8. **Technical Requirements**
    - Map data structure should be serializable for saving/loading
@@ -54,3 +59,26 @@
    - Map should support dynamic modifications during gameplay
    - Collision detection system for walls and obstacles
    - Pathfinding system for AI navigation
+   - Map rendering should be optimized for performance
+   - Map should maintain visibility when UI modals are displayed
+   - ✅ Map should track player positions across multiple floors
+
+9. **UI Integration**
+   - Map should be the primary focus of the game interface
+   - Map should occupy the majority of the screen space
+   - Map should be responsive to window size changes
+   - Map should maintain proper aspect ratio
+   - Map should have clear visual indicators for player, enemies, and objects
+   - Map should be accessible via keyboard navigation
+   - Map should support hotkeys for common actions (movement, interaction)
+   - ✅ Map should update smoothly when transitioning between floors
+
+10. **Floor Navigation**
+    - ✅ Players can move between floors using staircases
+    - ✅ Up staircases allow players to move to the previous floor
+    - ✅ Down staircases allow players to move to the next floor
+    - ✅ Players are positioned at the corresponding staircase when changing floors
+    - ✅ The first floor only has down staircases
+    - ✅ The last floor only has up staircases
+    - ✅ Middle floors have both up and down staircases
+    - ✅ Floor transitions maintain player state (health, inventory, etc.)

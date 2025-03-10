@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // TileType represents the type of a dungeon tile
@@ -57,10 +59,17 @@ func (r *Room) Center() (int, int) {
 
 // Entity represents an entity in the dungeon (monster, NPC, etc.)
 type Entity struct {
-	ID       string   `json:"id"`
-	Type     string   `json:"type"`
-	Name     string   `json:"name"`
-	Position Position `json:"position"`
+	ID             string   `json:"id"`
+	Type           string   `json:"type"`
+	Name           string   `json:"name"`
+	Position       Position `json:"position"`
+	CharacterClass string   `json:"characterClass,omitempty"`
+	Health         int      `json:"health,omitempty"`
+	MaxHealth      int      `json:"maxHealth,omitempty"`
+	Damage         int      `json:"damage,omitempty"`
+	Defense        int      `json:"defense,omitempty"`
+	Speed          int      `json:"speed,omitempty"`
+	Status         []string `json:"status,omitempty"`
 	// Add more entity properties as needed
 }
 
@@ -91,10 +100,19 @@ type Dungeon struct {
 	PlayerPosition Position `json:"playerPosition"`
 }
 
-// NewDungeon creates a new dungeon with the specified number of floors
-func NewDungeon(numFloors int) *Dungeon {
-	rand.Seed(time.Now().UnixNano())
+// DungeonInstance represents an instance of a dungeon in the game
+type DungeonInstance struct {
+	ID           string                `json:"id"`
+	Name         string                `json:"name"`
+	Dungeon      *Dungeon              `json:"dungeon"`
+	Floors       []*Floor              `json:"floors"` // Direct access to floors for convenience
+	CreatedAt    time.Time             `json:"createdAt"`
+	LastActivity time.Time             `json:"lastActivity"`
+	Players      map[string]*Character `json:"players"` // Map of character IDs to Character objects
+}
 
+// NewDungeon creates a new dungeon with the given name and number of floors
+func NewDungeon(name string, numFloors int) *DungeonInstance {
 	dungeon := &Dungeon{
 		Floors:       make([]*Floor, numFloors),
 		CurrentFloor: 0,
@@ -102,15 +120,27 @@ func NewDungeon(numFloors int) *Dungeon {
 
 	// Generate each floor
 	for i := 0; i < numFloors; i++ {
-		dungeon.Floors[i] = GenerateFloor(i+1, 80, 50)
+		dungeon.Floors[i] = GenerateFloor(i, 80, 40)
 	}
 
-	// Set player position to the center of the first room on the first floor
-	firstRoom := dungeon.Floors[0].Rooms[0]
-	centerX, centerY := firstRoom.Center()
-	dungeon.PlayerPosition = Position{X: centerX, Y: centerY}
+	// Add stairs between floors
+	for i := 0; i < numFloors; i++ {
+		addStairs(dungeon.Floors[i], i)
+	}
 
-	return dungeon
+	// Create the dungeon instance
+	now := time.Now()
+	instance := &DungeonInstance{
+		ID:           uuid.New().String(),
+		Name:         name,
+		Dungeon:      dungeon,
+		Floors:       dungeon.Floors, // Direct reference to floors
+		CreatedAt:    now,
+		LastActivity: now,
+		Players:      make(map[string]*Character),
+	}
+
+	return instance
 }
 
 // GenerateFloor generates a new dungeon floor
@@ -340,15 +370,11 @@ func generateEntities(floor *Floor, level int) []Entity {
 	numEntities := 5 + level*2 + len(floor.Rooms)/2
 	entities := make([]Entity, 0, numEntities)
 
-	// Entity types with weights (higher level = more dangerous entities)
-	entityTypes := []string{"rat", "bat", "goblin", "skeleton", "orc"}
-
-	// Add more dangerous entities on deeper levels
-	if level > 3 {
-		entityTypes = append(entityTypes, "troll", "ogre")
-	}
-	if level > 6 {
-		entityTypes = append(entityTypes, "demon", "dragon")
+	// Get available mob types for this floor level
+	availableMobTypes := GetMobsForFloorLevel(level)
+	if len(availableMobTypes) == 0 {
+		// Fallback to basic mobs if none are available
+		availableMobTypes = []MobType{MobRatman, MobGoblin, MobSkeleton}
 	}
 
 	// Generate entities
@@ -364,26 +390,26 @@ func generateEntities(floor *Floor, level int) []Entity {
 		x := room.X + rand.Intn(room.Width)
 		y := room.Y + rand.Intn(room.Height)
 
-		// Pick a random entity type (weighted toward more dangerous types on deeper levels)
-		typeIndex := rand.Intn(len(entityTypes))
-		if level > 5 && rand.Intn(10) < 5 {
-			// 50% chance to pick from the second half of the list on deeper levels
-			typeIndex = len(entityTypes)/2 + rand.Intn(len(entityTypes)/2+1)
-			if typeIndex >= len(entityTypes) {
-				typeIndex = len(entityTypes) - 1
-			}
-		}
-		entityType := entityTypes[typeIndex]
+		// Pick a random mob type from available types
+		mobTypeIndex := rand.Intn(len(availableMobTypes))
+		mobType := availableMobTypes[mobTypeIndex]
 
-		// Create the entity
+		// Determine difficulty based on floor level
+		difficulty := GetRandomDifficulty(level)
+
+		// Create mob instance
+		mobPosition := Position{X: x, Y: y}
+		mobInstance := CreateMobInstance(mobType, difficulty, level, mobPosition)
+
+		// Convert to Entity for the floor
 		entity := Entity{
-			ID:   generateID(),
-			Type: entityType,
-			Name: entityType, // Simple name for now
-			Position: Position{
-				X: x,
-				Y: y,
-			},
+			ID:        mobInstance.ID,
+			Type:      string(mobInstance.Type),
+			Name:      mobInstance.Name,
+			Position:  mobInstance.Position,
+			Health:    mobInstance.Health,
+			MaxHealth: mobInstance.MaxHealth,
+			Status:    mobInstance.Status,
 		}
 
 		entities = append(entities, entity)
@@ -481,4 +507,62 @@ func abs(x int) int {
 		return -x
 	}
 	return x
+}
+
+// AddPlayer adds a player to the dungeon instance
+func (di *DungeonInstance) AddPlayer(characterID string) {
+	// Get the starting position (center of first room on first floor)
+	firstRoom := di.Dungeon.Floors[0].Rooms[0]
+	centerX, centerY := firstRoom.Center()
+	startPos := Position{X: centerX, Y: centerY}
+
+	// Add player to the dungeon
+	di.Players[characterID] = &Character{
+		ID:           characterID,
+		Position:     startPos,
+		CurrentFloor: 0,
+	}
+	di.LastActivity = time.Now()
+}
+
+// RemovePlayer removes a player from the dungeon instance
+func (di *DungeonInstance) RemovePlayer(characterID string) {
+	delete(di.Players, characterID)
+	di.LastActivity = time.Now()
+}
+
+// GetPlayerPosition gets a player's position in the dungeon
+func (di *DungeonInstance) GetPlayerPosition(characterID string) *Position {
+	return &di.Players[characterID].Position
+}
+
+// GetPlayerFloor gets a player's current floor in the dungeon
+func (di *DungeonInstance) GetPlayerFloor(characterID string) int {
+	return di.Players[characterID].CurrentFloor
+}
+
+// UpdatePlayerPosition updates a player's position in the dungeon
+func (di *DungeonInstance) UpdatePlayerPosition(characterID string, position Position) {
+	if _, exists := di.Players[characterID]; exists {
+		di.Players[characterID].Position = position
+		di.LastActivity = time.Now()
+	}
+}
+
+// UpdatePlayerFloor updates a player's current floor in the dungeon
+func (di *DungeonInstance) UpdatePlayerFloor(characterID string, floor int) {
+	if _, exists := di.Players[characterID]; exists {
+		di.Players[characterID].CurrentFloor = floor
+		di.LastActivity = time.Now()
+	}
+}
+
+// IsActive checks if the dungeon instance has had activity within the given duration
+func (di *DungeonInstance) IsActive(duration time.Duration) bool {
+	return time.Since(di.LastActivity) < duration
+}
+
+// HasPlayers checks if the dungeon instance has any players
+func (di *DungeonInstance) HasPlayers() bool {
+	return len(di.Players) > 0
 }
