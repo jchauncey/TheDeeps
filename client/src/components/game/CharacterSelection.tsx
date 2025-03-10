@@ -23,11 +23,17 @@ import {
   ModalHeader,
   ModalFooter,
   ModalBody,
-  ModalCloseButton
+  ModalCloseButton,
+  Progress,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  Divider
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { DeleteIcon } from '@chakra-ui/icons';
-import { getSavedCharacters, deleteCharacter } from '../../services/api';
+import { getSavedCharacters, deleteCharacter, loadCharacter } from '../../services/api';
 import { CharacterData } from '../../types/game';
 
 interface CharacterSelectionProps {
@@ -37,13 +43,18 @@ interface CharacterSelectionProps {
   refreshTrigger?: number; // Optional prop to trigger a refresh
 }
 
+// Ensure all characters have required fields
+type SafeCharacterData = CharacterData & {
+  id: string; // Ensure id is always present and not undefined
+};
+
 export const CharacterSelection = ({ 
   onSelectCharacter, 
   onCreateNewCharacter, 
   onBack,
   refreshTrigger = 0
 }: CharacterSelectionProps) => {
-  const [characters, setCharacters] = useState<{ id: string; name: string; characterClass: string }[]>([]);
+  const [characters, setCharacters] = useState<SafeCharacterData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [characterToDelete, setCharacterToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -57,8 +68,39 @@ export const CharacterSelection = ({
     try {
       const result = await getSavedCharacters();
       if (result.success && result.characters) {
+        // Get full character data for each character
+        const fullCharacters = await Promise.all(
+          result.characters.map(async (char) => {
+            const charResult = await loadCharacter(char.id);
+            if (charResult.success && charResult.character) {
+              // Ensure id is present
+              return {
+                ...charResult.character,
+                id: char.id
+              } as SafeCharacterData;
+            } else {
+              // Create a valid CharacterData object with default values
+              return {
+                id: char.id,
+                name: char.name,
+                characterClass: char.characterClass,
+                stats: { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 },
+                abilities: [],
+                proficiencies: [],
+                gold: 0,
+                level: 1,
+                health: 100,
+                maxHealth: 100,
+                mana: 50,
+                maxMana: 50,
+                experience: 0
+              } as SafeCharacterData;
+            }
+          })
+        );
+        
         // Sort characters by name
-        const sortedCharacters = [...result.characters].sort((a, b) => 
+        const sortedCharacters = [...fullCharacters].sort((a, b) => 
           a.name.localeCompare(b.name)
         );
         setCharacters(sortedCharacters);
@@ -219,7 +261,7 @@ export const CharacterSelection = ({
               </Flex>
             ) : (
               <>
-                <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4} mb={6} flex={1} overflowY="auto">
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={3} mb={6} flex={1} overflowY="auto">
                   {characters.map((character) => (
                     <Card 
                       key={character.id} 
@@ -236,24 +278,62 @@ export const CharacterSelection = ({
                       }}
                       transition="all 0.2s"
                       position="relative"
+                      maxW="250px"
+                      maxH="220px"
+                      fontSize="sm"
                     >
-                      <CardHeader pb={2}>
+                      <CardHeader pb={1} pt={2} px={3}>
                         <Flex justify="space-between" align="center">
-                          <Heading size="md">{character.name}</Heading>
-                          <Badge colorScheme={getClassColor(character.characterClass)}>
+                          <Heading size="sm" noOfLines={1}>{character.name}</Heading>
+                          <Badge colorScheme={getClassColor(character.characterClass)} fontSize="xs">
                             {character.characterClass}
                           </Badge>
                         </Flex>
+                        <Text fontSize="md" fontWeight="bold">
+                          Level {character.level || 1}
+                        </Text>
                       </CardHeader>
-                      <CardBody>
-                        {/* We could add more character details here in the future */}
-                        <Text>Ready for adventure!</Text>
+                      <CardBody py={1} px={3}>
+                        <VStack spacing={1} align="stretch">
+                          <HStack justify="space-between" fontSize="xs">
+                            <Text fontWeight="semibold">HP:</Text>
+                            <Text>{character.health || 0}/{character.maxHealth || 100}</Text>
+                          </HStack>
+                          <Progress 
+                            value={(character.health || 0) / (character.maxHealth || 100) * 100} 
+                            colorScheme="red" 
+                            size="xs" 
+                            borderRadius="md"
+                          />
+                          
+                          <HStack justify="space-between" fontSize="xs">
+                            <Text fontWeight="semibold">Mana:</Text>
+                            <Text>{character.mana || 0}/{character.maxMana || 50}</Text>
+                          </HStack>
+                          <Progress 
+                            value={(character.mana || 0) / (character.maxMana || 50) * 100} 
+                            colorScheme="blue" 
+                            size="xs" 
+                            borderRadius="md"
+                          />
+                          
+                          <HStack justify="space-between" fontSize="xs">
+                            <Text fontWeight="semibold">XP:</Text>
+                            <Text>{character.experience || 0}</Text>
+                          </HStack>
+                          <Progress 
+                            value={((character.experience || 0) % 1000) / 1000 * 100} 
+                            colorScheme="green" 
+                            size="xs" 
+                            borderRadius="md"
+                          />
+                        </VStack>
                       </CardBody>
-                      <CardFooter pt={0} justifyContent="flex-end">
+                      <CardFooter pt={0} pb={1} px={3} justifyContent="flex-end">
                         <IconButton
                           aria-label="Delete character"
                           icon={<DeleteIcon />}
-                          size="sm"
+                          size="xs"
                           colorScheme="red"
                           variant="ghost"
                           onClick={(e) => handleDeleteClick(e, { id: character.id, name: character.name })}
