@@ -90,3 +90,56 @@ func TestNewMob(t *testing.T) {
 		})
 	}
 }
+
+func TestMobArmorClass(t *testing.T) {
+	// Test different mob types with different AC values
+
+	// Test a low AC mob (Ooze)
+	ooze := NewMob(MobOoze, VariantNormal, 1)
+	oozeAC := ooze.CalculateAC()
+	assert.LessOrEqual(t, oozeAC, 10, "Ooze should have low AC")
+
+	// Test a medium AC mob (Goblin)
+	goblin := NewMob(MobGoblin, VariantNormal, 1)
+	goblinAC := goblin.CalculateAC()
+	assert.GreaterOrEqual(t, goblinAC, 11, "Goblin should have medium AC")
+	assert.LessOrEqual(t, goblinAC, 14, "Goblin should have medium AC")
+
+	// Test a high AC mob (Dragon)
+	dragon := NewMob(MobDragon, VariantNormal, 1)
+	dragonAC := dragon.CalculateAC()
+	assert.GreaterOrEqual(t, dragonAC, 15, "Dragon should have high AC")
+
+	// Test variant effects on AC
+	easyDragon := NewMob(MobDragon, VariantEasy, 1)
+	normalDragon := NewMob(MobDragon, VariantNormal, 1)
+	hardDragon := NewMob(MobDragon, VariantHard, 1)
+	bossDragon := NewMob(MobDragon, VariantBoss, 1)
+
+	assert.Less(t, easyDragon.CalculateAC(), normalDragon.CalculateAC(), "Easy variant should have lower AC")
+	assert.Less(t, normalDragon.CalculateAC(), hardDragon.CalculateAC(), "Hard variant should have higher AC")
+	assert.Less(t, hardDragon.CalculateAC(), bossDragon.CalculateAC(), "Boss variant should have highest AC")
+
+	// Test hit chance calculation
+	// Create a test character
+	character := NewCharacter("TestCharacter", Warrior)
+	character.Level = 5
+	character.Attributes.Strength = 16 // +3 modifier
+
+	// Test hit chance against different mobs
+	oozeHitChance := character.CalculateHitChance(oozeAC)
+	goblinHitChance := character.CalculateHitChance(goblinAC)
+	dragonHitChance := character.CalculateHitChance(dragonAC)
+
+	assert.Greater(t, oozeHitChance, goblinHitChance, "Hit chance against low AC mob should be higher")
+	assert.Greater(t, goblinHitChance, dragonHitChance, "Hit chance against high AC mob should be lower")
+
+	// Test mob hit chance against character
+	character.Attributes.Dexterity = 14 // +2 modifier
+	characterAC := character.CalculateTotalAC()
+
+	oozeToHitChance := ooze.CalculateHitChance(characterAC)
+	dragonToHitChance := dragon.CalculateHitChance(characterAC)
+
+	assert.Less(t, oozeToHitChance, dragonToHitChance, "Stronger mobs should have better hit chance")
+}

@@ -362,3 +362,61 @@ func TestInventoryWeight(t *testing.T) {
 	assert.False(t, success)                                // Should fail due to weight limit (40.5 + 15 > 50)
 	assert.Equal(t, 40.5, character.CalculateTotalWeight()) // Weight should not change
 }
+
+func TestArmorClass(t *testing.T) {
+	// Create a character with known attributes
+	character := NewCharacter("TestCharacter", Warrior)
+
+	// Set attributes to predictable values
+	character.Attributes.Dexterity = 14 // +2 modifier
+
+	// Test base AC calculation (10 + dex modifier)
+	baseAC := character.CalculateBaseAC()
+	assert.Equal(t, 12, baseAC, "Base AC should be 10 + dex modifier")
+
+	// Test total AC with no equipment
+	totalAC := character.CalculateTotalAC()
+	assert.Equal(t, 12, totalAC, "Total AC with no equipment should equal base AC")
+
+	// Add armor to inventory and equip it
+	armor := NewArmor("Test Armor", 5, 100, 1, nil)
+	character.AddToInventory(armor)
+	character.EquipItem(armor.ID)
+
+	// Test armor AC calculation
+	armorAC := character.CalculateArmorAC()
+	assert.Equal(t, 5, armorAC, "Armor AC should equal armor power")
+
+	// Test total AC with armor equipped
+	totalAC = character.CalculateTotalAC()
+	assert.Equal(t, 17, totalAC, "Total AC should be base AC + armor AC")
+
+	// Test hit chance calculation
+	// Against low AC target (AC 10)
+	lowACHitChance := character.CalculateHitChance(10)
+	assert.InDelta(t, 0.6, lowACHitChance, 0.01, "Hit chance against low AC should be high")
+
+	// Against high AC target (AC 20)
+	highACHitChance := character.CalculateHitChance(20)
+	assert.InDelta(t, 0.1, highACHitChance, 0.01, "Hit chance against high AC should be low")
+
+	// Test monk AC bonus (wisdom modifier when unarmored)
+	monkCharacter := NewCharacter("TestMonk", Monk)
+	monkCharacter.Attributes.Dexterity = 14 // +2 modifier
+	monkCharacter.Attributes.Wisdom = 16    // +3 modifier
+
+	// Unequip any armor
+	monkCharacter.Equipment.Armor = nil
+
+	// Test monk's total AC (should include wisdom bonus)
+	monkAC := monkCharacter.CalculateTotalAC()
+	assert.Equal(t, 15, monkAC, "Monk AC should be 10 + dex modifier + wisdom modifier")
+
+	// Equip armor on monk
+	monkCharacter.AddToInventory(armor)
+	monkCharacter.EquipItem(armor.ID)
+
+	// Test monk's total AC with armor (should not include wisdom bonus)
+	monkArmoredAC := monkCharacter.CalculateTotalAC()
+	assert.Equal(t, 17, monkArmoredAC, "Monk AC with armor should be base AC + armor AC")
+}

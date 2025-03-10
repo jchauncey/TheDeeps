@@ -39,31 +39,27 @@ func (cm *CombatManager) AttackMob(character *models.Character, mob *models.Mob)
 		Success: true,
 	}
 
-	// Calculate hit chance (base 70% + dexterity modifier)
-	hitChance := 70 + models.GetModifier(character.Attributes.Dexterity)*5
+	// Calculate hit chance using the new AC system
+	mobAC := mob.CalculateAC()
+	hitChance := character.CalculateHitChance(mobAC)
+
+	// Convert hit chance to percentage for roll
+	hitChancePercent := int(hitChance * 100)
 	hitRoll := cm.rng.Intn(100) + 1
 
 	// Check if attack hits
-	if hitRoll > hitChance {
+	if hitRoll > hitChancePercent {
 		result.Success = false
-		result.Message = "Attack missed!"
+		result.Message = fmt.Sprintf("Attack missed! (Needed %d or less, rolled %d)", hitChancePercent, hitRoll)
 		return result
 	}
 
 	// Calculate damage
-	baseDamage := 1 // Unarmed damage
-	// TODO: Add weapon damage when equipment is implemented
+	damage := character.CalculateAttackPower()
 
-	// Add strength modifier
-	damage := baseDamage + models.GetModifier(character.Attributes.Strength)
-	if damage < 1 {
-		damage = 1 // Minimum damage is 1
-	}
-
-	// Check for critical hit (5% base chance + wisdom modifier)
-	critChance := 5 + models.GetModifier(character.Attributes.Wisdom)
-	critRoll := cm.rng.Intn(100) + 1
-	if critRoll <= critChance {
+	// Check for critical hit (natural 20 or 5% chance)
+	criticalRoll := cm.rng.Intn(100) + 1
+	if criticalRoll <= 5 {
 		damage *= 2
 		result.CriticalHit = true
 		result.Message = "Critical hit!"
@@ -71,35 +67,59 @@ func (cm *CombatManager) AttackMob(character *models.Character, mob *models.Mob)
 		result.Message = "Hit!"
 	}
 
+	// Apply mob defense
+	damage -= mob.Defense
+	if damage < 1 {
+		damage = 1 // Minimum damage is 1
+	}
+
 	// Apply damage to mob
-	result.DamageDealt = damage
 	mob.HP -= damage
+	result.DamageDealt = damage
 
 	// Check if mob is killed
 	if mob.HP <= 0 {
 		mob.HP = 0
 		result.Killed = true
-		result.Message = fmt.Sprintf("Killed %s!", mob.Name)
+		result.Message = fmt.Sprintf("%s defeated!", mob.Name)
 
-		// Calculate experience gained
-		expGained := calculateExpGain(mob, character.Level)
-		result.ExpGained = expGained
-		character.AddExperience(expGained)
+		// Calculate experience gain
+		expGain := calculateExpGain(mob, character.Level)
+		result.ExpGained = expGain
 
-		// Calculate gold gained
-		goldGained := mob.GoldValue
-		result.GoldGained = goldGained
-		character.Gold += goldGained
+		// Add experience to character
+		leveledUp := character.AddExperience(expGain)
+		if leveledUp {
+			result.Message += " Level up!"
+		}
 
-		// Generate item drops
-		// TODO: Implement item drop mechanics
+		// Add gold to character
+		character.Gold += mob.GoldValue
+		result.GoldGained = mob.GoldValue
 	} else {
 		// Mob counterattack
-		mobDamage := calculateMobDamage(mob, character)
-		result.DamageTaken = mobDamage
-		character.CurrentHP -= mobDamage
-		if character.CurrentHP < 0 {
-			character.CurrentHP = 0
+		characterAC := character.CalculateTotalAC()
+		mobHitChance := mob.CalculateHitChance(characterAC)
+
+		// Convert hit chance to percentage for roll
+		mobHitChancePercent := int(mobHitChance * 100)
+		mobHitRoll := cm.rng.Intn(100) + 1
+
+		// Check if mob's attack hits
+		if mobHitRoll <= mobHitChancePercent {
+			// Calculate mob damage
+			mobDamage := calculateMobDamage(mob, character)
+
+			// Apply damage to character
+			character.CurrentHP -= mobDamage
+			if character.CurrentHP < 0 {
+				character.CurrentHP = 0
+			}
+
+			result.DamageTaken = mobDamage
+			result.Message += fmt.Sprintf(" %s counterattacks for %d damage!", mob.Name, mobDamage)
+		} else {
+			result.Message += fmt.Sprintf(" %s's counterattack missed!", mob.Name)
 		}
 	}
 
@@ -233,8 +253,10 @@ func calculateMobDamage(mob *models.Mob, character *models.Character) int {
 	// Base damage from mob
 	damage := mob.Damage
 
-	// Apply character defense (from constitution modifier)
-	defense := models.GetModifier(character.Attributes.Constitution)
+	// Apply character defense from equipment
+	defense := character.CalculateDefensePower()
+
+	// Reduce damage based on defense
 	damage -= defense
 
 	// Ensure minimum damage of 1

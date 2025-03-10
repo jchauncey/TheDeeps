@@ -453,3 +453,99 @@ func (c *Character) CalculateDefensePower() int {
 
 	return basePower
 }
+
+// CalculateBaseAC calculates the base armor class without equipment
+func (c *Character) CalculateBaseAC() int {
+	// Base AC is 10
+	baseAC := 10
+
+	// Add dexterity modifier
+	dexModifier := GetModifier(c.Attributes.Dexterity)
+
+	return baseAC + dexModifier
+}
+
+// CalculateArmorAC calculates the armor class provided by equipped armor
+func (c *Character) CalculateArmorAC() int {
+	armorAC := 0
+
+	// Add AC from equipped armor
+	if c.Equipment.Armor != nil {
+		armorAC += c.Equipment.Armor.Power
+	}
+
+	// Add AC from equipped accessory if it provides armor
+	if c.Equipment.Accessory != nil && c.Equipment.Accessory.Type == ItemArmor {
+		armorAC += c.Equipment.Accessory.Power
+	}
+
+	return armorAC
+}
+
+// CalculateTotalAC calculates the total armor class of the character
+func (c *Character) CalculateTotalAC() int {
+	// Start with base AC
+	totalAC := c.CalculateBaseAC()
+
+	// Add armor AC
+	totalAC += c.CalculateArmorAC()
+
+	// Apply class-specific bonuses
+	switch c.Class {
+	case Monk:
+		// Monks get additional AC from wisdom when unarmored
+		if c.Equipment.Armor == nil {
+			wisModifier := GetModifier(c.Attributes.Wisdom)
+			if wisModifier > 0 {
+				totalAC += wisModifier
+			}
+		}
+	case Barbarian:
+		// Barbarians get additional AC from constitution when unarmored
+		if c.Equipment.Armor == nil {
+			conModifier := GetModifier(c.Attributes.Constitution)
+			if conModifier > 0 {
+				totalAC += conModifier
+			}
+		}
+	}
+
+	return totalAC
+}
+
+// CalculateHitChance calculates the chance to hit a target with the given AC
+func (c *Character) CalculateHitChance(targetAC int) float64 {
+	// Base hit chance is 50%
+	baseHitChance := 0.5
+
+	// Calculate attack bonus based on strength or dexterity (whichever is higher)
+	strModifier := GetModifier(c.Attributes.Strength)
+	dexModifier := GetModifier(c.Attributes.Dexterity)
+	attackBonus := strModifier
+	if dexModifier > strModifier {
+		attackBonus = dexModifier
+	}
+
+	// Add level-based bonus
+	attackBonus += c.Level / 2
+
+	// Add weapon bonus if equipped
+	if c.Equipment.Weapon != nil {
+		// For simplicity, we'll say 20% of weapon power contributes to hit chance
+		attackBonus += c.Equipment.Weapon.Power / 5
+	}
+
+	// Calculate hit chance: base + (attack bonus - (targetAC - 10)) * 0.05
+	// This means each point of difference changes hit chance by 5%
+	// We subtract 10 from targetAC because 10 is the base AC
+	hitChance := baseHitChance + float64(attackBonus-(targetAC-10))*0.05
+
+	// Clamp hit chance between 0.05 (5%) and 0.95 (95%)
+	if hitChance < 0.05 {
+		hitChance = 0.05 // Always at least 5% chance to hit
+	} else if hitChance > 0.95 {
+		hitChance = 0.95 // Always at least 5% chance to miss
+	}
+
+	return hitChance
+}

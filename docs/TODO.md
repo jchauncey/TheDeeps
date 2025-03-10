@@ -15,7 +15,7 @@ This document outlines the missing components and enhancements needed for the se
   - [x] Implement methods for equipping/unequipping items
   - [x] Add class and level requirements for equipment
   - [x] Calculate stat bonuses from equipped items
-  - [ ] Implement Armor Class (AC) system for combat
+  - [x] Implement Armor Class (AC) system for combat
 
 - [ ] **Skill System**
   - [ ] Create Skills struct with various skills (Stealth, Perception, etc.)
@@ -66,10 +66,10 @@ This document outlines the missing components and enhancements needed for the se
   - [ ] Create special abilities for different character classes
   - [ ] Implement area-of-effect attacks
 
-- [ ] **Armor Class System**
-  - [ ] Calculate AC based on armor and dexterity
-  - [ ] Use AC in hit chance calculations
-  - [ ] Implement armor penetration for certain attacks
+- [x] **Armor Class System**
+  - [x] Calculate AC based on armor and dexterity
+  - [x] Use AC in hit chance calculations
+  - [x] Implement armor penetration for certain attacks
 
 ## NPC System
 
