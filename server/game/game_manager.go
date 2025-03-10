@@ -458,7 +458,7 @@ func (manager *GameManager) handleAscend(client *Client, message Message) {
 
 	client.Send <- Message{
 		Type: MsgNotification,
-		Text: "You ascend to floor " + string(client.Character.CurrentFloor),
+		Text: "You ascend to floor " + strconv.Itoa(client.Character.CurrentFloor),
 	}
 }
 
@@ -563,7 +563,7 @@ func (manager *GameManager) handleDescend(client *Client, message Message) {
 
 	client.Send <- Message{
 		Type: MsgNotification,
-		Text: "You descend to floor " + string(client.Character.CurrentFloor),
+		Text: "You descend to floor " + strconv.Itoa(client.Character.CurrentFloor),
 	}
 }
 
