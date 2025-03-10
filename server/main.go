@@ -3,17 +3,26 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/jchauncey/TheDeeps/server/log"
 	"github.com/rs/cors"
 )
 
 func main() {
+	// Initialize logger
+	logLevel := log.InfoLevel
+	if os.Getenv("DEBUG") == "true" {
+		logLevel = log.DebugLevel
+		log.Info("Debug logging enabled")
+	}
+	log.SetLevel(logLevel)
+	log.Info("Logger initialized with level: %s", log.LevelNames[logLevel])
+
 	// Parse command line flags
 	port := flag.String("port", "8080", "port to run the server on")
 	flag.Parse()
@@ -38,9 +47,9 @@ func main() {
 
 	// Start the server in a goroutine
 	go func() {
-		log.Printf("Server starting on port %s...\n", *port)
+		log.Info("Server starting on port %s...", *port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Could not start server: %v\n", err)
+			log.Fatal("Could not start server: %v", err)
 		}
 	}()
 
@@ -51,7 +60,7 @@ func main() {
 	// Block until we receive a signal
 	<-stop
 
-	log.Println("Shutting down server...")
+	log.Info("Shutting down server...")
 
 	// Create a deadline for the shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -59,8 +68,8 @@ func main() {
 
 	// Attempt to gracefully shut down the server
 	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v\n", err)
+		log.Error("Server forced to shutdown: %v", err)
 	}
 
-	log.Println("Server exited")
+	log.Info("Server exited")
 }

@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/jchauncey/TheDeeps/server/game"
+	"github.com/jchauncey/TheDeeps/server/log"
 	"github.com/jchauncey/TheDeeps/server/models"
 	"github.com/jchauncey/TheDeeps/server/repositories"
 )
@@ -38,7 +38,7 @@ func NewCombatHandler(characterRepo *repositories.CharacterRepository, dungeonRe
 	}
 }
 
-// CombatMessage represents a WebSocket message for combat
+// CombatMessage represents a combat action from the client
 type CombatMessage struct {
 	Action      string `json:"action"`
 	CharacterID string `json:"characterId"`
@@ -46,7 +46,7 @@ type CombatMessage struct {
 	ItemID      string `json:"itemId,omitempty"`
 }
 
-// CombatResponse represents a WebSocket response for combat
+// CombatResponse represents the server's response to a combat action
 type CombatResponse struct {
 	Action  string            `json:"action"`
 	Success bool              `json:"success"`
@@ -56,83 +56,112 @@ type CombatResponse struct {
 
 // HandleCombat handles WebSocket connections for combat
 func (h *CombatHandler) HandleCombat(w http.ResponseWriter, r *http.Request) {
-	// Upgrade HTTP connection to WebSocket
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Failed to upgrade connection:", err)
+		log.Error("Failed to upgrade connection: %v", err)
 		return
 	}
 	defer conn.Close()
 
 	// Main message loop
 	for {
-		// Read message
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
-			}
+			log.Error("WebSocket error: %v", err)
 			break
 		}
 
-		// Parse message
+		// Parse the combat message
 		var combatMsg CombatMessage
 		if err := json.Unmarshal(message, &combatMsg); err != nil {
-			log.Println("Failed to parse combat message:", err)
-			sendErrorResponse(conn, "Invalid message format")
+			log.Error("Failed to parse combat message: %v", err)
 			continue
 		}
 
-		// Get character
+		// Get the character
 		character, err := h.characterRepo.GetByID(combatMsg.CharacterID)
 		if err != nil {
-			log.Println("Character not found:", combatMsg.CharacterID)
-			sendErrorResponse(conn, "Character not found")
+			log.Warn("Character not found: %s", combatMsg.CharacterID)
+			response := CombatResponse{
+				Action:  combatMsg.Action,
+				Success: false,
+				Message: "Character not found",
+			}
+			sendResponse(conn, response)
 			continue
 		}
 
-		// Process message based on action
+		// Handle the combat action
+		var response CombatResponse
 		switch combatMsg.Action {
 		case "attack":
-			h.handleAttack(conn, character, combatMsg.MobID)
+			response = h.handleAttack(character, combatMsg.MobID)
 		case "useItem":
-			h.handleUseItem(conn, character, combatMsg.ItemID)
+			response = h.handleUseItem(character, combatMsg.ItemID)
 		case "flee":
-			h.handleFlee(conn, character, combatMsg.MobID)
+			response = h.handleFlee(character, combatMsg.MobID)
 		default:
-			sendErrorResponse(conn, "Unknown action")
+			response = CombatResponse{
+				Action:  combatMsg.Action,
+				Success: false,
+				Message: "Unknown action",
+			}
 		}
+
+		// Send the response
+		sendResponse(conn, response)
+	}
+}
+
+// sendResponse sends a combat response to the client
+func sendResponse(conn *websocket.Conn, response CombatResponse) {
+	data, err := json.Marshal(response)
+	if err != nil {
+		log.Error("Failed to marshal response: %v", err)
+		return
+	}
+
+	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		log.Error("Failed to send response: %v", err)
 	}
 }
 
 // handleAttack processes an attack action
-func (h *CombatHandler) handleAttack(conn *websocket.Conn, character *models.Character, mobID string) {
+func (h *CombatHandler) handleAttack(character *models.Character, mobID string) CombatResponse {
 	// Get dungeon and floor
 	dungeon, err := h.dungeonRepo.GetByID(character.CurrentDungeon)
 	if err != nil {
-		sendErrorResponse(conn, "Dungeon not found")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Dungeon not found",
+		}
 	}
 
 	// Get floor
 	floorLevel := dungeon.GetCharacterFloor(character.ID)
 	floor, err := h.dungeonRepo.GetFloor(dungeon.ID, floorLevel)
 	if err != nil {
-		sendErrorResponse(conn, "Floor not found")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Floor not found",
+		}
 	}
 
 	// Get mob
 	mob, exists := floor.Mobs[mobID]
 	if !exists {
-		sendErrorResponse(conn, "Mob not found")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Mob not found",
+		}
 	}
 
 	// Check if character is adjacent to mob
 	if !isAdjacent(character.Position, mob.Position) {
-		sendErrorResponse(conn, "Not adjacent to mob")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Not adjacent to mob",
+		}
 	}
 
 	// Process attack
@@ -150,53 +179,60 @@ func (h *CombatHandler) handleAttack(conn *websocket.Conn, character *models.Cha
 	h.dungeonRepo.SaveFloor(dungeon.ID, floorLevel, floor)
 
 	// Send response
-	response := CombatResponse{
+	return CombatResponse{
 		Action:  "attack",
 		Success: result.Success,
 		Message: result.Message,
 		Result:  result,
 	}
-	sendResponse(conn, response)
-
-	// Broadcast updated floor to all players on this floor
-	h.gameManager.BroadcastFloorUpdate(dungeon.ID, floorLevel)
 }
 
 // handleUseItem processes a use item action
-func (h *CombatHandler) handleUseItem(conn *websocket.Conn, character *models.Character, itemID string) {
+func (h *CombatHandler) handleUseItem(character *models.Character, itemID string) CombatResponse {
 	// TODO: Implement inventory system
 	// For now, just send an error
-	sendErrorResponse(conn, "Inventory system not implemented yet")
+	return CombatResponse{
+		Success: false,
+		Message: "Inventory system not implemented yet",
+	}
 }
 
 // handleFlee processes a flee action
-func (h *CombatHandler) handleFlee(conn *websocket.Conn, character *models.Character, mobID string) {
+func (h *CombatHandler) handleFlee(character *models.Character, mobID string) CombatResponse {
 	// Get dungeon and floor
 	dungeon, err := h.dungeonRepo.GetByID(character.CurrentDungeon)
 	if err != nil {
-		sendErrorResponse(conn, "Dungeon not found")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Dungeon not found",
+		}
 	}
 
 	// Get floor
 	floorLevel := dungeon.GetCharacterFloor(character.ID)
 	floor, err := h.dungeonRepo.GetFloor(dungeon.ID, floorLevel)
 	if err != nil {
-		sendErrorResponse(conn, "Floor not found")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Floor not found",
+		}
 	}
 
 	// Get mob
 	mob, exists := floor.Mobs[mobID]
 	if !exists {
-		sendErrorResponse(conn, "Mob not found")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Mob not found",
+		}
 	}
 
 	// Check if character is adjacent to mob
 	if !isAdjacent(character.Position, mob.Position) {
-		sendErrorResponse(conn, "Not adjacent to mob")
-		return
+		return CombatResponse{
+			Success: false,
+			Message: "Not adjacent to mob",
+		}
 	}
 
 	// Process flee attempt
@@ -206,23 +242,11 @@ func (h *CombatHandler) handleFlee(conn *websocket.Conn, character *models.Chara
 	h.characterRepo.Save(character)
 
 	// Send response
-	response := CombatResponse{
+	return CombatResponse{
 		Action:  "flee",
 		Success: result.Success,
 		Message: result.Message,
 		Result:  result,
-	}
-	sendResponse(conn, response)
-
-	// If successful, move character to a safe position
-	if result.Success {
-		// Find a safe position (not adjacent to any mob)
-		newPos := findSafePosition(floor, character.Position)
-		character.Position = newPos
-		h.characterRepo.Save(character)
-
-		// Broadcast updated floor to all players on this floor
-		h.gameManager.BroadcastFloorUpdate(dungeon.ID, floorLevel)
 	}
 }
 
@@ -292,22 +316,6 @@ func findSafePosition(floor *models.Floor, currentPos models.Position) models.Po
 
 	// If no safe position found, return current position
 	return pos
-}
-
-// sendErrorResponse sends an error response to the client
-func sendErrorResponse(conn *websocket.Conn, message string) {
-	response := CombatResponse{
-		Success: false,
-		Message: message,
-	}
-	sendResponse(conn, response)
-}
-
-// sendResponse sends a response to the client
-func sendResponse(conn *websocket.Conn, response CombatResponse) {
-	if err := conn.WriteJSON(response); err != nil {
-		log.Println("Failed to send response:", err)
-	}
 }
 
 // GetCombatState handles GET /characters/{id}/combat

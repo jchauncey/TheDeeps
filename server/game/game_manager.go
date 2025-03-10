@@ -1,14 +1,13 @@
 package game
 
 import (
-	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jchauncey/TheDeeps/server/log"
 	"github.com/jchauncey/TheDeeps/server/models"
 	"github.com/jchauncey/TheDeeps/server/repositories"
 )
@@ -17,16 +16,22 @@ import (
 type MessageType string
 
 const (
+	// WebSocket connection parameters
+	writeWait      = 10 * time.Second    // Time allowed to write a message to the peer
+	pongWait       = 60 * time.Second    // Time allowed to read the next pong message from the peer
+	pingPeriod     = (pongWait * 9) / 10 // Send pings to peer with this period. Must be less than pongWait
+	maxMessageSize = 512 * 1024          // Maximum message size allowed from peer (512KB)
+
 	// Client to server message types
 	MsgMove        MessageType = "move"
 	MsgAttack      MessageType = "attack"
 	MsgPickup      MessageType = "pickup"
-	MsgAscend      MessageType = "ascend"
-	MsgDescend     MessageType = "descend"
 	MsgUseItem     MessageType = "useItem"
 	MsgDropItem    MessageType = "dropItem"
 	MsgEquipItem   MessageType = "equipItem"
 	MsgUnequipItem MessageType = "unequipItem"
+	MsgAscend      MessageType = "ascend"
+	MsgDescend     MessageType = "descend"
 
 	// Server to client message types
 	MsgUpdateMap    MessageType = "updateMap"
@@ -36,8 +41,10 @@ const (
 	MsgAddItem      MessageType = "addItem"
 	MsgRemoveItem   MessageType = "removeItem"
 	MsgNotification MessageType = "notification"
+	MsgFloorUpdate  MessageType = "floorUpdate"
 	MsgFloorChange  MessageType = "floorChange"
 	MsgError        MessageType = "error"
+	MsgInitialState MessageType = "initialState"
 )
 
 // Direction represents a movement direction
@@ -715,107 +722,105 @@ func (c *Client) Run() {
 	go c.writePump()
 }
 
-// readPump pumps messages from the WebSocket connection to the manager
+// readPump pumps messages from the websocket connection to the hub
 func (c *Client) readPump() {
 	defer func() {
 		c.Manager.Unregister <- c
 		c.Connection.Close()
 	}()
 
+	c.Connection.SetReadLimit(maxMessageSize)
+	c.Connection.SetReadDeadline(time.Now().Add(pongWait))
+	c.Connection.SetPongHandler(func(string) error {
+		c.Connection.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
 	for {
 		_, message, err := c.Connection.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				log.Error("error: %v", err)
 			}
 			break
 		}
 
-		var msg Message
-		if err := json.Unmarshal(message, &msg); err != nil {
-			log.Printf("error: %v", err)
-			continue
-		}
-
-		c.Manager.HandleMessage(c, msg)
+		// Process the message
+		// ...
 	}
 }
 
-// writePump pumps messages from the manager to the WebSocket connection
+// writePump pumps messages from the hub to the websocket connection
 func (c *Client) writePump() {
+	ticker := time.NewTicker(pingPeriod)
 	defer func() {
+		ticker.Stop()
 		c.Connection.Close()
 	}()
 
 	for {
 		select {
 		case message, ok := <-c.Send:
+			c.Connection.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// The manager closed the channel
+				// The manager closed the channel.
 				c.Connection.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			data, err := json.Marshal(message)
+			w, err := c.Connection.NextWriter(websocket.TextMessage)
 			if err != nil {
-				log.Printf("error: %v", err)
+				log.Error("error: %v", err)
 				return
 			}
-
-			if err := c.Connection.WriteMessage(websocket.TextMessage, data); err != nil {
-				log.Printf("error: %v", err)
+			// Write the message
+			// ...
+			w.Close()
+		case <-ticker.C:
+			c.Connection.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.Connection.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Error("error: %v", err)
 				return
 			}
 		}
 	}
 }
 
-// BroadcastFloorUpdate broadcasts a floor update to all players on a specific floor
+// BroadcastFloorUpdate broadcasts a floor update to all clients on the specified floor
 func (gm *GameManager) BroadcastFloorUpdate(dungeonID string, floorLevel int) {
-	// Get dungeon
+	// Get the dungeon
 	dungeon, err := gm.DungeonRepo.GetByID(dungeonID)
 	if err != nil {
-		log.Println("Failed to get dungeon:", err)
+		log.Error("Failed to get dungeon: %v", err)
 		return
 	}
 
-	// Get floor
-	floor, err := gm.DungeonRepo.GetFloor(dungeonID, floorLevel)
+	// Get the floor
+	floor, err := dungeon.GetFloor(floorLevel)
 	if err != nil {
-		log.Println("Failed to get floor:", err)
+		log.Error("Failed to get floor: %v", err)
 		return
 	}
 
-	// Find all characters on this floor
-	for charID, floorStr := range dungeon.Characters {
-		charFloor, err := strconv.Atoi(floorStr)
-		if err != nil {
-			continue
-		}
+	// Find all clients on this floor
+	gm.mutex.RLock()
+	defer gm.mutex.RUnlock()
 
-		// Skip characters on different floors
-		if charFloor != floorLevel {
-			continue
+	for _, client := range gm.Clients {
+		if client.Character != nil &&
+			client.Character.CurrentDungeon == dungeonID &&
+			client.Character.CurrentFloor == floorLevel {
+			client.Send <- Message{
+				Type:  MsgFloorChange,
+				Floor: floor,
+			}
 		}
-
-		// Get character's client connection
-		client, exists := gm.Clients[charID]
-		if !exists {
-			continue
-		}
-
-		// Send floor update
-		message := Message{
-			Type:  MsgFloorChange,
-			Floor: floor,
-		}
-		client.Send <- message
 	}
 }
 
-// HandleConnection handles WebSocket connections for the game
+// HandleConnection handles a new WebSocket connection
 func (gm *GameManager) HandleConnection(w http.ResponseWriter, r *http.Request) {
-	// Upgrade HTTP connection to WebSocket
+	// Upgrade the HTTP connection to a WebSocket connection
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -826,22 +831,22 @@ func (gm *GameManager) HandleConnection(w http.ResponseWriter, r *http.Request) 
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Failed to upgrade connection:", err)
+		log.Error("Failed to upgrade connection: %v", err)
 		return
 	}
 
 	// Get character ID from query parameters
 	characterID := r.URL.Query().Get("characterId")
 	if characterID == "" {
-		log.Println("Character ID not provided")
+		log.Warn("Character ID not provided")
 		conn.Close()
 		return
 	}
 
-	// Get character from repository
+	// Get the character
 	character, err := gm.CharacterRepo.GetByID(characterID)
 	if err != nil {
-		log.Println("Character not found:", characterID)
+		log.Warn("Character not found: %s", characterID)
 		conn.Close()
 		return
 	}
@@ -855,10 +860,16 @@ func (gm *GameManager) HandleConnection(w http.ResponseWriter, r *http.Request) 
 		Manager:    gm,
 	}
 
-	// Register client with game manager
+	// Register the client
 	gm.Register <- client
 
-	// Start client goroutines
-	go client.readPump()
+	// Start the client's read and write pumps
 	go client.writePump()
+	go client.readPump()
+
+	// Send the initial game state
+	client.Send <- Message{
+		Type:      MsgInitialState,
+		Character: character,
+	}
 }
