@@ -19,6 +19,7 @@
    - Dark mode support with automatic detection of system preferences
    - ✅ Consistent padding and margins throughout the interface
    - ✅ Text colors should have sufficient contrast with background colors
+   - ✅ Full-screen layouts for character selection and dungeon selection screens
 
 3. **Notification System**
    - ✅ Toast banners should be clickable to dismiss
@@ -62,8 +63,33 @@
    - ✅ Display of modifier values for each attribute
    - ✅ Preview of starting equipment and abilities
    - ✅ Confirmation button with validation for required fields
+   - ✅ Proper API integration to avoid duplicate character creation
 
-7. **Character Status Panel**
+7. **Character Selection Screen**
+   - ✅ Grid layout displaying all available characters
+   - ✅ Character cards showing name, class, and class-colored badge
+   - ✅ Selection mechanism by clicking on character cards
+   - ✅ Delete button on each character card with confirmation modal
+   - ✅ Full-screen layout with fixed positioning
+   - ✅ Maximum of 10 characters allowed per account
+   - ✅ Create New Character button when below character limit
+   - ✅ Back button to return to title screen
+   - ✅ Select Character button to proceed with selected character
+   - ✅ Proper error handling and user feedback for character deletion
+
+8. **Dungeon Selection Screen**
+   - ✅ Full-screen layout with fixed positioning
+   - ✅ List of available dungeons with details (name, floors, creation date, player count)
+   - ✅ Dungeon creation form with name and floor count inputs
+   - ✅ Selection mechanism for choosing a dungeon
+   - ✅ Join Selected Dungeon button to enter the dungeon
+   - ✅ Back button to return to character selection
+   - ✅ Consistent styling with other screens
+   - ✅ REST API integration for dungeon creation and joining
+   - ✅ Loading indicators for async operations
+   - ✅ Error handling and user feedback
+
+9. **Character Status Panel**
    - ✅ Anchored to the right of the browser window
    - ✅ Simplified design showing only essential information
    - ✅ Character name and level at the top
@@ -75,37 +101,37 @@
    - ✅ Responsive design that works well on smaller screens
    - ✅ Current floor indicator showing which floor the player is on
 
-8. **Character Profile Modal**
-   - ✅ Accessible via 'C' hotkey or Profile button in status panel
-   - ✅ Overlays the game map when opened
-   - ✅ Detailed character information in a scrollable modal
-   - ✅ Class-specific icon displayed in a square container
-   - ✅ Thematic icons for each character class (warrior, mage, rogue, etc.)
-   - ✅ Character name, level, and class prominently displayed
-   - ✅ Text colors with sufficient contrast against background colors
-   - ✅ Attributes section with modifier values
-   - Class abilities section with visual indicators
-   - Equipment section showing equipped items
-   - Inventory section with grid-based layout
-   - Gold and potion counters with appropriate icons
-   - ✅ Close button to return to gameplay
-   - ✅ Display of current floor and total dungeon depth
+10. **Character Profile Modal**
+    - ✅ Accessible via 'C' hotkey or Profile button in status panel
+    - ✅ Overlays the game map when opened
+    - ✅ Detailed character information in a scrollable modal
+    - ✅ Class-specific icon displayed in a square container
+    - ✅ Thematic icons for each character class (warrior, mage, rogue, etc.)
+    - ✅ Character name, level, and class prominently displayed
+    - ✅ Text colors with sufficient contrast against background colors
+    - ✅ Attributes section with modifier values
+    - Class abilities section with visual indicators
+    - Equipment section showing equipped items
+    - Inventory section with grid-based layout
+    - Gold and potion counters with appropriate icons
+    - ✅ Close button to return to gameplay
+    - ✅ Display of current floor and total dungeon depth
 
-9. **Dungeon Window**
-   - ✅ Renders map in a nethack or rogue-style ASCII/tile-based format
-   - ✅ Character represented by a stylized @ symbol with class-specific colors
-   - ✅ No fog of war implementation
-   - ✅ Clear visual distinction between different terrain types
-   - ✅ Animated transitions between map areas
-   - Zoom functionality for map view
-   - Mini-map in corner for larger dungeons
-   - ✅ Visual indicators for interactive objects (doors, chests, etc.)
-   - ✅ Enemy representations with distinct symbols/colors
-   - Turn counter or game clock display
-   - ✅ Distinct visual representation for up stairs (< symbol) and down stairs (> symbol)
-   - ✅ Smooth transition animations when changing floors
+11. **Dungeon Window**
+    - ✅ Renders map in a nethack or rogue-style ASCII/tile-based format
+    - ✅ Character represented by a stylized @ symbol with class-specific colors
+    - ✅ No fog of war implementation
+    - ✅ Clear visual distinction between different terrain types
+    - ✅ Animated transitions between map areas
+    - Zoom functionality for map view
+    - Mini-map in corner for larger dungeons
+    - ✅ Visual indicators for interactive objects (doors, chests, etc.)
+    - ✅ Enemy representations with distinct symbols/colors
+    - Turn counter or game clock display
+    - ✅ Distinct visual representation for up stairs (< symbol) and down stairs (> symbol)
+    - ✅ Smooth transition animations when changing floors
 
-10. **Combat Interface**
+12. **Combat Interface**
     - ✅ Visual feedback for attacks and damage
     - ✅ Health/mana bars for player and visible enemies
     - Combat log showing recent actions
@@ -115,7 +141,7 @@
     - Status effect icons with duration indicators
     - Critical hit and miss animations/indicators
 
-11. **Menu System**
+13. **Menu System**
     - ✅ Easily accessible main menu via hotkey or button
     - Settings menu with audio, video, and gameplay options
     - ✅ Save/Load game functionality
@@ -123,7 +149,7 @@
     - ✅ Exit game confirmation dialog
     - ✅ Controls reference section explaining floor navigation mechanics
 
-12. **Floor Navigation**
+14. **Floor Navigation**
     - ✅ Visual indication when player is standing on stairs
     - ✅ Tooltip or prompt showing available actions when standing on stairs
     - ✅ Feedback message when attempting to ascend from the top floor or descend from the bottom floor

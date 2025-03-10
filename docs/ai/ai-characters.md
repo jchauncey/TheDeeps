@@ -24,6 +24,7 @@
    - Sorcerer: Innate spellcaster with metamagic abilities
    - Each class should have unique abilities and progression paths
    - Classes should have different starting equipment and proficiencies
+   - Each class should have a distinct color for visual identification in the UI
 
 3. **Equipment System**
    - Characters can wear armor types based on their class, granting an AC value
@@ -75,6 +76,8 @@
    - Inventory management with capacity limits
    - Status effect tracking and duration
    - Cooldown tracking for abilities
+   - Character deletion with confirmation to prevent accidental loss
+   - Maximum of 10 characters per account
 
 10. **Balance Requirements**
     - Classes should be balanced in combat effectiveness
@@ -82,3 +85,26 @@
     - Attribute distribution should offer meaningful choices
     - Equipment progression should scale with dungeon difficulty
     - Skills should provide meaningful advantages without being mandatory
+
+## Character Management
+
+1. **Character Creation**
+   - Characters are created with a name, class, and initial attributes
+   - Initial attributes are determined by class with some customization points
+   - Character creation is handled through REST API calls
+   - Duplicate character creation is prevented through proper client-side handling
+   - Created characters are immediately available for selection
+
+2. **Character Selection**
+   - Characters are displayed in a grid layout with visual class indicators
+   - Characters can be selected for gameplay
+   - Characters can be deleted when no longer needed
+   - Character deletion requires confirmation to prevent accidents
+   - Character selection is handled through REST API calls
+
+3. **Character Persistence**
+   - Character data is stored on the server
+   - Characters persist between game sessions
+   - Character state is updated when saving the game
+   - Character position and status are tracked per dungeon
+   - Character deletion properly cleans up all associated resources

@@ -24,7 +24,7 @@ import {
   CardHeader,
   SimpleGrid,
 } from '@chakra-ui/react';
-import { createDungeon, getAvailableDungeons, joinDungeon } from '../../services/api';
+import { createDungeon, getAvailableDungeons, joinDungeon, sendWebSocketMessage } from '../../services/api';
 import { DungeonData, FloorData } from '../../types/game';
 
 interface DungeonSelectionProps {
@@ -111,40 +111,31 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
 
     setIsCreating(true);
     try {
-      // Use the WebSocket API instead of HTTP API
-      const success = sendWebSocketMessage({
-        type: 'create_dungeon',
-        name: dungeonName,
-        numFloors: numFloors
-      });
+      // Use the REST API to create a dungeon
+      const result = await createDungeon(dungeonName, numFloors);
       
-      if (success) {
+      if (result.success) {
         toast({
-          title: 'Creating Dungeon',
-          description: 'Dungeon creation request sent',
-          status: 'info',
+          title: 'Success',
+          description: 'Dungeon created successfully!',
+          status: 'success',
           duration: 3000,
           isClosable: true,
         });
         
-        // Wait for the dungeon to be created
-        // The server will send a dungeon_created message
-        // which will be handled by the WebSocket message handler
-        
-        // Refresh the dungeon list after a short delay
-        setTimeout(() => {
-          loadDungeons();
-        }, 1000);
+        // Refresh the dungeon list
+        loadDungeons();
       } else {
         toast({
           title: 'Error',
-          description: 'Failed to send dungeon creation request',
+          description: result.message || 'Failed to create dungeon',
           status: 'error',
           duration: 5000,
           isClosable: true,
         });
       }
     } catch (error) {
+      console.error('Error creating dungeon:', error);
       toast({
         title: 'Error',
         description: 'An unexpected error occurred',
@@ -226,121 +217,137 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
 
   return (
     <Box
-      w="100%"
-      h="100%"
+      position="fixed"
+      top={0}
+      left={0}
+      right={0}
+      bottom={0}
+      bg="#291326"
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
       p={6}
-      bg="gray.800"
-      color="white"
-      overflow="auto"
     >
-      <Heading mb={6}>Dungeon Selection</Heading>
-      
-      <Flex direction={{ base: 'column', md: 'row' }} gap={8}>
-        {/* Create Dungeon Section */}
-        <Box flex="1" p={4} bg="gray.700" borderRadius="md">
-          <Heading size="md" mb={4}>Create New Dungeon</Heading>
-          <VStack spacing={4} align="stretch">
-            <FormControl>
-              <FormLabel>Dungeon Name</FormLabel>
-              <Input 
-                value={dungeonName}
-                onChange={(e) => setDungeonName(e.target.value)}
-                placeholder="Enter dungeon name"
-              />
-            </FormControl>
-            
-            <FormControl>
-              <FormLabel>Number of Floors</FormLabel>
-              <NumberInput 
-                min={1} 
-                max={20} 
-                value={numFloors}
-                onChange={(_, value) => setNumFloors(value)}
-              >
-                <NumberInputField />
-                <NumberInputStepper>
-                  <NumberIncrementStepper />
-                  <NumberDecrementStepper />
-                </NumberInputStepper>
-              </NumberInput>
-            </FormControl>
-            
-            <Button 
-              colorScheme="purple" 
-              onClick={handleCreateDungeon}
-              isLoading={isCreating}
-              loadingText="Creating..."
-            >
-              Create Dungeon
-            </Button>
-          </VStack>
-        </Box>
+      <Flex 
+        direction="column" 
+        bg="rgba(0, 0, 0, 0.7)" 
+        p={6} 
+        borderRadius="md" 
+        width="100%" 
+        maxW="1000px"
+        height="80vh"
+        overflow="auto"
+        color="white"
+      >
+        <Heading mb={6}>Dungeon Selection</Heading>
         
-        {/* Available Dungeons Section */}
-        <Box flex="2" p={4} bg="gray.700" borderRadius="md">
-          <Flex justify="space-between" align="center" mb={4}>
-            <Heading size="md">Available Dungeons</Heading>
-            <Button 
-              size="sm" 
-              onClick={loadDungeons} 
-              isLoading={isLoading}
-              loadingText="Refreshing..."
-            >
-              Refresh
-            </Button>
-          </Flex>
-          
-          {isLoading ? (
-            <Flex justify="center" align="center" h="200px">
-              <Spinner size="xl" />
-            </Flex>
-          ) : availableDungeons.length === 0 ? (
-            <Text textAlign="center" py={8}>No dungeons available. Create one to get started!</Text>
-          ) : (
-            <VStack spacing={4} align="stretch" maxH="400px" overflowY="auto">
-              <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={4}>
-                {availableDungeons.map((dungeon) => (
-                  <Card 
-                    key={dungeon.id} 
-                    bg={selectedDungeonId === dungeon.id ? "purple.700" : "gray.600"}
-                    cursor="pointer"
-                    onClick={() => handleSelectDungeon(dungeon.id)}
-                    _hover={{ bg: "purple.600" }}
-                    transition="all 0.2s"
-                  >
-                    <CardHeader pb={2}>
-                      <Flex justify="space-between" align="center">
-                        <Heading size="sm">{dungeon.name}</Heading>
-                        <Badge colorScheme={dungeon.playerCount > 0 ? "green" : "gray"}>
-                          {dungeon.playerCount} {dungeon.playerCount === 1 ? 'player' : 'players'}
-                        </Badge>
-                      </Flex>
-                    </CardHeader>
-                    <CardBody pt={0}>
-                      <Text fontSize="sm">Floors: {dungeon.numFloors}</Text>
-                      <Text fontSize="sm">Created: {formatDate(dungeon.createdAt)}</Text>
-                    </CardBody>
-                  </Card>
-                ))}
-              </SimpleGrid>
+        <Flex direction={{ base: 'column', md: 'row' }} gap={8} flex="1">
+          {/* Create Dungeon Section */}
+          <Box flex="1" p={4} bg="gray.700" borderRadius="md">
+            <Heading size="md" mb={4}>Create New Dungeon</Heading>
+            <VStack spacing={4} align="stretch">
+              <FormControl>
+                <FormLabel>Dungeon Name</FormLabel>
+                <Input 
+                  value={dungeonName}
+                  onChange={(e) => setDungeonName(e.target.value)}
+                  placeholder="Enter dungeon name"
+                />
+              </FormControl>
+              
+              <FormControl>
+                <FormLabel>Number of Floors</FormLabel>
+                <NumberInput 
+                  min={1} 
+                  max={20} 
+                  value={numFloors}
+                  onChange={(_, value) => setNumFloors(value)}
+                >
+                  <NumberInputField />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+              </FormControl>
+              
+              <Button 
+                colorScheme="purple" 
+                onClick={handleCreateDungeon}
+                isLoading={isCreating}
+                loadingText="Creating..."
+              >
+                Create Dungeon
+              </Button>
             </VStack>
-          )}
+          </Box>
           
-          <Flex justify="space-between" mt={6}>
-            <Button onClick={onBack} variant="outline">
-              Back
-            </Button>
-            <Button 
-              colorScheme="green" 
-              isDisabled={!selectedDungeonId}
-              onClick={() => selectedDungeonId && handleJoinDungeon(selectedDungeonId)}
-              isLoading={isJoining}
-              loadingText="Joining..."
-            >
-              Join Selected Dungeon
-            </Button>
-          </Flex>
-        </Box>
+          {/* Available Dungeons Section */}
+          <Box flex="2" p={4} bg="gray.700" borderRadius="md">
+            <Flex justify="space-between" align="center" mb={4}>
+              <Heading size="md">Available Dungeons</Heading>
+              <Button 
+                size="sm" 
+                onClick={loadDungeons} 
+                isLoading={isLoading}
+                loadingText="Refreshing..."
+              >
+                Refresh
+              </Button>
+            </Flex>
+            
+            {isLoading ? (
+              <Flex justify="center" align="center" h="200px">
+                <Spinner size="xl" />
+              </Flex>
+            ) : availableDungeons.length === 0 ? (
+              <Text textAlign="center" py={8}>No dungeons available. Create one to get started!</Text>
+            ) : (
+              <VStack spacing={4} align="stretch" maxH="400px" overflowY="auto">
+                <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={4}>
+                  {availableDungeons.map((dungeon) => (
+                    <Card 
+                      key={dungeon.id} 
+                      bg={selectedDungeonId === dungeon.id ? "purple.700" : "gray.600"}
+                      cursor="pointer"
+                      onClick={() => handleSelectDungeon(dungeon.id)}
+                      _hover={{ bg: "purple.600" }}
+                      transition="all 0.2s"
+                    >
+                      <CardHeader pb={2}>
+                        <Flex justify="space-between" align="center">
+                          <Heading size="sm">{dungeon.name}</Heading>
+                          <Badge colorScheme={dungeon.playerCount > 0 ? "green" : "gray"}>
+                            {dungeon.playerCount} {dungeon.playerCount === 1 ? 'player' : 'players'}
+                          </Badge>
+                        </Flex>
+                      </CardHeader>
+                      <CardBody pt={0}>
+                        <Text fontSize="sm">Floors: {dungeon.numFloors}</Text>
+                        <Text fontSize="sm">Created: {formatDate(dungeon.createdAt)}</Text>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              </VStack>
+            )}
+            
+            <Flex justify="space-between" mt={6}>
+              <Button onClick={onBack} variant="outline">
+                Back
+              </Button>
+              <Button 
+                colorScheme="green" 
+                isDisabled={!selectedDungeonId}
+                onClick={() => selectedDungeonId && handleJoinDungeon(selectedDungeonId)}
+                isLoading={isJoining}
+                loadingText="Joining..."
+              >
+                Join Selected Dungeon
+              </Button>
+            </Flex>
+          </Box>
+        </Flex>
       </Flex>
     </Box>
   );
