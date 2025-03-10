@@ -15,10 +15,12 @@ type Server struct {
 	router           *mux.Router
 	characterRepo    *repositories.CharacterRepository
 	dungeonRepo      *repositories.DungeonRepository
+	inventoryRepo    *repositories.InventoryRepository
 	gameManager      *game.GameManager
 	characterHandler *handlers.CharacterHandler
 	dungeonHandler   *handlers.DungeonHandler
 	combatHandler    *handlers.CombatHandler
+	inventoryHandler *handlers.InventoryHandler
 }
 
 // NewServer creates a new game server
@@ -26,6 +28,7 @@ func NewServer() *Server {
 	// Create repositories
 	characterRepo := repositories.NewCharacterRepository()
 	dungeonRepo := repositories.NewDungeonRepository()
+	inventoryRepo := repositories.NewInventoryRepository()
 
 	// Create game manager
 	gameManager := game.NewGameManager(characterRepo, dungeonRepo)
@@ -34,6 +37,7 @@ func NewServer() *Server {
 	characterHandler := handlers.NewCharacterHandler()
 	dungeonHandler := handlers.NewDungeonHandler()
 	combatHandler := handlers.NewCombatHandler(characterRepo, dungeonRepo, gameManager)
+	inventoryHandler := handlers.NewInventoryHandler(characterRepo, inventoryRepo)
 
 	// Create router
 	router := mux.NewRouter()
@@ -42,10 +46,12 @@ func NewServer() *Server {
 		router:           router,
 		characterRepo:    characterRepo,
 		dungeonRepo:      dungeonRepo,
+		inventoryRepo:    inventoryRepo,
 		gameManager:      gameManager,
 		characterHandler: characterHandler,
 		dungeonHandler:   dungeonHandler,
 		combatHandler:    combatHandler,
+		inventoryHandler: inventoryHandler,
 	}
 }
 
@@ -65,6 +71,9 @@ func (s *Server) SetupRoutes() {
 	s.router.HandleFunc("/dungeons", s.dungeonHandler.CreateDungeon).Methods("POST")
 	s.router.HandleFunc("/dungeons/{id}/join", s.dungeonHandler.JoinDungeon).Methods("POST")
 	s.router.HandleFunc("/dungeons/{id}/floor/{level}", s.dungeonHandler.GetFloor).Methods("GET")
+
+	// Inventory routes
+	s.inventoryHandler.RegisterRoutes(s.router)
 
 	// WebSocket routes
 	s.router.HandleFunc("/ws/game", s.gameManager.HandleConnection)

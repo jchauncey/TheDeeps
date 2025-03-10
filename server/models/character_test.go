@@ -229,3 +229,49 @@ func TestGetModifier(t *testing.T) {
 		})
 	}
 }
+
+func TestEquipItem(t *testing.T) {
+	character := NewCharacter("TestCharacter", Warrior)
+
+	// Create test items
+	sword1 := NewWeapon("First Sword", 10, 100, 1, nil)
+	sword2 := NewWeapon("Second Sword", 15, 150, 1, nil)
+	armor1 := NewArmor("First Armor", 5, 80, 1, nil)
+	armor2 := NewArmor("Second Armor", 8, 120, 1, nil)
+
+	// Add items to inventory
+	character.AddToInventory(sword1)
+	character.AddToInventory(sword2)
+	character.AddToInventory(armor1)
+	character.AddToInventory(armor2)
+
+	// Test equipping first weapon
+	success := character.EquipItem(sword1.ID)
+	assert.True(t, success)
+	assert.Equal(t, sword1, character.Equipment.Weapon)
+	assert.True(t, sword1.Equipped)
+
+	// Test equipping second weapon (should replace first)
+	success = character.EquipItem(sword2.ID)
+	assert.True(t, success)
+	assert.Equal(t, sword2, character.Equipment.Weapon)
+	assert.True(t, sword2.Equipped)
+	assert.False(t, sword1.Equipped)
+
+	// Test equipping first armor
+	success = character.EquipItem(armor1.ID)
+	assert.True(t, success)
+	assert.Equal(t, armor1, character.Equipment.Armor)
+	assert.True(t, armor1.Equipped)
+
+	// Test equipping second armor (should replace first)
+	success = character.EquipItem(armor2.ID)
+	assert.True(t, success)
+	assert.Equal(t, armor2, character.Equipment.Armor)
+	assert.True(t, armor2.Equipped)
+	assert.False(t, armor1.Equipped)
+
+	// Verify both types of equipment are still equipped
+	assert.Equal(t, sword2, character.Equipment.Weapon)
+	assert.Equal(t, armor2, character.Equipment.Armor)
+}

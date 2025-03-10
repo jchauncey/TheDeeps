@@ -48,13 +48,21 @@ type Character struct {
 	CurrentFloor   int            `json:"currentFloor"`
 	CurrentDungeon string         `json:"currentDungeon,omitempty"`
 	Position       Position       `json:"position"`
-	// Equipment and inventory will be added later
+	Inventory      []*Item        `json:"inventory"`
+	Equipment      Equipment      `json:"equipment"`
 }
 
 // Position represents a character's position on the map
 type Position struct {
 	X int `json:"x"`
 	Y int `json:"y"`
+}
+
+// Equipment represents the items a character has equipped
+type Equipment struct {
+	Weapon    *Item `json:"weapon,omitempty"`
+	Armor     *Item `json:"armor,omitempty"`
+	Accessory *Item `json:"accessory,omitempty"`
 }
 
 // NewCharacter creates a new character with default values based on class
@@ -154,6 +162,8 @@ func NewCharacter(name string, class CharacterClass) *Character {
 		Gold:         0,
 		CurrentFloor: 1,
 		Position:     Position{X: 0, Y: 0},
+		Inventory:    make([]*Item, 0),
+		Equipment:    Equipment{},
 	}
 }
 
@@ -200,4 +210,166 @@ func (c *Character) AddExperience(exp int) bool {
 	}
 
 	return leveledUp
+}
+
+// AddToInventory adds an item to the character's inventory
+func (c *Character) AddToInventory(item *Item) {
+	c.Inventory = append(c.Inventory, item)
+}
+
+// RemoveFromInventory removes an item from the character's inventory by ID
+// Returns the removed item and a boolean indicating success
+func (c *Character) RemoveFromInventory(itemID string) (*Item, bool) {
+	for i, item := range c.Inventory {
+		if item.ID == itemID {
+			// Remove the item from the inventory
+			removedItem := item
+			c.Inventory = append(c.Inventory[:i], c.Inventory[i+1:]...)
+			return removedItem, true
+		}
+	}
+	return nil, false
+}
+
+// GetInventoryItem retrieves an item from the inventory by ID
+func (c *Character) GetInventoryItem(itemID string) (*Item, bool) {
+	for _, item := range c.Inventory {
+		if item.ID == itemID {
+			return item, true
+		}
+	}
+	return nil, false
+}
+
+// EquipItem equips an item from the inventory
+// Returns true if successful, false otherwise
+func (c *Character) EquipItem(itemID string) bool {
+	item, found := c.GetInventoryItem(itemID)
+	if !found {
+		return false
+	}
+
+	// Check if the character meets the requirements
+	if item.LevelReq > c.Level {
+		return false
+	}
+
+	if len(item.ClassReq) > 0 {
+		classAllowed := false
+		for _, allowedClass := range item.ClassReq {
+			if c.Class == allowedClass {
+				classAllowed = true
+				break
+			}
+		}
+		if !classAllowed {
+			return false
+		}
+	}
+
+	// Equip the item based on its type
+	switch item.Type {
+	case ItemWeapon:
+		// Unequip current weapon if any
+		if c.Equipment.Weapon != nil {
+			c.Equipment.Weapon.Equipped = false
+		}
+		c.Equipment.Weapon = item
+	case ItemArmor:
+		// Unequip current armor if any
+		if c.Equipment.Armor != nil {
+			c.Equipment.Armor.Equipped = false
+		}
+		c.Equipment.Armor = item
+	default:
+		// Item type cannot be equipped
+		return false
+	}
+
+	item.Equipped = true
+	return true
+}
+
+// UnequipItem unequips an item and returns it to the inventory
+// Returns true if successful, false otherwise
+func (c *Character) UnequipItem(itemType ItemType) bool {
+	switch itemType {
+	case ItemWeapon:
+		if c.Equipment.Weapon != nil {
+			c.Equipment.Weapon.Equipped = false
+			c.Equipment.Weapon = nil
+			return true
+		}
+	case ItemArmor:
+		if c.Equipment.Armor != nil {
+			c.Equipment.Armor.Equipped = false
+			c.Equipment.Armor = nil
+			return true
+		}
+	case ItemArtifact:
+		if c.Equipment.Accessory != nil {
+			c.Equipment.Accessory.Equipped = false
+			c.Equipment.Accessory = nil
+			return true
+		}
+	}
+	return false
+}
+
+// UseItem uses a consumable item from the inventory
+// Returns true if successful, false otherwise
+func (c *Character) UseItem(itemID string) bool {
+	item, found := c.GetInventoryItem(itemID)
+	if !found {
+		return false
+	}
+
+	// Handle different item types
+	switch item.Type {
+	case ItemPotion:
+		// Heal the character
+		c.CurrentHP += item.Power
+		if c.CurrentHP > c.MaxHP {
+			c.CurrentHP = c.MaxHP
+		}
+		// Remove the potion from inventory after use
+		c.RemoveFromInventory(itemID)
+		return true
+	case ItemScroll:
+		// Restore mana
+		c.CurrentMana += item.Power
+		if c.CurrentMana > c.MaxMana {
+			c.CurrentMana = c.MaxMana
+		}
+		// Remove the scroll from inventory after use
+		c.RemoveFromInventory(itemID)
+		return true
+	default:
+		// Item type cannot be used
+		return false
+	}
+}
+
+// CalculateAttackPower calculates the character's attack power based on attributes and equipment
+func (c *Character) CalculateAttackPower() int {
+	basePower := GetModifier(c.Attributes.Strength) + c.Level
+
+	// Add weapon power if equipped
+	if c.Equipment.Weapon != nil {
+		basePower += c.Equipment.Weapon.Power
+	}
+
+	return basePower
+}
+
+// CalculateDefensePower calculates the character's defense power based on attributes and equipment
+func (c *Character) CalculateDefensePower() int {
+	basePower := GetModifier(c.Attributes.Constitution) + (c.Level / 2)
+
+	// Add armor power if equipped
+	if c.Equipment.Armor != nil {
+		basePower += c.Equipment.Armor.Power
+	}
+
+	return basePower
 }

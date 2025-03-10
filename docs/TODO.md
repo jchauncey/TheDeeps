@@ -4,17 +4,17 @@ This document outlines the missing components and enhancements needed for the se
 
 ## Character System
 
-- [ ] **Inventory System**
-  - [ ] Add inventory field to Character struct
-  - [ ] Implement methods for adding/removing items from inventory
+- [x] **Inventory System**
+  - [x] Add inventory field to Character struct
+  - [x] Implement methods for adding/removing items from inventory
   - [ ] Add weight limit based on strength attribute
   - [ ] Create UI components for inventory management
 
-- [ ] **Equipment System**
-  - [ ] Add equipment slots to Character struct (weapon, armor, etc.)
-  - [ ] Implement methods for equipping/unequipping items
-  - [ ] Add class and level requirements for equipment
-  - [ ] Calculate stat bonuses from equipped items
+- [x] **Equipment System**
+  - [x] Add equipment slots to Character struct (weapon, armor, etc.)
+  - [x] Implement methods for equipping/unequipping items
+  - [x] Add class and level requirements for equipment
+  - [x] Calculate stat bonuses from equipped items
   - [ ] Implement Armor Class (AC) system for combat
 
 - [ ] **Skill System**
@@ -55,9 +55,9 @@ This document outlines the missing components and enhancements needed for the se
 
 ## Combat System
 
-- [ ] **Item Drop Mechanics**
-  - [ ] Implement loot tables for different mob types
-  - [ ] Scale drops based on mob variant and floor level
+- [x] **Item Drop Mechanics**
+  - [x] Implement loot tables for different mob types
+  - [x] Scale drops based on mob variant and floor level
   - [ ] Add rare item drops for boss monsters
 
 - [ ] **Enhanced Combat Mechanics**
