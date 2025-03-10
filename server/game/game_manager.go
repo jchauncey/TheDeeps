@@ -348,13 +348,119 @@ func (manager *GameManager) handleAttack(client *Client, message Message) {
 
 // handlePickup handles a pickup message
 func (manager *GameManager) handlePickup(client *Client, message Message) {
-	// This is a placeholder for the pickup logic
-	// In a real implementation, you would check if the item is valid,
-	// add it to the character's inventory, remove it from the floor, etc.
-	client.Send <- Message{
-		Type: MsgNotification,
-		Text: "Pickup not implemented yet",
+	// Get the character
+	character := client.Character
+	if character == nil {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Character not found",
+		}
+		return
 	}
+
+	// Get the item ID from the message
+	itemID := message.ItemID
+	if itemID == "" {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "No item specified",
+		}
+		return
+	}
+
+	// Get the current floor
+	dungeon, err := manager.DungeonRepo.GetByID(character.CurrentDungeon)
+	if err != nil {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Dungeon not found",
+		}
+		return
+	}
+
+	floor := dungeon.FloorData[character.CurrentFloor]
+	if floor == nil {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Floor not found",
+		}
+		return
+	}
+
+	// Find the item on the floor
+	item, exists := floor.Items[itemID]
+	if !exists {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Item not found on this floor",
+		}
+		return
+	}
+
+	// Check if the character is at the same position as the item
+	if character.Position.X != item.Position.X || character.Position.Y != item.Position.Y {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Item is not at your position",
+		}
+		return
+	}
+
+	// Create a pointer to the item for adding to inventory
+	itemPtr := &item
+
+	// Check if adding this item would exceed the character's weight limit
+	if !character.CanAddItem(itemPtr) {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Cannot pick up item: weight limit exceeded",
+		}
+		return
+	}
+
+	// Add the item to the character's inventory
+	success := character.AddToInventory(itemPtr)
+	if !success {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Failed to add item to inventory",
+		}
+		return
+	}
+
+	// Remove the item from the floor
+	delete(floor.Items, itemID)
+
+	// Save the updated character
+	err = manager.CharacterRepo.Save(character)
+	if err != nil {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Failed to save character",
+		}
+		return
+	}
+
+	// Save the updated dungeon
+	err = manager.DungeonRepo.Save(dungeon)
+	if err != nil {
+		client.Send <- Message{
+			Type:  MsgError,
+			Error: "Failed to save dungeon",
+		}
+		return
+	}
+
+	// Send success message to the client
+	client.Send <- Message{
+		Type:      MsgNotification,
+		Text:      "You picked up " + item.Name,
+		Character: character,
+		Item:      itemPtr,
+	}
+
+	// Broadcast the floor update to all clients on this floor
+	manager.BroadcastFloorUpdate(character.CurrentDungeon, character.CurrentFloor)
 }
 
 // handleAscend handles an ascend message

@@ -31,6 +31,8 @@ func (h *InventoryHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/characters/{characterID}/inventory/{itemID}/unequip", h.UnequipItem).Methods("POST")
 	router.HandleFunc("/api/characters/{characterID}/inventory/{itemID}/use", h.UseItem).Methods("POST")
 	router.HandleFunc("/api/characters/{characterID}/equipment", h.GetEquipment).Methods("GET")
+	router.HandleFunc("/api/characters/{characterID}/inventory/add", h.AddItemToInventory).Methods("POST")
+	router.HandleFunc("/api/characters/{characterID}/weight", h.GetCharacterWeight).Methods("GET")
 	router.HandleFunc("/api/items", h.GetAllItems).Methods("GET")
 	router.HandleFunc("/api/items/generate", h.GenerateItems).Methods("POST")
 }
@@ -219,4 +221,80 @@ func (h *InventoryHandler) GenerateItems(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
+}
+
+// AddItemRequest represents a request to add an item to a character's inventory
+type AddItemRequest struct {
+	ItemID string `json:"itemID"`
+}
+
+// AddItemToInventory adds an item to a character's inventory
+func (h *InventoryHandler) AddItemToInventory(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	characterID := vars["characterID"]
+
+	character, err := h.characterRepo.GetByID(characterID)
+	if err != nil {
+		http.Error(w, "Character not found", http.StatusNotFound)
+		return
+	}
+
+	var req AddItemRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	item, exists := h.inventoryRepo.GetItem(req.ItemID)
+	if !exists {
+		http.Error(w, "Item not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if the character can carry the item
+	success := character.AddToInventory(item)
+	if !success {
+		http.Error(w, "Cannot add item: weight limit exceeded", http.StatusBadRequest)
+		return
+	}
+
+	// Save the updated character
+	h.characterRepo.Save(character)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+// WeightResponse represents the weight information for a character
+type WeightResponse struct {
+	InventoryWeight  float64 `json:"inventoryWeight"`
+	EquipmentWeight  float64 `json:"equipmentWeight"`
+	TotalWeight      float64 `json:"totalWeight"`
+	WeightLimit      float64 `json:"weightLimit"`
+	IsOverEncumbered bool    `json:"isOverEncumbered"`
+	EncumbranceLevel int     `json:"encumbranceLevel"`
+}
+
+// GetCharacterWeight returns weight information for a character
+func (h *InventoryHandler) GetCharacterWeight(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	characterID := vars["characterID"]
+
+	character, err := h.characterRepo.GetByID(characterID)
+	if err != nil {
+		http.Error(w, "Character not found", http.StatusNotFound)
+		return
+	}
+
+	response := WeightResponse{
+		InventoryWeight:  character.CalculateInventoryWeight(),
+		EquipmentWeight:  character.CalculateEquipmentWeight(),
+		TotalWeight:      character.CalculateTotalWeight(),
+		WeightLimit:      character.CalculateWeightLimit(),
+		IsOverEncumbered: character.IsOverEncumbered(),
+		EncumbranceLevel: character.GetEncumbranceLevel(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

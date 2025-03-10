@@ -275,3 +275,90 @@ func TestEquipItem(t *testing.T) {
 	assert.Equal(t, sword2, character.Equipment.Weapon)
 	assert.Equal(t, armor2, character.Equipment.Armor)
 }
+
+func TestInventoryWeight(t *testing.T) {
+	// Create a character with a class that doesn't modify strength
+	character := NewCharacter("TestCharacter", Rogue)
+
+	// Create test items with different weights
+	sword := NewWeaponWithWeight("Test Sword", 10, 100, 5.0, 1, nil)
+	armor := NewArmorWithWeight("Test Armor", 5, 80, 15.0, 1, nil)
+	potion := NewPotion("Health Potion", 20, 30) // Weight 0.5
+	gold := NewGold(1000)                        // Weight 10.0
+
+	// Test initial weight (should be 0)
+	assert.Equal(t, 0.0, character.CalculateTotalWeight())
+	assert.Equal(t, 0.0, character.CalculateInventoryWeight())
+	assert.Equal(t, 0.0, character.CalculateEquipmentWeight())
+
+	// Ensure strength is exactly 10 for consistent testing
+	character.Attributes.Strength = 10
+
+	// Test weight limit calculation
+	// Character has 10 strength, so limit should be 50
+	weightLimit := character.CalculateWeightLimit()
+	assert.Equal(t, 50.0, weightLimit)
+
+	// Increase strength and test weight limit
+	character.Attributes.Strength = 15
+	weightLimit = character.CalculateWeightLimit()
+	assert.Equal(t, 100.0, weightLimit) // 50 + (5 * 10)
+
+	// Decrease strength and test weight limit
+	character.Attributes.Strength = 8
+	weightLimit = character.CalculateWeightLimit()
+	assert.Equal(t, 40.0, weightLimit) // 50 + (-2 * 0.5 * 10)
+
+	// Reset strength to 10
+	character.Attributes.Strength = 10
+
+	// Add items to inventory and test weight
+	success := character.AddToInventory(sword)
+	assert.True(t, success)
+	assert.Equal(t, 5.0, character.CalculateInventoryWeight())
+
+	success = character.AddToInventory(armor)
+	assert.True(t, success)
+	assert.Equal(t, 20.0, character.CalculateInventoryWeight())
+
+	success = character.AddToInventory(potion)
+	assert.True(t, success)
+	assert.Equal(t, 20.5, character.CalculateInventoryWeight())
+
+	// Test equipping items and weight transfer
+	character.EquipItem(sword.ID)
+	assert.Equal(t, 15.5, character.CalculateInventoryWeight())
+	assert.Equal(t, 5.0, character.CalculateEquipmentWeight())
+	assert.Equal(t, 20.5, character.CalculateTotalWeight())
+
+	character.EquipItem(armor.ID)
+	assert.Equal(t, 0.5, character.CalculateInventoryWeight())
+	assert.Equal(t, 20.0, character.CalculateEquipmentWeight())
+	assert.Equal(t, 20.5, character.CalculateTotalWeight())
+
+	// Test encumbrance levels
+	assert.Equal(t, 0, character.GetEncumbranceLevel()) // Not encumbered (20.5 < 25)
+
+	// Add gold to approach weight limit
+	success = character.AddToInventory(gold)
+	assert.True(t, success)
+	assert.Equal(t, 10.5, character.CalculateInventoryWeight())
+	assert.Equal(t, 30.5, character.CalculateTotalWeight())
+
+	// Test encumbrance levels
+	assert.Equal(t, 1, character.GetEncumbranceLevel()) // Lightly encumbered (30.5 < 37.5)
+
+	// Create heavy items to exceed weight limit
+	heavyItem1 := NewArmorWithWeight("Heavy Armor", 10, 200, 10.0, 1, nil)
+	success = character.AddToInventory(heavyItem1)
+	assert.True(t, success)
+	assert.Equal(t, 40.5, character.CalculateTotalWeight())
+	assert.False(t, character.IsOverEncumbered())       // 40.5 < 50
+	assert.Equal(t, 2, character.GetEncumbranceLevel()) // Heavily encumbered
+
+	// Try to add another item that would exceed the limit
+	heavyItem2 := NewArmorWithWeight("Another Heavy Armor", 10, 200, 15.0, 1, nil)
+	success = character.AddToInventory(heavyItem2)
+	assert.False(t, success)                                // Should fail due to weight limit (40.5 + 15 > 50)
+	assert.Equal(t, 40.5, character.CalculateTotalWeight()) // Weight should not change
+}

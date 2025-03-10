@@ -212,9 +212,89 @@ func (c *Character) AddExperience(exp int) bool {
 	return leveledUp
 }
 
-// AddToInventory adds an item to the character's inventory
-func (c *Character) AddToInventory(item *Item) {
+// CalculateInventoryWeight calculates the total weight of all items in the character's inventory
+func (c *Character) CalculateInventoryWeight() float64 {
+	totalWeight := 0.0
+	for _, item := range c.Inventory {
+		if !item.Equipped { // Don't count equipped items in inventory weight
+			totalWeight += item.Weight
+		}
+	}
+	return totalWeight
+}
+
+// CalculateEquipmentWeight calculates the total weight of all equipped items
+func (c *Character) CalculateEquipmentWeight() float64 {
+	totalWeight := 0.0
+	if c.Equipment.Weapon != nil {
+		totalWeight += c.Equipment.Weapon.Weight
+	}
+	if c.Equipment.Armor != nil {
+		totalWeight += c.Equipment.Armor.Weight
+	}
+	if c.Equipment.Accessory != nil {
+		totalWeight += c.Equipment.Accessory.Weight
+	}
+	return totalWeight
+}
+
+// CalculateTotalWeight calculates the total weight of inventory and equipped items
+func (c *Character) CalculateTotalWeight() float64 {
+	return c.CalculateInventoryWeight() + c.CalculateEquipmentWeight()
+}
+
+// CalculateWeightLimit returns the maximum weight the character can carry based on strength
+func (c *Character) CalculateWeightLimit() float64 {
+	// Base weight limit is 50 pounds
+	baseLimit := 50.0
+
+	// Each point of strength above 10 adds 10 pounds to the limit
+	strengthModifier := float64(c.Attributes.Strength - 10)
+	if strengthModifier < 0 {
+		// For strength below 10, each point reduces the limit by 0.5 pounds
+		return baseLimit + (strengthModifier * 0.5 * 10)
+	}
+
+	// For strength above 10, each point adds 10 pounds
+	return baseLimit + (strengthModifier * 10)
+}
+
+// IsOverEncumbered returns true if the character is carrying more than their weight limit
+func (c *Character) IsOverEncumbered() bool {
+	return c.CalculateTotalWeight() > c.CalculateWeightLimit()
+}
+
+// GetEncumbranceLevel returns the character's encumbrance level
+// 0 = Not encumbered, 1 = Lightly encumbered, 2 = Heavily encumbered, 3 = Over encumbered
+func (c *Character) GetEncumbranceLevel() int {
+	totalWeight := c.CalculateTotalWeight()
+	weightLimit := c.CalculateWeightLimit()
+
+	if totalWeight <= weightLimit*0.5 {
+		return 0 // Not encumbered
+	} else if totalWeight <= weightLimit*0.75 {
+		return 1 // Lightly encumbered
+	} else if totalWeight <= weightLimit {
+		return 2 // Heavily encumbered
+	} else {
+		return 3 // Over encumbered
+	}
+}
+
+// CanAddItem checks if an item can be added to the inventory without exceeding weight limit
+func (c *Character) CanAddItem(item *Item) bool {
+	return (c.CalculateTotalWeight() + item.Weight) <= c.CalculateWeightLimit()
+}
+
+// AddToInventory adds an item to the character's inventory if weight limit allows
+// Returns true if successful, false if weight limit would be exceeded
+func (c *Character) AddToInventory(item *Item) bool {
+	if !c.CanAddItem(item) {
+		return false
+	}
+
 	c.Inventory = append(c.Inventory, item)
+	return true
 }
 
 // RemoveFromInventory removes an item from the character's inventory by ID

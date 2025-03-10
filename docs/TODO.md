@@ -7,7 +7,7 @@ This document outlines the missing components and enhancements needed for the se
 - [x] **Inventory System**
   - [x] Add inventory field to Character struct
   - [x] Implement methods for adding/removing items from inventory
-  - [ ] Add weight limit based on strength attribute
+  - [x] Add weight limit based on strength attribute
   - [ ] Create UI components for inventory management
 
 - [x] **Equipment System**
