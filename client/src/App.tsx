@@ -81,6 +81,8 @@ function App() {
       
       if (data.type === 'floor_data') {
         console.log('Received floor_data message:', data)
+        
+        // Update floor data
         setFloorData(data)
         
         // Dispatch a custom event to notify other components
@@ -99,12 +101,7 @@ function App() {
           console.log('Not transitioning to game screen:',
             'currentScreen =', currentScreen,
             'character =', character ? 'exists' : 'null',
-            'data.dungeonId =', data.dungeonId || 'missing')
-          
-          // Set the dungeonId anyway, so we can transition later when character is available
-          if (data.dungeonId) {
-            setDungeonId(data.dungeonId)
-          }
+            'dungeonId =', data.dungeonId || 'null')
         }
       } else if (data.type === 'welcome') {
         console.log('Received welcome message:', data.message)
@@ -114,6 +111,8 @@ function App() {
           title: 'Error',
           description: data.message,
           status: 'error',
+          duration: 5000,
+          isClosable: true,
         })
       } else if (data.type === 'character_created') {
         console.log('Received character_created message:', data);
@@ -198,11 +197,14 @@ function App() {
         } else {
           console.warn('dungeon_joined message missing dungeonId')
         }
+      } else if (data.type === 'debug') {
+        // Handle debug messages
+        console.log(`Debug [${data.level}]: ${data.message}`)
       }
     } catch (error) {
       console.error('Error handling WebSocket message:', error)
     }
-  }, [toast, character, setCharacter, currentScreen, setDungeonId, setCurrentScreen, floorData, checkAndTransitionToGame])
+  }, [currentScreen, character, toast])
   
   // Initialize WebSocket connection
   const initializeWebSocket = useCallback(() => {

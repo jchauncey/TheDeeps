@@ -396,60 +396,113 @@ func (s *GameServer) HandleMove(conn *websocket.Conn, payload []byte) {
 		characterID, currentPos.X, currentPos.Y, newPos.X, newPos.Y)
 
 	// Check if the move is valid
-	if newPos.X >= 0 && newPos.X < floor.Width &&
-		newPos.Y >= 0 && newPos.Y < floor.Height &&
-		floor.Tiles[newPos.Y][newPos.X].Type != models.TileWall {
+	if !s.IsValidMovePosition(floor, newPos) {
+		log.Printf("Invalid move to position (%d, %d)", newPos.X, newPos.Y)
+		return
+	}
 
-		// Update player position in the dungeon
-		*currentPos = newPos
+	// Check for special tiles and trigger events
+	tileType := floor.Tiles[newPos.Y][newPos.X].Type
 
-		// Find and update player entity
-		for i, entity := range floor.Entities {
-			if entity.Type == "player" && entity.ID == characterID {
-				floor.Entities[i].Position = newPos
-				break
-			}
+	// Handle special tile interactions
+	moveIsValid := s.HandleSpecialTileInteraction(conn, characterID, dungeon, floor, newPos, tileType)
+	if !moveIsValid {
+		return
+	}
+
+	// Update player position in the dungeon
+	*currentPos = newPos
+
+	// Find and update player entity
+	for i, entity := range floor.Entities {
+		if entity.Type == "player" && entity.ID == characterID {
+			floor.Entities[i].Position = newPos
+			break
 		}
+	}
 
-		// Get the character
-		character, err := s.CharacterRepository.GetByID(characterID)
-		if err != nil {
-			log.Printf("Error getting character: %v", err)
-			return
+	// Get the character
+	character, err := s.CharacterRepository.GetByID(characterID)
+	if err != nil {
+		log.Printf("Error getting character: %v", err)
+		return
+	}
+
+	// If no player entity exists for this character, create one
+	playerEntityExists := false
+	for _, entity := range floor.Entities {
+		if entity.Type == "player" && entity.ID == characterID {
+			playerEntityExists = true
+			break
 		}
+	}
 
-		// If no player entity exists for this character, create one
-		playerEntityExists := false
-		for _, entity := range floor.Entities {
-			if entity.Type == "player" && entity.ID == characterID {
-				playerEntityExists = true
-				break
-			}
+	if !playerEntityExists {
+		playerEntity := models.Entity{
+			ID:             characterID,
+			Type:           "player",
+			Name:           character.Name,
+			Position:       newPos,
+			CharacterClass: character.CharacterClass,
+			Health:         character.Health,
+			MaxHealth:      character.MaxHealth,
 		}
+		floor.Entities = append(floor.Entities, playerEntity)
+	}
 
-		if !playerEntityExists {
-			playerEntity := models.Entity{
-				ID:             characterID,
-				Type:           "player",
-				Name:           character.Name,
-				Position:       newPos,
-				CharacterClass: character.CharacterClass,
-				Health:         character.Health,
-				MaxHealth:      character.MaxHealth,
-			}
-			floor.Entities = append(floor.Entities, playerEntity)
+	log.Printf("Player %s moved %s to (%d, %d)", characterID, moveMsg.Direction, newPos.X, newPos.Y)
+
+	// Send updated floor data to the player
+	s.SendFloorData(conn)
+}
+
+// IsValidMovePosition checks if a position is valid for movement
+func (s *GameServer) IsValidMovePosition(floor *models.Floor, pos models.Position) bool {
+	// Check if position is within bounds
+	if pos.X < 0 || pos.X >= floor.Width || pos.Y < 0 || pos.Y >= floor.Height {
+		return false
+	}
+
+	// Check if the tile is walkable
+	tileType := floor.Tiles[pos.Y][pos.X].Type
+	if tileType == models.TileWall {
+		return false
+	}
+
+	// Check for entity collision (except for players)
+	for _, entity := range floor.Entities {
+		if entity.Type != "player" && entity.Position.X == pos.X && entity.Position.Y == pos.Y {
+			// Can't walk through entities
+			return false
 		}
+	}
 
-		// Update visibility
-		// TODO: Update this to work with the new dungeon model
-		// UpdateVisibility(dungeon.Dungeon)
+	return true
+}
 
-		log.Printf("Player %s moved %s to (%d, %d)", characterID, moveMsg.Direction, newPos.X, newPos.Y)
+// HandleSpecialTileInteraction handles interactions with special tiles
+func (s *GameServer) HandleSpecialTileInteraction(conn *websocket.Conn, characterID string,
+	dungeon *models.DungeonInstance, floor *models.Floor, pos models.Position, tileType models.TileType) bool {
 
-		// Send updated floor data to the player
-		s.SendFloorData(conn)
-	} else {
-		log.Printf("Invalid move to (%d, %d) for character %s", newPos.X, newPos.Y, characterID)
+	switch tileType {
+	case models.TileStairsDown:
+		// Handle descending stairs - this will be handled by a separate action
+		// Just allow the move for now
+		return true
+
+	case models.TileStairsUp:
+		// Handle ascending stairs - this will be handled by a separate action
+		// Just allow the move for now
+		return true
+
+	case models.TileDoor:
+		// Handle door interaction - could trigger events in the future
+		// For now, just allow the move
+		return true
+
+	default:
+		// Regular tile, allow the move
+		return true
 	}
 }
 
@@ -907,7 +960,9 @@ func (s *GameServer) SendFloorData(conn *websocket.Conn) {
 	// Get the player's position and floor
 	position := dungeon.GetPlayerPosition(characterID)
 	floorIndex := dungeon.GetPlayerFloor(characterID)
-	floor := dungeon.Dungeon.Floors[floorIndex]
+
+	// Only send the current floor data, not the entire dungeon
+	currentFloor := dungeon.Dungeon.Floors[floorIndex]
 
 	// Get the character
 	character, err := s.CharacterRepository.GetByID(characterID)
@@ -919,7 +974,7 @@ func (s *GameServer) SendFloorData(conn *websocket.Conn) {
 	// Create floor message
 	floorMsg := FloorMessage{
 		Type:         "floor_data",
-		Floor:        floor,
+		Floor:        currentFloor,
 		PlayerPos:    *position,
 		CurrentFloor: floorIndex + 1, // Convert to 1-indexed for the client
 		PlayerData:   character,

@@ -87,6 +87,27 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   const [hoveredEntity, setHoveredEntity] = useState<EnhancedEntity | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<Position | null>(null);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  
+  // Animation state for smooth movement
+  const [animatingPlayerPos, setAnimatingPlayerPos] = useState<Position | null>(null);
+  const [animationProgress, setAnimationProgress] = useState(1); // 0 to 1
+  const animationRef = useRef<number | null>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
+  const ANIMATION_DURATION = 100; // milliseconds - reduced for faster response
+  
+  // Key state tracking for continuous movement
+  const [keysPressed, setKeysPressed] = useState<Set<string>>(new Set());
+  const keyIntervalRef = useRef<number | null>(null);
+  const KEY_REPEAT_DELAY = 150; // milliseconds between key repeats - increased for better animation completion
+  const lastMoveTimeRef = useRef<number>(0);
+  const movementAllowedRef = useRef<boolean>(true);
+  const isMovingRef = useRef<boolean>(false);
+  
+  // Caching for map rendering
+  const mapCacheRef = useRef<HTMLCanvasElement | null>(null);
+  const lastMapPositionRef = useRef<Position | null>(null);
+  const needsFullRedrawRef = useRef<boolean>(true);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
@@ -94,8 +115,6 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   // Process floor data when it changes
   useEffect(() => {
     if (floorData) {
-      console.log('Processing floor data:', JSON.stringify(floorData, null, 2));
-      
       try {
         // Validate floor data
         if (!floorData.floor) {
@@ -110,25 +129,53 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           throw new Error('Floor data has invalid tiles property');
         }
         
-        // Set floor data
-        setFloor(floorData.floor);
+        // Check if this is just a player movement update or a full floor update
+        const isJustMovement = floor && 
+                              playerPos && 
+                              floor.level === floorData.floor.level &&
+                              JSON.stringify(floor.entities) === JSON.stringify(floorData.floor.entities) &&
+                              JSON.stringify(floor.items) === JSON.stringify(floorData.floor.items) &&
+                              (playerPos.x !== floorData.playerPosition.x || 
+                               playerPos.y !== floorData.playerPosition.y);
+        
+        // If it's a full floor update or first load, mark for full redraw
+        if (!isJustMovement || !floor) {
+          needsFullRedrawRef.current = true;
+          setFloor(floorData.floor);
+        }
+        
+        // Check if this is a player movement update
+        if (playerPos && 
+            (playerPos.x !== floorData.playerPosition.x || 
+             playerPos.y !== floorData.playerPosition.y)) {
+          
+          // Start animation from current position to new position
+          setAnimatingPlayerPos(playerPos);
+          setAnimationProgress(0);
+          
+          // Cancel any existing animation
+          if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+          }
+          
+          // Start animation loop
+          lastUpdateTimeRef.current = performance.now();
+          animationRef.current = requestAnimationFrame(animateMovement);
+        }
+        
+        // Always update player position
         setPlayerPos(floorData.playerPosition);
         setCurrentFloor(floorData.currentFloor);
         setLoading(false);
         setError(null);
         
-        console.log('Floor data processed successfully', {
-          floorLevel: floorData.currentFloor,
-          playerPosition: floorData.playerPosition,
-          tilesCount: floorData.floor.tiles.length,
-          entitiesCount: floorData.floor.entities?.length || 0,
-          itemsCount: floorData.floor.items?.length || 0
-        });
-        
-        // Force a redraw after a short delay to ensure the canvas is ready
-        setTimeout(() => {
-          drawFloor();
-        }, 100);
+        // Only force a redraw if we're not animating
+        if (animationProgress >= 1) {
+          // Force a redraw after a short delay to ensure the canvas is ready
+          setTimeout(() => {
+            drawFloor();
+          }, 100);
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error processing floor data';
         console.error('Error processing floor data:', errorMessage, floorData);
@@ -237,11 +284,39 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       if (data.type === 'floor_data') {
         try {
           const floorData = data as FloorData;
-          setFloor(floorData.floor);
-          setPlayerPos(floorData.playerPosition);
-          setCurrentFloor(floorData.currentFloor);
-          setLoading(false);
-          setError(null);
+          
+          // Check if this is just a movement update
+          if (floorData.isMovementUpdate) {
+            // For movement updates, we only need to update the player position
+            if (playerPos && 
+                (playerPos.x !== floorData.playerPosition.x || 
+                 playerPos.y !== floorData.playerPosition.y)) {
+              
+              // Start animation from current position to new position
+              setAnimatingPlayerPos(playerPos);
+              setAnimationProgress(0);
+              
+              // Cancel any existing animation
+              if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+              }
+              
+              // Start animation loop
+              lastUpdateTimeRef.current = performance.now();
+              animationRef.current = requestAnimationFrame(animateMovement);
+              
+              // Update player position
+              setPlayerPos(floorData.playerPosition);
+            }
+          } else {
+            // For full floor updates
+            needsFullRedrawRef.current = true;
+            setFloor(floorData.floor);
+            setPlayerPos(floorData.playerPosition);
+            setCurrentFloor(floorData.currentFloor);
+            setLoading(false);
+            setError(null);
+          }
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error processing WebSocket message';
           console.error(errorMessage, data);
@@ -255,7 +330,7 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     return () => {
       window.removeEventListener('websocket_message', handleWebSocketMessage);
     };
-  }, []);
+  }, [playerPos]);
 
   // Ensure the game board has focus for keyboard controls
   useEffect(() => {
@@ -289,18 +364,8 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
 
   // Draw the floor on the canvas
   const drawFloor = () => {
-    console.log('drawFloor called with:', {
-      floorExists: !!floor,
-      playerPosExists: !!playerPos,
-      canvasExists: !!canvasRef.current
-    });
-    
     if (!floor || !playerPos || !canvasRef.current) {
-      console.error('Cannot draw floor - missing required data:', {
-        floor: !!floor,
-        playerPos: !!playerPos,
-        canvas: !!canvasRef.current
-      });
+      console.error('Cannot draw floor - missing required data');
       return;
     }
     
@@ -311,11 +376,16 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       return;
     }
     
-    console.log('Drawing floor with viewport size:', viewportSize);
-    console.log('Player position for drawing:', playerPos);
+    // Calculate the interpolated player position for smooth animation
+    let displayPlayerPos = { ...playerPos };
     
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // If we're animating, interpolate between the start and end positions
+    if (animatingPlayerPos && animationProgress < 1) {
+      displayPlayerPos = {
+        x: animatingPlayerPos.x + (playerPos.x - animatingPlayerPos.x) * animationProgress,
+        y: animatingPlayerPos.y + (playerPos.y - animatingPlayerPos.y) * animationProgress
+      };
+    }
     
     // Calculate the ideal number of tiles to show
     const idealVisibleTilesX = 30; // Show more tiles horizontally
@@ -327,15 +397,13 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       canvas.height / idealVisibleTilesY
     );
     
-    console.log('Tile size calculated:', tileSize);
-    
     // Calculate viewport boundaries to only render what's visible
     const visibleTilesX = Math.ceil(canvas.width / tileSize);
     const visibleTilesY = Math.ceil(canvas.height / tileSize);
     
-    // Center the viewport on the player with improved edge handling
-    let startX = Math.max(0, playerPos.x - Math.floor(visibleTilesX / 2));
-    let startY = Math.max(0, playerPos.y - Math.floor(visibleTilesY / 2));
+    // Center the viewport on the interpolated player position with improved edge handling
+    let startX = Math.max(0, Math.floor(displayPlayerPos.x) - Math.floor(visibleTilesX / 2));
+    let startY = Math.max(0, Math.floor(displayPlayerPos.y) - Math.floor(visibleTilesY / 2));
     
     // Ensure we always show the same number of tiles when possible
     // This prevents the map from shrinking when reaching the edges
@@ -350,13 +418,6 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     const endX = Math.min(floor.width, startX + visibleTilesX);
     const endY = Math.min(floor.height, startY + visibleTilesY);
     
-    console.log('Viewport calculation:', {
-      startX, startY, endX, endY,
-      visibleTilesX, visibleTilesY,
-      floorWidth: floor.width,
-      floorHeight: floor.height
-    });
-    
     // Calculate offset to center the map in the viewport
     // Use fixed tile counts to maintain consistent sizing
     const tilesShownX = endX - startX;
@@ -364,68 +425,117 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     const offsetX = (canvas.width - tilesShownX * tileSize) / 2;
     const offsetY = (canvas.height - tilesShownY * tileSize) / 2;
     
-    // Draw tiles
-    try {
-      for (let y = startY; y < endY; y++) {
-        for (let x = startX; x < endX; x++) {
-          if (!floor.tiles[y] || !floor.tiles[y][x]) {
-            console.error(`Missing tile data at position [${y}][${x}]`);
-            continue;
-          }
-          
-          const tile = floor.tiles[y][x];
-          const screenX = (x - startX) * tileSize + offsetX;
-          const screenY = (y - startY) * tileSize + offsetY;
-          
-          // Draw tile background
-          ctx.fillStyle = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
-          ctx.fillRect(screenX, screenY, tileSize, tileSize);
-          
-          // Draw tile border
-          ctx.strokeStyle = '#222';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(screenX, screenY, tileSize, tileSize);
-          
-          // Draw item if present
-          if (tile.item) {
-            drawItem(ctx, tile.item, screenX, screenY, tileSize);
-          }
-        }
+    // Check if we need to redraw the entire map or just update the player position
+    const viewportChanged = !lastMapPositionRef.current || 
+                           Math.abs(startX - lastMapPositionRef.current.x) > 0 || 
+                           Math.abs(startY - lastMapPositionRef.current.y) > 0;
+    
+    // If we need a full redraw or the viewport has changed, redraw the entire map
+    if (needsFullRedrawRef.current || viewportChanged || !mapCacheRef.current) {
+      // Create or reuse the map cache canvas
+      if (!mapCacheRef.current) {
+        mapCacheRef.current = document.createElement('canvas');
       }
       
-      // Draw entities
-      if (floor.entities && floor.entities.length > 0) {
-        console.log(`Drawing ${floor.entities.length} entities`);
-        for (const entity of floor.entities) {
-          // Only draw entities within the viewport
-          if (
-            entity.position.x >= startX && 
-            entity.position.x < endX && 
-            entity.position.y >= startY && 
-            entity.position.y < endY
-          ) {
-            const screenX = (entity.position.x - startX) * tileSize + offsetX;
-            const screenY = (entity.position.y - startY) * tileSize + offsetY;
-            drawEntity(ctx, entity, screenX, screenY, tileSize);
-          }
-        }
-      } else {
-        console.log('No entities to draw');
+      // Set the map cache canvas dimensions
+      mapCacheRef.current.width = canvas.width;
+      mapCacheRef.current.height = canvas.height;
+      
+      const mapCtx = mapCacheRef.current.getContext('2d');
+      if (!mapCtx) {
+        console.error('Failed to get map cache context');
+        return;
       }
       
-      console.log('Floor drawing completed successfully');
-    } catch (error) {
-      console.error('Error drawing floor:', error);
-      setError('Error drawing floor: ' + (error instanceof Error ? error.message : String(error)));
+      // Clear the map cache
+      mapCtx.clearRect(0, 0, mapCacheRef.current.width, mapCacheRef.current.height);
       
-      // Show error toast
-      toast({
-        title: 'Rendering Error',
-        description: 'Failed to render dungeon. Please try refreshing the page.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+      try {
+        // Draw tiles and static entities to the map cache
+        for (let y = startY; y < endY; y++) {
+          for (let x = startX; x < endX; x++) {
+            if (!floor.tiles[y] || !floor.tiles[y][x]) {
+              continue;
+            }
+            
+            const tile = floor.tiles[y][x];
+            const screenX = (x - startX) * tileSize + offsetX;
+            const screenY = (y - startY) * tileSize + offsetY;
+            
+            // Draw tile background
+            mapCtx.fillStyle = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
+            mapCtx.fillRect(screenX, screenY, tileSize, tileSize);
+            
+            // Draw tile border
+            mapCtx.strokeStyle = '#222';
+            mapCtx.lineWidth = 1;
+            mapCtx.strokeRect(screenX, screenY, tileSize, tileSize);
+            
+            // Draw item if present
+            if (tile.item) {
+              drawItem(mapCtx, tile.item, screenX, screenY, tileSize);
+            }
+          }
+        }
+        
+        // Draw non-player entities to the map cache
+        if (floor.entities && floor.entities.length > 0) {
+          for (const entity of floor.entities) {
+            // Skip the player entity - we'll draw it separately with animation
+            if (entity.type === 'player' && entity.id === floorData?.playerData?.id) {
+              continue;
+            }
+            
+            // Only draw entities within the viewport
+            if (
+              entity.position.x >= startX && 
+              entity.position.x < endX && 
+              entity.position.y >= startY && 
+              entity.position.y < endY
+            ) {
+              const screenX = (entity.position.x - startX) * tileSize + offsetX;
+              const screenY = (entity.position.y - startY) * tileSize + offsetY;
+              drawEntity(mapCtx, entity, screenX, screenY, tileSize);
+            }
+          }
+        }
+        
+        // Update the last map position and mark that we don't need a full redraw next time
+        lastMapPositionRef.current = { x: startX, y: startY };
+        needsFullRedrawRef.current = false;
+      } catch (error) {
+        console.error('Error drawing map cache:', error);
+        return;
+      }
+    }
+    
+    // Clear the main canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw the cached map to the main canvas
+    if (mapCacheRef.current) {
+      ctx.drawImage(mapCacheRef.current, 0, 0);
+    }
+    
+    // Draw the player with interpolated position
+    if (displayPlayerPos) {
+      // Calculate the screen position with sub-tile precision for smooth animation
+      const screenX = (displayPlayerPos.x - startX) * tileSize + offsetX;
+      const screenY = (displayPlayerPos.y - startY) * tileSize + offsetY;
+      
+      // Create a player entity object
+      const playerEntity: Entity = {
+        id: floorData?.playerData?.id || 'player',
+        type: 'player',
+        name: floorData?.playerData?.name || 'Player',
+        position: displayPlayerPos,
+        characterClass: floorData?.playerData?.characterClass || 'default',
+        health: floorData?.playerData?.health || 100,
+        maxHealth: floorData?.playerData?.maxHealth || 100
+      };
+      
+      // Draw the player
+      drawEntity(ctx, playerEntity, screenX, screenY, tileSize);
     }
   };
 
@@ -653,32 +763,156 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       return;
     }
 
-    // Handle movement with arrow keys
-    switch (e.key) {
+    // Add key to pressed keys set
+    setKeysPressed(prev => {
+      const newSet = new Set(prev);
+      newSet.add(e.key);
+      return newSet;
+    });
+    
+    // Process the key press immediately if it's a movement key
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && 
+        !isMovingRef.current && movementAllowedRef.current) {
+      processMovementKeys(e.key);
+    }
+    
+    // If this is the first key press, start the interval for continuous movement
+    if (!keyIntervalRef.current) {
+      // Set up interval for continuous movement while keys are held down
+      keyIntervalRef.current = window.setInterval(() => {
+        // Only process keys if we're not currently animating
+        if (!isMovingRef.current && movementAllowedRef.current && keysPressed.size > 0) {
+          // Get the most recently pressed movement key
+          const movementKeys = Array.from(keysPressed).filter(key => 
+            ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)
+          );
+          
+          if (movementKeys.length > 0) {
+            const lastKey = movementKeys[movementKeys.length - 1];
+            processMovementKeys(lastKey);
+          }
+        }
+      }, KEY_REPEAT_DELAY);
+    }
+  };
+  
+  // Handle key up events
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Remove key from pressed keys set
+    setKeysPressed(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(e.key);
+      return newSet;
+    });
+    
+    // If no keys are pressed, clear the interval
+    if (keysPressed.size === 0 && keyIntervalRef.current) {
+      clearInterval(keyIntervalRef.current);
+      keyIntervalRef.current = null;
+    }
+  };
+  
+  // Animation function for smooth movement
+  const animateMovement = (timestamp: number) => {
+    if (!animatingPlayerPos || !playerPos) {
+      setAnimationProgress(1);
+      isMovingRef.current = false;
+      return;
+    }
+    
+    isMovingRef.current = true;
+    
+    const elapsed = timestamp - lastUpdateTimeRef.current;
+    const newProgress = Math.min(1, elapsed / ANIMATION_DURATION);
+    
+    setAnimationProgress(newProgress);
+    
+    if (newProgress < 1) {
+      // Continue animation
+      animationRef.current = requestAnimationFrame(animateMovement);
+      // Redraw with animation
+      drawFloor();
+    } else {
+      // Animation complete
+      setAnimatingPlayerPos(null);
+      isMovingRef.current = false;
+      // Final redraw
+      drawFloor();
+      
+      // If keys are still pressed, allow the next movement immediately
+      if (keysPressed.size > 0) {
+        movementAllowedRef.current = true;
+        
+        // Process the next movement immediately if keys are still pressed
+        const movementKeys = Array.from(keysPressed).filter(key => 
+          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)
+        );
+        
+        if (movementKeys.length > 0) {
+          const lastKey = movementKeys[movementKeys.length - 1];
+          processMovementKeys(lastKey);
+        }
+      }
+    }
+  };
+  
+  // Process movement keys
+  const processMovementKeys = (key: string) => {
+    // Check if movement is allowed (not too soon after last move or during animation)
+    const now = performance.now();
+    if (!movementAllowedRef.current || isMovingRef.current) {
+      return;
+    }
+    
+    // Temporarily disable movement until animation completes
+    movementAllowedRef.current = false;
+    
+    // Handle movement with arrow keys - send to server for validation
+    // The server will validate the move and send back updated floor data if valid
+    switch (key) {
       case 'ArrowUp':
         sendWebSocketMessage({ type: 'move', direction: 'up' });
+        lastMoveTimeRef.current = now;
         break;
       case 'ArrowDown':
         sendWebSocketMessage({ type: 'move', direction: 'down' });
+        lastMoveTimeRef.current = now;
         break;
       case 'ArrowLeft':
         sendWebSocketMessage({ type: 'move', direction: 'left' });
+        lastMoveTimeRef.current = now;
         break;
       case 'ArrowRight':
         sendWebSocketMessage({ type: 'move', direction: 'right' });
+        lastMoveTimeRef.current = now;
         break;
       case ' ': // Space bar for attack
         sendWebSocketMessage({ type: 'action', action: 'attack' });
+        movementAllowedRef.current = true; // Re-enable movement for non-movement actions
         break;
       case 'p': // 'p' for pickup
       case 'P':
         sendWebSocketMessage({ type: 'action', action: 'pickup' });
+        movementAllowedRef.current = true; // Re-enable movement for non-movement actions
         break;
       default:
+        movementAllowedRef.current = true; // Re-enable movement for unknown keys
         break;
     }
   };
-
+  
+  // Clean up interval on unmount
+  useEffect(() => {
+    return () => {
+      if (keyIntervalRef.current) {
+        clearInterval(keyIntervalRef.current);
+      }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
+  
   // Set up the game board when floor data changes
   useEffect(() => {
     if (floorData) {
@@ -826,6 +1060,15 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     </Box>
   );
 
+  // Force a full redraw when the floor changes
+  useEffect(() => {
+    if (floor) {
+      needsFullRedrawRef.current = true;
+      mapCacheRef.current = null;
+      lastMapPositionRef.current = null;
+    }
+  }, [currentFloor]);
+
   if (loading) {
     return (
       <Box
@@ -885,6 +1128,7 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       height="100%"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
       outline="none"
       overflow="hidden"
       backgroundColor="#111"
@@ -902,7 +1146,7 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
           bg="rgba(0,0,0,0.8)"
           zIndex="10"
         >
-          <Spinner size="xl" color="blue.500" thickness="4px" speed="0.65s" mb={4} />
+          <Spinner size="xl" color="blue.500" thickness="4px" mb={4} />
           <Text color="white" fontSize="xl">Loading Dungeon...</Text>
         </Flex>
       ) : error ? (

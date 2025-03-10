@@ -18,6 +18,18 @@ let onDisconnectCallback: (() => void) | null = null;
 let onReconnectFailedCallback: (() => void) | null = null;
 let onConnectedCallback: (() => void) | null = null;
 
+// Floor data cache to prevent unnecessary re-renders
+let lastFloorData: any = null;
+let lastMovementTime = 0;
+const MOVEMENT_THROTTLE = 30; // milliseconds - reduced for more responsive movement
+
+// Track last movement request time for throttling
+let lastMovementRequestTime = 0;
+const MOVEMENT_REQUEST_THROTTLE = 50; // milliseconds - reduced for more responsive movement
+
+// Track what type of update we're receiving
+let isProcessingMovementUpdate = false;
+
 // Connect to WebSocket - only used for in-dungeon gameplay
 export const connectWebSocket = (onMessage: (event: Event) => void): WebSocket | null => {
   // Store the callback
@@ -60,19 +72,75 @@ export const connectWebSocket = (onMessage: (event: Event) => void): WebSocket |
     };
     
     ws.onmessage = (event) => {
-      console.log('WebSocket message received:', event.data);
       try {
         const data = JSON.parse(event.data);
-        console.log('Parsed WebSocket message:', data);
         
-        // Dispatch a raw message event that components can listen for
-        const rawMessageEvent = new CustomEvent('websocket_raw_message', {
-          detail: data
-        });
-        window.dispatchEvent(rawMessageEvent);
-        
-        if (onMessageCallback) {
-          onMessageCallback(event);
+        // Process floor data to ensure smooth movement
+        if (data.type === 'floor_data') {
+          // Determine if this is just a movement update or a full floor update
+          isProcessingMovementUpdate = false;
+          
+          if (lastFloorData) {
+            // Check if only the player position changed
+            const playerPosChanged = 
+              lastFloorData.playerPosition.x !== data.playerPosition.x || 
+              lastFloorData.playerPosition.y !== data.playerPosition.y;
+              
+            // Check if entities changed
+            const entitiesChanged = JSON.stringify(lastFloorData.floor.entities) !== 
+                                   JSON.stringify(data.floor.entities);
+                                   
+            // Check if items changed
+            const itemsChanged = JSON.stringify(lastFloorData.floor.items) !== 
+                                JSON.stringify(data.floor.items);
+                                
+            // Check if floor level changed
+            const floorLevelChanged = lastFloorData.currentFloor !== data.currentFloor;
+            
+            // If only player position changed, mark as movement update
+            if (playerPosChanged && !entitiesChanged && !itemsChanged && !floorLevelChanged) {
+              isProcessingMovementUpdate = true;
+              
+              // For movement updates, we only need to update the player position
+              // Create a simplified update with just the necessary data
+              const simplifiedUpdate = {
+                type: 'floor_data',
+                playerPosition: data.playerPosition,
+                currentFloor: data.currentFloor,
+                playerData: data.playerData,
+                dungeonId: data.dungeonId,
+                isMovementUpdate: true
+              };
+              
+              // Update the last floor data with the new player position
+              lastFloorData.playerPosition = data.playerPosition;
+              
+              // Call the message callback with the simplified update
+              if (onMessageCallback) {
+                // Create a new event with the simplified data
+                const simplifiedEvent = new MessageEvent('message', {
+                  data: JSON.stringify(simplifiedUpdate)
+                });
+                onMessageCallback(simplifiedEvent);
+              }
+              
+              return;
+            }
+          }
+          
+          // For full floor updates or first load
+          console.log(`Received ${isProcessingMovementUpdate ? 'movement update' : 'full floor data'} for floor ${data.currentFloor}`);
+          lastFloorData = data;
+          
+          // Call the message callback
+          if (onMessageCallback) {
+            onMessageCallback(event);
+          }
+        } else {
+          // For non-floor data messages, always process
+          if (onMessageCallback) {
+            onMessageCallback(event);
+          }
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -143,26 +211,31 @@ export const setWebSocketCallbacks = (
 
 // Send a message through the WebSocket
 export const sendWebSocketMessage = (message: any): boolean => {
-  console.log('Attempting to send WebSocket message:', message)
-  
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    console.warn('WebSocket not connected, queueing message. WebSocket state:', ws ? ws.readyState : 'null')
-    messageQueue.push(message);
-    
-    // Try to reconnect if not already reconnecting
-    if (!isReconnecting && (!ws || ws.readyState === WebSocket.CLOSED)) {
-      if (reconnectAttempts < maxReconnectAttempts) {
-        handleReconnect();
-      }
+  // Throttle movement requests
+  if (message.type === 'move') {
+    const now = performance.now();
+    if (now - lastMovementRequestTime < MOVEMENT_REQUEST_THROTTLE) {
+      // Skip this request if it's too soon after the last one
+      return false;
     }
-    
+    lastMovementRequestTime = now;
+  }
+
+  if (!ws) {
+    console.log('WebSocket not connected, queueing message:', message);
+    messageQueue.push(message);
+    return false;
+  }
+  
+  if (ws.readyState !== WebSocket.OPEN) {
+    console.log('WebSocket not open, queueing message:', message);
+    messageQueue.push(message);
     return false;
   }
   
   try {
-    const messageStr = JSON.stringify(message);
-    console.log('Sending WebSocket message:', messageStr)
-    ws.send(messageStr);
+    console.log('Sending WebSocket message:', message);
+    ws.send(JSON.stringify(message));
     return true;
   } catch (error) {
     console.error('Error sending WebSocket message:', error);

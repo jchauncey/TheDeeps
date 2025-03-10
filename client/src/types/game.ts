@@ -116,6 +116,7 @@ export interface FloorData {
   };
   dungeonId?: string;
   dungeonName?: string;
+  isMovementUpdate?: boolean; // Flag to indicate this is just a movement update
 }
 
 // Character class definitions
