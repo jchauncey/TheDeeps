@@ -10,13 +10,24 @@ import {
   Card, 
   CardBody, 
   CardHeader, 
+  CardFooter,
   Badge, 
   Spinner, 
   Image,
-  useToast
+  IconButton,
+  useToast,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
-import { getSavedCharacters } from '../../services/api';
+import { DeleteIcon } from '@chakra-ui/icons';
+import { getSavedCharacters, deleteCharacter } from '../../services/api';
 import { CharacterData } from '../../types/game';
 
 interface CharacterSelectionProps {
@@ -35,6 +46,9 @@ export const CharacterSelection = ({
   const [characters, setCharacters] = useState<{ id: string; name: string; characterClass: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [characterToDelete, setCharacterToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
 
   // Function to load characters
@@ -83,6 +97,59 @@ export const CharacterSelection = ({
   const handleConfirmSelection = () => {
     if (selectedCharacterId) {
       onSelectCharacter(selectedCharacterId);
+    }
+  };
+
+  // Handle character deletion
+  const handleDeleteClick = (e: React.MouseEvent, character: { id: string; name: string }) => {
+    e.stopPropagation(); // Prevent card selection when clicking delete
+    setCharacterToDelete(character);
+    onOpen();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!characterToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const result = await deleteCharacter(characterToDelete.id);
+      if (result.success) {
+        toast({
+          title: 'Character Deleted',
+          description: `${characterToDelete.name} has been deleted.`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        
+        // If the deleted character was selected, clear the selection
+        if (selectedCharacterId === characterToDelete.id) {
+          setSelectedCharacterId(null);
+        }
+        
+        // Reload the character list
+        loadCharacters();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Failed to delete character',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting character:', error);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred while deleting the character',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleting(false);
+      onClose();
     }
   };
 
@@ -168,6 +235,7 @@ export const CharacterSelection = ({
                         borderColor: selectedCharacterId === character.id ? "purple.400" : "purple.200"
                       }}
                       transition="all 0.2s"
+                      position="relative"
                     >
                       <CardHeader pb={2}>
                         <Flex justify="space-between" align="center">
@@ -181,6 +249,17 @@ export const CharacterSelection = ({
                         {/* We could add more character details here in the future */}
                         <Text>Ready for adventure!</Text>
                       </CardBody>
+                      <CardFooter pt={0} justifyContent="flex-end">
+                        <IconButton
+                          aria-label="Delete character"
+                          icon={<DeleteIcon />}
+                          size="sm"
+                          colorScheme="red"
+                          variant="ghost"
+                          onClick={(e) => handleDeleteClick(e, { id: character.id, name: character.name })}
+                          _hover={{ bg: 'rgba(229, 62, 62, 0.3)' }}
+                        />
+                      </CardFooter>
                     </Card>
                   ))}
                 </SimpleGrid>
@@ -208,6 +287,37 @@ export const CharacterSelection = ({
           </>
         )}
       </Flex>
+
+      {/* Confirmation Modal for Character Deletion */}
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalOverlay />
+        <ModalContent bg="gray.800" color="white">
+          <ModalHeader>Confirm Deletion</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {characterToDelete && (
+              <Text>
+                Are you sure you want to delete <strong>{characterToDelete.name}</strong>? 
+                This action cannot be undone.
+              </Text>
+            )}
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="solid" colorScheme="gray" mr={3} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button 
+              colorScheme="red" 
+              onClick={handleConfirmDelete}
+              isLoading={isDeleting}
+              loadingText="Deleting..."
+            >
+              Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }; 

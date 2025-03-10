@@ -399,3 +399,34 @@ func (h *Handler) HandleSaveGame(w http.ResponseWriter, r *http.Request) {
 		"message": "Game state saved successfully",
 	}, http.StatusOK)
 }
+
+// HandleDeleteCharacter handles requests to delete a character by ID
+func (h *Handler) HandleDeleteCharacter(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	// Get the character to log deletion details
+	character, err := h.Server.CharacterRepository.GetByID(id)
+	if err != nil {
+		if err == repositories.ErrCharacterNotFound {
+			sendJSONError(w, "Character not found", http.StatusNotFound)
+		} else {
+			sendJSONError(w, "Failed to get character", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Delete the character
+	if err := h.Server.CharacterRepository.Delete(id); err != nil {
+		sendJSONError(w, "Failed to delete character", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[%s] Character deleted: %s the %s (ID: %s)",
+		time.Now().Format("2006-01-02 15:04:05"),
+		character.Name, character.CharacterClass, character.ID)
+
+	sendJSONResponse(w, map[string]string{
+		"message": "Character deleted successfully",
+	}, http.StatusOK)
+}

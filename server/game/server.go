@@ -164,6 +164,7 @@ func (s *GameServer) SetupRoutes(handler any) *mux.Router {
 		HandleGetCharacters(w http.ResponseWriter, r *http.Request)
 		HandleGetCharacterFloor(w http.ResponseWriter, r *http.Request)
 		HandleSaveGame(w http.ResponseWriter, r *http.Request)
+		HandleDeleteCharacter(w http.ResponseWriter, r *http.Request)
 		HandleCreateDungeon(w http.ResponseWriter, r *http.Request)
 		HandleListDungeons(w http.ResponseWriter, r *http.Request)
 		HandleJoinDungeon(w http.ResponseWriter, r *http.Request)
@@ -183,6 +184,7 @@ func (s *GameServer) SetupRoutes(handler any) *mux.Router {
 	router.HandleFunc("/characters", h.HandleGetCharacters).Methods("GET")
 	router.HandleFunc("/characters", h.HandleCreateCharacter).Methods("POST")
 	router.HandleFunc("/characters/{id}", h.HandleGetCharacter).Methods("GET")
+	router.HandleFunc("/characters/{id}", h.HandleDeleteCharacter).Methods("DELETE")
 	router.HandleFunc("/characters/{id}/floor", h.HandleGetCharacterFloor).Methods("GET")
 	router.HandleFunc("/characters/{id}/save", h.HandleSaveGame).Methods("POST")
 

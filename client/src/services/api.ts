@@ -523,4 +523,28 @@ export const joinDungeonWS = (dungeonId: string, characterId: string): boolean =
 export const listDungeonsWS = (): boolean => {
   console.warn('listDungeonsWS is deprecated. Use getAvailableDungeons REST API instead.');
   return sendWebSocketMessage({ type: 'list_dungeons' });
+};
+
+/**
+ * Delete a character by ID
+ */
+export const deleteCharacter = async (characterId: string): Promise<{ success: boolean; message?: string }> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/characters/${characterId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting character:', error);
+    return { success: false, message: 'Failed to delete character' };
+  }
 }; 
