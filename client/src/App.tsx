@@ -19,7 +19,8 @@ import {
   getSavedCharacters,
   createCharacter,
   createDungeon,
-  joinDungeon
+  joinDungeon,
+  identifyCharacter
 } from './services/api'
 import { CharacterData, FloorData } from './types/game'
 import { useClickableToast } from './components/ui/ClickableToast'
@@ -238,6 +239,12 @@ function App() {
           () => {
             console.log('WebSocket connected')
             setIsConnected(true)
+            
+            // If we have a character, send an identify_character message
+            if (character && character.id) {
+              console.log('Sending identify_character message for character:', character.id)
+              identifyCharacter(character.id)
+            }
           }
         )
       } else {
@@ -247,8 +254,14 @@ function App() {
     } else {
       console.log('WebSocket already connected')
       setIsConnected(true)
+      
+      // Even if already connected, make sure the character is identified
+      if (character && character.id) {
+        console.log('WebSocket already connected, sending identify_character message for character:', character.id)
+        identifyCharacter(character.id)
+      }
     }
-  }, [handleWebSocketMessage, toast])
+  }, [handleWebSocketMessage, toast, character])
   
   // Effect to initialize WebSocket when needed
   useEffect(() => {
@@ -394,6 +407,10 @@ function App() {
         // Initialize WebSocket for real-time updates
         initializeWebSocket();
         
+        // Explicitly identify the character with the WebSocket connection
+        // This is crucial for the server to know which character is controlled by this connection
+        identifyCharacter(character.id);
+        
         // The game screen transition will happen automatically when floorData and dungeonId are set
       } else {
         console.error('Error joining dungeon:', result.message);
@@ -417,6 +434,15 @@ function App() {
   const handleDungeonSelected = (dungeonId: string, dungeonFloorData: FloorData) => {
     setDungeonId(dungeonId)
     setFloorData(dungeonFloorData)
+    
+    // Initialize WebSocket for real-time updates
+    initializeWebSocket();
+    
+    // If we have a character, identify it with the WebSocket connection
+    if (character && character.id) {
+      identifyCharacter(character.id);
+    }
+    
     // The game screen transition will happen automatically
   }
 

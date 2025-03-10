@@ -355,6 +355,8 @@ export const createDungeon = async (name: string, numFloors: number): Promise<{ 
  */
 export const joinDungeon = async (dungeonId: string, characterId: string): Promise<{ success: boolean; floorData?: FloorData; message?: string }> => {
   try {
+    console.log(`Joining dungeon ${dungeonId} with character ${characterId}`);
+    
     const response = await fetch(`${API_BASE_URL}/dungeons/${dungeonId}/join`, {
       method: 'POST',
       headers: {
@@ -365,25 +367,58 @@ export const joinDungeon = async (dungeonId: string, characterId: string): Promi
       }),
     });
     
+    const responseText = await response.text();
+    console.log(`Join dungeon response: ${response.status} ${response.statusText}`, responseText);
+    
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorMessage = `Error: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // If parsing fails, use the raw response text
+        errorMessage = responseText || errorMessage;
+      }
+      
+      console.error('Error joining dungeon:', errorMessage);
       return { 
         success: false, 
-        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+        message: errorMessage
       };
     }
     
-    const floorData = await response.json();
+    let floorData: FloorData;
+    try {
+      floorData = JSON.parse(responseText);
+      console.log('Parsed floor data:', floorData);
+      
+      // Validate the floor data
+      if (!floorData.floor || !floorData.playerPosition) {
+        throw new Error('Invalid floor data received from server');
+      }
+    } catch (e) {
+      console.error('Error parsing floor data:', e);
+      return { 
+        success: false, 
+        message: 'Invalid floor data received from server' 
+      };
+    }
     
     // After joining the dungeon via REST, connect to WebSocket for real-time updates
     if (!isWebSocketConnected()) {
+      console.log('Connecting to WebSocket for real-time updates');
       connectWebSocket(onMessageCallback || (() => {}));
     }
+    
+    // Send a WebSocket message to associate the character with the WebSocket connection
+    // This is crucial for the server to know which character is controlled by this connection
+    console.log('Sending identify_character WebSocket message with characterId:', characterId);
+    identifyCharacter(characterId);
     
     return { success: true, floorData };
   } catch (error) {
     console.error('Error joining dungeon:', error);
-    return { success: false, message: 'Failed to join dungeon' };
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to join dungeon' };
   }
 };
 
@@ -547,4 +582,16 @@ export const deleteCharacter = async (characterId: string): Promise<{ success: b
     console.error('Error deleting character:', error);
     return { success: false, message: 'Failed to delete character' };
   }
+};
+
+/**
+ * Identify the character with the WebSocket connection
+ * This is crucial for the server to know which character is controlled by this connection
+ */
+export const identifyCharacter = (characterId: string): boolean => {
+  console.log('Identifying character with WebSocket connection:', characterId);
+  return sendWebSocketMessage({ 
+    type: 'identify_character', 
+    characterId 
+  });
 }; 

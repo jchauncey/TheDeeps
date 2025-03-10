@@ -94,7 +94,7 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
   // Process floor data when it changes
   useEffect(() => {
     if (floorData) {
-      console.log('Processing floor data:', floorData);
+      console.log('Processing floor data:', JSON.stringify(floorData, null, 2));
       
       try {
         // Validate floor data
@@ -117,13 +117,35 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
         setLoading(false);
         setError(null);
         
-        console.log('Floor data processed successfully');
+        console.log('Floor data processed successfully', {
+          floorLevel: floorData.currentFloor,
+          playerPosition: floorData.playerPosition,
+          tilesCount: floorData.floor.tiles.length,
+          entitiesCount: floorData.floor.entities?.length || 0,
+          itemsCount: floorData.floor.items?.length || 0
+        });
+        
+        // Force a redraw after a short delay to ensure the canvas is ready
+        setTimeout(() => {
+          drawFloor();
+        }, 100);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error processing floor data';
-        console.error(errorMessage, floorData);
+        console.error('Error processing floor data:', errorMessage, floorData);
         setError(errorMessage);
         setLoading(false);
+        
+        // Show error toast
+        toast({
+          title: 'Error',
+          description: `Failed to load dungeon: ${errorMessage}`,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
       }
+    } else {
+      console.log('No floor data provided to GameBoard component');
     }
   }, [floorData]);
 
@@ -267,11 +289,30 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
 
   // Draw the floor on the canvas
   const drawFloor = () => {
-    if (!floor || !playerPos || !canvasRef.current) return;
+    console.log('drawFloor called with:', {
+      floorExists: !!floor,
+      playerPosExists: !!playerPos,
+      canvasExists: !!canvasRef.current
+    });
+    
+    if (!floor || !playerPos || !canvasRef.current) {
+      console.error('Cannot draw floor - missing required data:', {
+        floor: !!floor,
+        playerPos: !!playerPos,
+        canvas: !!canvasRef.current
+      });
+      return;
+    }
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error('Failed to get canvas context');
+      return;
+    }
+    
+    console.log('Drawing floor with viewport size:', viewportSize);
+    console.log('Player position for drawing:', playerPos);
     
     // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -285,6 +326,8 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
       canvas.width / idealVisibleTilesX,
       canvas.height / idealVisibleTilesY
     );
+    
+    console.log('Tile size calculated:', tileSize);
     
     // Calculate viewport boundaries to only render what's visible
     const visibleTilesX = Math.ceil(canvas.width / tileSize);
@@ -307,6 +350,13 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     const endX = Math.min(floor.width, startX + visibleTilesX);
     const endY = Math.min(floor.height, startY + visibleTilesY);
     
+    console.log('Viewport calculation:', {
+      startX, startY, endX, endY,
+      visibleTilesX, visibleTilesY,
+      floorWidth: floor.width,
+      floorHeight: floor.height
+    });
+    
     // Calculate offset to center the map in the viewport
     // Use fixed tile counts to maintain consistent sizing
     const tilesShownX = endX - startX;
@@ -315,41 +365,67 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
     const offsetY = (canvas.height - tilesShownY * tileSize) / 2;
     
     // Draw tiles
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const tile = floor.tiles[y][x];
-        const screenX = (x - startX) * tileSize + offsetX;
-        const screenY = (y - startY) * tileSize + offsetY;
-        
-        // Draw tile background
-        ctx.fillStyle = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
-        ctx.fillRect(screenX, screenY, tileSize, tileSize);
-        
-        // Draw tile border
-        ctx.strokeStyle = '#222';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(screenX, screenY, tileSize, tileSize);
-        
-        // Draw item if present
-        if (tile.item) {
-          drawItem(ctx, tile.item, screenX, screenY, tileSize);
+    try {
+      for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+          if (!floor.tiles[y] || !floor.tiles[y][x]) {
+            console.error(`Missing tile data at position [${y}][${x}]`);
+            continue;
+          }
+          
+          const tile = floor.tiles[y][x];
+          const screenX = (x - startX) * tileSize + offsetX;
+          const screenY = (y - startY) * tileSize + offsetY;
+          
+          // Draw tile background
+          ctx.fillStyle = TILE_COLORS[tile.type as keyof typeof TILE_COLORS] || '#000';
+          ctx.fillRect(screenX, screenY, tileSize, tileSize);
+          
+          // Draw tile border
+          ctx.strokeStyle = '#222';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(screenX, screenY, tileSize, tileSize);
+          
+          // Draw item if present
+          if (tile.item) {
+            drawItem(ctx, tile.item, screenX, screenY, tileSize);
+          }
         }
       }
-    }
-    
-    // Draw entities
-    for (const entity of floor.entities) {
-      // Only draw entities within the viewport
-      if (
-        entity.position.x >= startX && 
-        entity.position.x < endX && 
-        entity.position.y >= startY && 
-        entity.position.y < endY
-      ) {
-        const screenX = (entity.position.x - startX) * tileSize + offsetX;
-        const screenY = (entity.position.y - startY) * tileSize + offsetY;
-        drawEntity(ctx, entity, screenX, screenY, tileSize);
+      
+      // Draw entities
+      if (floor.entities && floor.entities.length > 0) {
+        console.log(`Drawing ${floor.entities.length} entities`);
+        for (const entity of floor.entities) {
+          // Only draw entities within the viewport
+          if (
+            entity.position.x >= startX && 
+            entity.position.x < endX && 
+            entity.position.y >= startY && 
+            entity.position.y < endY
+          ) {
+            const screenX = (entity.position.x - startX) * tileSize + offsetX;
+            const screenY = (entity.position.y - startY) * tileSize + offsetY;
+            drawEntity(ctx, entity, screenX, screenY, tileSize);
+          }
+        }
+      } else {
+        console.log('No entities to draw');
       }
+      
+      console.log('Floor drawing completed successfully');
+    } catch (error) {
+      console.error('Error drawing floor:', error);
+      setError('Error drawing floor: ' + (error instanceof Error ? error.message : String(error)));
+      
+      // Show error toast
+      toast({
+        title: 'Rendering Error',
+        description: 'Failed to render dungeon. Please try refreshing the page.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
     }
   };
 
@@ -803,111 +879,108 @@ export const GameBoard = ({ floorData }: GameBoardProps) => {
 
   return (
     <Box 
-      ref={containerRef} 
-      tabIndex={0} 
-      onKeyDown={handleKeyDown}
-      onClick={focusContainer}
+      ref={containerRef}
       position="relative"
       width="100%"
       height="100%"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      outline="none"
       overflow="hidden"
-      bg="gray.900"
-      borderRadius="md"
+      backgroundColor="#111"
     >
       {loading ? (
         <Flex 
-          justify="center" 
-          align="center" 
-          height="100%" 
-          width="100%"
-          direction="column"
+          position="absolute" 
+          top="0" 
+          left="0" 
+          right="0" 
+          bottom="0" 
+          alignItems="center" 
+          justifyContent="center"
+          flexDirection="column"
+          bg="rgba(0,0,0,0.8)"
+          zIndex="10"
         >
-          <Spinner size="xl" color="blue.500" mb={4} />
-          <Text>Loading dungeon...</Text>
+          <Spinner size="xl" color="blue.500" thickness="4px" speed="0.65s" mb={4} />
+          <Text color="white" fontSize="xl">Loading Dungeon...</Text>
         </Flex>
       ) : error ? (
         <Flex 
-          justify="center" 
-          align="center" 
-          height="100%" 
-          width="100%"
-          direction="column"
+          position="absolute" 
+          top="0" 
+          left="0" 
+          right="0" 
+          bottom="0" 
+          alignItems="center" 
+          justifyContent="center"
+          flexDirection="column"
+          bg="rgba(0,0,0,0.8)"
+          zIndex="10"
+          p={6}
         >
-          <Text color="red.500" mb={4}>{error}</Text>
+          <Text color="red.500" fontSize="xl" mb={4}>Error Loading Dungeon</Text>
+          <Text color="white" textAlign="center">{error}</Text>
           <Button 
+            mt={6} 
             colorScheme="blue" 
-            onClick={requestFloorData}
+            onClick={() => {
+              setLoading(true);
+              setError(null);
+              requestFloorData();
+            }}
           >
             Retry
           </Button>
         </Flex>
-      ) : (
-        <>
-          <canvas
-            ref={canvasRef}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'block',
-              imageRendering: 'pixelated'
-            }}
-          />
-          
-          {/* Tooltip for hovered entity */}
-          {hoveredEntity && tooltipPosition && (
-            <Box
-              position="absolute"
-              left={`${tooltipPosition.x + 20}px`}
-              top={`${tooltipPosition.y}px`}
-              bg="gray.800"
-              color="white"
-              p={2}
-              borderRadius="md"
-              boxShadow="md"
-              zIndex={10}
-              pointerEvents="none"
-            >
-              <Text fontWeight="bold">{hoveredEntity.name}</Text>
-              {hoveredEntity.description && (
-                <Text fontSize="sm">{hoveredEntity.description}</Text>
-              )}
-            </Box>
+      ) : null}
+
+      <canvas
+        ref={canvasRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={{ display: 'block' }}
+      />
+
+      {/* Tooltip for hovered entity */}
+      {hoveredEntity && tooltipPosition && (
+        <Box
+          position="absolute"
+          top={`${tooltipPosition.y + 20}px`}
+          left={`${tooltipPosition.x + 20}px`}
+          bg="rgba(0, 0, 0, 0.8)"
+          color="white"
+          p={2}
+          borderRadius="md"
+          zIndex={10}
+          maxWidth="250px"
+        >
+          <Text fontWeight="bold">{hoveredEntity.name}</Text>
+          {hoveredEntity.description && (
+            <Text fontSize="sm" mt={1}>{hoveredEntity.description}</Text>
           )}
-          
-          {/* Map Legend Toggle Button */}
-          <Button
-            position="absolute"
-            top="10px"
-            right="10px"
-            size="sm"
-            onClick={() => setIsLegendOpen(!isLegendOpen)}
-            colorScheme="blue"
-            variant="outline"
-          >
-            {isLegendOpen ? 'Hide Legend' : 'Show Legend'}
-          </Button>
-          
-          {/* Map Legend */}
-          {isLegendOpen && (
-            <Box
-              position="absolute"
-              top="50px"
-              right="10px"
-              bg="gray.800"
-              p={3}
-              borderRadius="md"
-              boxShadow="lg"
-              maxHeight="80%"
-              overflowY="auto"
-              zIndex={5}
-            >
-              <MapLegendComponent />
-            </Box>
+          {hoveredEntity.health !== undefined && hoveredEntity.maxHealth !== undefined && (
+            <Text fontSize="sm" mt={1}>
+              Health: {hoveredEntity.health}/{hoveredEntity.maxHealth}
+            </Text>
           )}
-        </>
+        </Box>
       )}
+
+      {/* Map Legend Button */}
+      <Button
+        position="absolute"
+        bottom="20px"
+        right="20px"
+        size="sm"
+        colorScheme="blue"
+        onClick={() => setIsLegendOpen(!isLegendOpen)}
+      >
+        {isLegendOpen ? 'Hide Legend' : 'Show Legend'}
+      </Button>
+
+      {/* Map Legend */}
+      {isLegendOpen && <MapLegendComponent />}
     </Box>
   );
 }; 

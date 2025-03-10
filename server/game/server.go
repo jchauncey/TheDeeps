@@ -328,6 +328,8 @@ func (s *GameServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.HandleLeaveDungeon(conn, p)
 		case "list_dungeons":
 			s.HandleListDungeons(conn)
+		case "identify_character":
+			s.HandleIdentifyCharacter(conn, p)
 		default:
 			log.Printf("Unknown message type: %s", msgType)
 			conn.WriteJSON(DebugMessage{
@@ -1559,5 +1561,69 @@ func (s *GameServer) HandleLeaveDungeon(conn *websocket.Conn, payload []byte) {
 
 	if err := conn.WriteJSON(response); err != nil {
 		log.Printf("Error sending leave_dungeon response: %v", err)
+	}
+}
+
+// HandleIdentifyCharacter processes a message to identify which character is controlled by a WebSocket connection
+func (s *GameServer) HandleIdentifyCharacter(conn *websocket.Conn, payload []byte) {
+	var msg struct {
+		Type        string `json:"type"`
+		CharacterId string `json:"characterId"`
+	}
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		log.Printf("Error unmarshaling identify_character message: %v", err)
+		return
+	}
+
+	if msg.CharacterId == "" {
+		log.Printf("Received identify_character message with empty characterId")
+		return
+	}
+
+	// Check if the character exists
+	character, err := s.CharacterRepository.GetByID(msg.CharacterId)
+	if err != nil {
+		log.Printf("Error getting character %s: %v", msg.CharacterId, err)
+		return
+	}
+
+	// Associate the character with this connection
+	s.Clients[conn] = msg.CharacterId
+	log.Printf("Associated character %s (%s) with WebSocket connection", character.Name, msg.CharacterId)
+
+	// If the character is in a dungeon, make sure the dungeon knows about it
+	if character.DungeonID != "" {
+		dungeon, err := s.DungeonRepository.GetByID(character.DungeonID)
+		if err != nil {
+			log.Printf("Error getting dungeon %s: %v", character.DungeonID, err)
+			return
+		}
+
+		if dungeon != nil {
+			// Make sure the character is in the dungeon's players map
+			if _, exists := dungeon.Players[character.ID]; !exists {
+				dungeon.Players[character.ID] = character
+				if err := s.DungeonRepository.Update(dungeon); err != nil {
+					log.Printf("Error updating dungeon %s: %v", dungeon.ID, err)
+				} else {
+					log.Printf("Added character %s to dungeon %s players", character.ID, dungeon.ID)
+				}
+			}
+		}
+	}
+
+	// Send a confirmation message back to the client
+	response := struct {
+		Type    string `json:"type"`
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}{
+		Type:    "identify_character_response",
+		Success: true,
+		Message: "Character identified successfully",
+	}
+
+	if err := conn.WriteJSON(response); err != nil {
+		log.Printf("Error sending identify_character_response: %v", err)
 	}
 }
