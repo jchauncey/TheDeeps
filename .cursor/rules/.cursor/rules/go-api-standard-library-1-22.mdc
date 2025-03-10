@@ -1,5 +1,5 @@
 ---
-description: This is for go files 
+description: This is for go files
 globs: *.go
 alwaysApply: true
 ---
@@ -30,6 +30,8 @@ alwaysApply: true
   - Be concise in explanations, but provide brief comments for complex logic or Go-specific idioms.
   - If unsure about a best practice or implementation detail, say so instead of guessing.
   - Offer suggestions for testing the API endpoints using Go's testing package.
+  - Prefer stretchr testify and assert framework
+  - Prefer table driven tests
 
   Always prioritize security, scalability, and maintainability in your API designs and implementations. Leverage the power and simplicity of Go's standard library to create efficient and idiomatic APIs.
   

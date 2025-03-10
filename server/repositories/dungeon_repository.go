@@ -3,149 +3,146 @@ package repositories
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/jchauncey/TheDeeps/server/models"
 )
 
-// DungeonRepository errors
-var (
-	ErrDungeonNotFound = errors.New("dungeon not found")
-)
-
-// DungeonRepository manages dungeon instances
+// DungeonRepository handles storage and retrieval of dungeons
 type DungeonRepository struct {
-	dungeons map[string]*models.DungeonInstance
-	mu       sync.RWMutex
+	dungeons map[string]*models.Dungeon
+	mutex    sync.RWMutex
 }
 
 // NewDungeonRepository creates a new dungeon repository
 func NewDungeonRepository() *DungeonRepository {
 	return &DungeonRepository{
-		dungeons: make(map[string]*models.DungeonInstance),
+		dungeons: make(map[string]*models.Dungeon),
 	}
 }
 
-// Create adds a dungeon instance to the repository
-func (r *DungeonRepository) Create(dungeon *models.DungeonInstance) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// GetAll returns all dungeons
+func (r *DungeonRepository) GetAll() []*models.Dungeon {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 
-	r.dungeons[dungeon.ID] = dungeon
-	return nil
-}
-
-// CreateNew creates a new dungeon instance with the given name and number of floors
-func (r *DungeonRepository) CreateNew(name string, numFloors int) *models.DungeonInstance {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	dungeon := models.NewDungeon(name, numFloors)
-	r.dungeons[dungeon.ID] = dungeon
-	return dungeon
-}
-
-// GetByID gets a dungeon instance by ID
-func (r *DungeonRepository) GetByID(id string) (*models.DungeonInstance, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	dungeon, exists := r.dungeons[id]
-	if !exists {
-		return nil, ErrDungeonNotFound
-	}
-	return dungeon, nil
-}
-
-// Update updates a dungeon instance
-func (r *DungeonRepository) Update(dungeon *models.DungeonInstance) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, exists := r.dungeons[dungeon.ID]; !exists {
-		return ErrDungeonNotFound
-	}
-
-	r.dungeons[dungeon.ID] = dungeon
-	return nil
-}
-
-// GetAll gets all dungeon instances
-func (r *DungeonRepository) GetAll() []*models.DungeonInstance {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	dungeons := make([]*models.DungeonInstance, 0, len(r.dungeons))
+	dungeons := make([]*models.Dungeon, 0, len(r.dungeons))
 	for _, dungeon := range r.dungeons {
 		dungeons = append(dungeons, dungeon)
 	}
+
 	return dungeons
 }
 
-// Delete deletes a dungeon instance
+// GetByID returns a dungeon by ID
+func (r *DungeonRepository) GetByID(id string) (*models.Dungeon, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	dungeon, exists := r.dungeons[id]
+	if !exists {
+		return nil, errors.New("dungeon not found")
+	}
+
+	return dungeon, nil
+}
+
+// Save saves a dungeon
+func (r *DungeonRepository) Save(dungeon *models.Dungeon) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.dungeons[dungeon.ID] = dungeon
+	return nil
+}
+
+// Delete deletes a dungeon
 func (r *DungeonRepository) Delete(id string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	if _, exists := r.dungeons[id]; !exists {
-		return ErrDungeonNotFound
+		return errors.New("dungeon not found")
 	}
+
 	delete(r.dungeons, id)
 	return nil
 }
 
-// CleanupInactive removes inactive dungeon instances
-func (r *DungeonRepository) CleanupInactive(maxInactivity time.Duration) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	count := 0
-	for id, dungeon := range r.dungeons {
-		if !dungeon.IsActive(maxInactivity) && !dungeon.HasPlayers() {
-			delete(r.dungeons, id)
-			count++
-		}
-	}
-	return count
-}
-
-// AddPlayerToDungeon adds a player to a dungeon instance
-func (r *DungeonRepository) AddPlayerToDungeon(dungeonID, characterID string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// GetFloor returns a specific floor of a dungeon
+func (r *DungeonRepository) GetFloor(dungeonID string, level int) (*models.Floor, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 
 	dungeon, exists := r.dungeons[dungeonID]
 	if !exists {
-		return ErrDungeonNotFound
+		return nil, errors.New("dungeon not found")
 	}
 
-	dungeon.AddPlayer(characterID)
-	return nil
+	floor, exists := dungeon.FloorData[level]
+	if !exists {
+		// Generate the floor if it doesn't exist
+		floor = dungeon.GenerateFloor(level)
+	}
+
+	return floor, nil
 }
 
-// RemovePlayerFromDungeon removes a player from a dungeon instance
-func (r *DungeonRepository) RemovePlayerFromDungeon(dungeonID, characterID string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// AddCharacterToDungeon adds a character to a dungeon
+func (r *DungeonRepository) AddCharacterToDungeon(dungeonID string, characterID string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	dungeon, exists := r.dungeons[dungeonID]
 	if !exists {
-		return ErrDungeonNotFound
+		return errors.New("dungeon not found")
 	}
 
-	dungeon.RemovePlayer(characterID)
+	dungeon.AddCharacter(characterID)
 	return nil
 }
 
-// GetPlayerDungeon gets the dungeon instance a player is in
-func (r *DungeonRepository) GetPlayerDungeon(characterID string) *models.DungeonInstance {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+// RemoveCharacterFromDungeon removes a character from a dungeon
+func (r *DungeonRepository) RemoveCharacterFromDungeon(dungeonID string, characterID string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
-	for _, dungeon := range r.dungeons {
-		if _, exists := dungeon.Players[characterID]; exists {
-			return dungeon
-		}
+	dungeon, exists := r.dungeons[dungeonID]
+	if !exists {
+		return errors.New("dungeon not found")
 	}
+
+	dungeon.RemoveCharacter(characterID)
+	return nil
+}
+
+// GetCharacterFloor gets the floor level for a character in a dungeon
+func (r *DungeonRepository) GetCharacterFloor(dungeonID string, characterID string) (int, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	dungeon, exists := r.dungeons[dungeonID]
+	if !exists {
+		return 0, errors.New("dungeon not found")
+	}
+
+	floor := dungeon.GetCharacterFloor(characterID)
+	if floor == 0 {
+		return 0, errors.New("character not found in dungeon")
+	}
+
+	return floor, nil
+}
+
+// SetCharacterFloor sets the floor level for a character in a dungeon
+func (r *DungeonRepository) SetCharacterFloor(dungeonID string, characterID string, floor int) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	dungeon, exists := r.dungeons[dungeonID]
+	if !exists {
+		return errors.New("dungeon not found")
+	}
+
+	dungeon.SetCharacterFloor(characterID, floor)
 	return nil
 }
