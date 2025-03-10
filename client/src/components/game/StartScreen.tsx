@@ -1,33 +1,25 @@
-import { Box, Image, HStack, Button, Text, Flex, Spinner, Tooltip } from '@chakra-ui/react'
+import { Box, Image, Flex, Text, Spinner } from '@chakra-ui/react'
 import { useState, useEffect } from 'react'
-import { isWebSocketConnected } from '../../services/api'
 
 interface StartScreenProps {
-  onNewGame: () => void;
-  onLoadGame: () => void;
+  onCharactersLoaded: () => void;
+  isLoading?: boolean;
 }
 
-export const StartScreen = ({ onNewGame, onLoadGame }: StartScreenProps) => {
+export const StartScreen = ({ onCharactersLoaded, isLoading = false }: StartScreenProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionChecked, setConnectionChecked] = useState(false);
-
-  // Check WebSocket connection status
+  
+  // Trigger the onCharactersLoaded callback after the logo has loaded
   useEffect(() => {
-    const checkConnection = () => {
-      const connected = isWebSocketConnected();
-      setIsConnected(connected);
-      setConnectionChecked(true);
-    };
-
-    // Initial check
-    checkConnection();
-
-    // Set up periodic connection check
-    const intervalId = setInterval(checkConnection, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+    if (imageLoaded && !isLoading) {
+      // Add a small delay for a better visual experience
+      const timer = setTimeout(() => {
+        onCharactersLoaded();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [imageLoaded, isLoading, onCharactersLoaded]);
 
   return (
     <Box
@@ -55,6 +47,7 @@ export const StartScreen = ({ onNewGame, onLoadGame }: StartScreenProps) => {
           justifyContent="center" 
           alignItems="center"
           mb={12}
+          position="relative"
         >
           <Image
             src="/logo.png"
@@ -64,84 +57,19 @@ export const StartScreen = ({ onNewGame, onLoadGame }: StartScreenProps) => {
             objectFit="contain"
             onLoad={() => setImageLoaded(true)}
             onError={(e) => console.error('Logo failed to load:', e)}
+            opacity={imageLoaded ? 1 : 0}
+            transition="opacity 0.5s ease-in-out"
           />
           {!imageLoaded && (
             <Text color="white" fontSize="2xl" position="absolute">Loading logo...</Text>
           )}
         </Box>
         
-        <HStack spacing={6}>
-          <Tooltip 
-            label={!isConnected && connectionChecked ? "Waiting for server connection..." : ""}
-            isDisabled={isConnected}
-          >
-            <Button
-              size="md"
-              bg="#6B46C1"
-              color="white"
-              width="200px"
-              height="50px"
-              fontSize="xl"
-              onClick={onNewGame}
-              _hover={{
-                transform: isConnected ? 'scale(1.05)' : 'none',
-                bg: isConnected ? '#805AD5' : '#6B46C1'
-              }}
-              _active={{
-                bg: '#553C9A'
-              }}
-              border="2px solid"
-              borderColor="purple.200"
-              isDisabled={!isConnected}
-              opacity={isConnected ? 1 : 0.7}
-            >
-              {!isConnected && connectionChecked ? (
-                <Flex align="center">
-                  <Spinner size="sm" mr={2} />
-                  Connecting...
-                </Flex>
-              ) : "New Game"}
-            </Button>
-          </Tooltip>
-          
-          <Tooltip 
-            label={!isConnected && connectionChecked ? "Waiting for server connection..." : ""}
-            isDisabled={isConnected}
-          >
-            <Button
-              size="md"
-              bg="transparent"
-              color="white"
-              width="200px"
-              height="50px"
-              fontSize="xl"
-              onClick={onLoadGame}
-              border="2px solid"
-              borderColor="purple.200"
-              _hover={{
-                transform: isConnected ? 'scale(1.05)' : 'none',
-                bg: isConnected ? 'rgba(107, 70, 193, 0.2)' : 'transparent'
-              }}
-              _active={{
-                bg: 'rgba(107, 70, 193, 0.4)'
-              }}
-              isDisabled={!isConnected}
-              opacity={isConnected ? 1 : 0.7}
-            >
-              {!isConnected && connectionChecked ? (
-                <Flex align="center">
-                  <Spinner size="sm" mr={2} />
-                  Connecting...
-                </Flex>
-              ) : "Load Game"}
-            </Button>
-          </Tooltip>
-        </HStack>
-        
-        {!isConnected && connectionChecked && (
-          <Text color="red.300" mt={4} fontSize="sm">
-            Connecting to game server...
-          </Text>
+        {isLoading && (
+          <Flex direction="column" align="center" mt={8}>
+            <Spinner size="xl" color="purple.500" mb={4} />
+            <Text color="white" fontSize="xl">Loading game data...</Text>
+          </Flex>
         )}
       </Flex>
     </Box>

@@ -114,19 +114,15 @@ type LeaveDungeonMessage struct {
 
 // NewGameServer creates a new game server instance
 func NewGameServer() *GameServer {
-	// Create a default dungeon for backward compatibility
-	defaultDungeon := models.NewDungeon(5)
-
-	game := &Game{
-		Dungeon: defaultDungeon,
-		Players: make(map[string]*models.Character),
-	}
+	// Create character and dungeon repositories
+	characterRepo := repositories.NewCharacterRepository()
+	dungeonRepo := repositories.NewDungeonRepository()
 
 	server := &GameServer{
-		Game:                game,
+		Game:                &Game{Players: make(map[string]*models.Character)},
 		Clients:             make(map[*websocket.Conn]string),
-		CharacterRepository: repositories.NewCharacterRepository(),
-		DungeonRepository:   repositories.NewDungeonRepository(),
+		CharacterRepository: characterRepo,
+		DungeonRepository:   dungeonRepo,
 		Upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -140,62 +136,66 @@ func NewGameServer() *GameServer {
 	// Start dungeon cleanup routine
 	go server.cleanupInactiveDungeons()
 
-	// Create a default dungeon instance with the default dungeon
-	defaultInstance := server.DungeonRepository.Create("Default Dungeon", 5)
-	defaultInstance.Dungeon = defaultDungeon
+	// Create a default dungeon instance
+	defaultDungeon := models.NewDungeon("Default Dungeon", 5)
+	dungeonRepo.Create(defaultDungeon)
 
 	return server
 }
 
-// Initialize game state
+// Initialize game state - deprecated, kept for backward compatibility
 func initGame() *Game {
 	log.Println("Initializing game...")
-	dungeon := models.NewDungeon(10)
 
-	log.Printf("Created dungeon with %d floors", len(dungeon.Floors))
-	for i, floor := range dungeon.Floors {
-		log.Printf("Floor %d: %d rooms", i+1, len(floor.Rooms))
-	}
-
+	// Create a new game with empty players map
 	game := &Game{
-		Dungeon: dungeon,
 		Players: make(map[string]*models.Character),
 	}
 
 	return game
 }
 
-// SetupRoutes configures the HTTP routes for the server
+// SetupRoutes sets up the HTTP routes for the game server
 func (s *GameServer) SetupRoutes(handler any) *mux.Router {
-	h := handler.(interface {
+	// Use type assertion to check if handler implements required methods
+	h, ok := handler.(interface {
 		HandleCreateCharacter(w http.ResponseWriter, r *http.Request)
 		HandleGetCharacter(w http.ResponseWriter, r *http.Request)
 		HandleGetCharacters(w http.ResponseWriter, r *http.Request)
-		HandleGetFloor(w http.ResponseWriter, r *http.Request)
 		HandleGetCharacterFloor(w http.ResponseWriter, r *http.Request)
+		HandleSaveGame(w http.ResponseWriter, r *http.Request)
 		HandleCreateDungeon(w http.ResponseWriter, r *http.Request)
 		HandleListDungeons(w http.ResponseWriter, r *http.Request)
 		HandleJoinDungeon(w http.ResponseWriter, r *http.Request)
+		HandleGetFloor(w http.ResponseWriter, r *http.Request)
 	})
 
-	r := mux.NewRouter()
+	if !ok {
+		log.Fatal("Invalid handler type")
+	}
+
+	router := mux.NewRouter()
 
 	// WebSocket endpoint
-	r.HandleFunc("/ws", s.HandleWebSocket)
+	router.HandleFunc("/ws", s.HandleWebSocket)
 
-	// Character endpoints
-	r.HandleFunc("/character", h.HandleCreateCharacter).Methods("POST")
-	r.HandleFunc("/character/{id}", h.HandleGetCharacter).Methods("GET")
-	r.HandleFunc("/characters", h.HandleGetCharacters).Methods("GET")
-	r.HandleFunc("/character/{characterId}/floor", h.HandleGetCharacterFloor).Methods("GET")
+	// REST API endpoints for character management
+	router.HandleFunc("/characters", h.HandleGetCharacters).Methods("GET")
+	router.HandleFunc("/characters", h.HandleCreateCharacter).Methods("POST")
+	router.HandleFunc("/characters/{id}", h.HandleGetCharacter).Methods("GET")
+	router.HandleFunc("/characters/{id}/floor", h.HandleGetCharacterFloor).Methods("GET")
+	router.HandleFunc("/characters/{id}/save", h.HandleSaveGame).Methods("POST")
 
-	// Dungeon endpoints
-	r.HandleFunc("/dungeon", h.HandleCreateDungeon).Methods("POST")
-	r.HandleFunc("/dungeons", h.HandleListDungeons).Methods("GET")
-	r.HandleFunc("/dungeon/{dungeonId}/join", h.HandleJoinDungeon).Methods("POST")
-	r.HandleFunc("/dungeon/{dungeonId}/floor/{level}", h.HandleGetFloor).Methods("GET")
+	// REST API endpoints for dungeon management
+	router.HandleFunc("/dungeons", h.HandleListDungeons).Methods("GET")
+	router.HandleFunc("/dungeons", h.HandleCreateDungeon).Methods("POST")
+	router.HandleFunc("/dungeons/{id}/join", h.HandleJoinDungeon).Methods("POST")
+	router.HandleFunc("/dungeons/{id}/floor/{level}", h.HandleGetFloor).Methods("GET")
 
-	return r
+	// Set up CORS
+	router.Use(mux.CORSMethodMiddleware(router))
+
+	return router
 }
 
 // HandleWebSocket handles WebSocket connections
@@ -1281,64 +1281,45 @@ func (s *GameServer) cleanupInactiveDungeons() {
 	}
 }
 
-// HandleCreateDungeon handles creating a new dungeon
+// HandleCreateDungeon handles WebSocket requests to create a new dungeon
 func (s *GameServer) HandleCreateDungeon(conn *websocket.Conn, payload []byte) {
 	var createDungeonMsg CreateDungeonMessage
 	if err := json.Unmarshal(payload, &createDungeonMsg); err != nil {
-		log.Printf("Error parsing create dungeon message: %v", err)
-		sendError(conn, fmt.Sprintf("Error creating dungeon: %v", err))
+		sendError(conn, "Invalid create dungeon message format")
 		return
 	}
 
-	// Validate dungeon data
-	if createDungeonMsg.Name == "" {
-		log.Println("Dungeon name is required")
-		sendError(conn, "Dungeon name is required")
-		return
-	}
+	// Create the dungeon
+	dungeon := s.DungeonRepository.CreateNew(createDungeonMsg.Name, createDungeonMsg.NumFloors)
 
-	if createDungeonMsg.NumFloors <= 0 {
-		log.Println("Invalid number of floors")
-		sendError(conn, "Invalid number of floors")
-		return
-	}
+	// Initialize mobs on each floor
+	s.InitializeDungeonMobs(dungeon)
 
-	// Log the dungeon creation
-	log.Printf("Creating dungeon: %s with %d floors", createDungeonMsg.Name, createDungeonMsg.NumFloors)
-
-	// Create a new dungeon instance
-	dungeon := s.DungeonRepository.Create(createDungeonMsg.Name, createDungeonMsg.NumFloors)
-
-	// Initialize mobs on all floors
-	s.initializeDungeonMobs(dungeon)
-
-	// Send success message
+	// Send response
 	response := map[string]interface{}{
 		"type":      "dungeon_created",
 		"dungeonId": dungeon.ID,
-		"message":   fmt.Sprintf("Dungeon %s created successfully with %d floors", createDungeonMsg.Name, createDungeonMsg.NumFloors),
-		"timestamp": time.Now().Unix(),
+		"name":      dungeon.Name,
+		"numFloors": len(dungeon.Floors),
 	}
 
 	if err := conn.WriteJSON(response); err != nil {
-		log.Printf("Error sending dungeon creation response: %v", err)
-	} else {
-		log.Printf("Dungeon creation response sent successfully for %s", createDungeonMsg.Name)
+		log.Printf("Error sending dungeon created response: %v", err)
 	}
 }
 
-// initializeDungeonMobs initializes mobs on all floors of a dungeon
-func (s *GameServer) initializeDungeonMobs(dungeon *models.DungeonInstance) {
-	for i := range dungeon.Dungeon.Floors {
+// InitializeDungeonMobs initializes mobs on all floors of a dungeon
+func (s *GameServer) InitializeDungeonMobs(dungeon *models.DungeonInstance) {
+	for i := range dungeon.Floors {
 		s.MobSpawner.SpawnMobsOnFloor(dungeon.Dungeon, i)
 	}
 
 	// Spawn a boss on the last floor
-	s.spawnBossOnLastFloor(dungeon.Dungeon)
+	s.SpawnBossInDungeon(dungeon)
 }
 
-// spawnBossOnLastFloor spawns a boss mob on the last floor of a dungeon
-func (s *GameServer) spawnBossOnLastFloor(dungeon *models.Dungeon) {
+// SpawnBossInDungeon spawns a boss mob on the last floor of a dungeon
+func (s *GameServer) SpawnBossInDungeon(dungeon *models.DungeonInstance) {
 	// Get the last floor
 	lastFloorIndex := len(dungeon.Floors) - 1
 	if lastFloorIndex < 0 {
@@ -1360,40 +1341,49 @@ func (s *GameServer) spawnBossOnLastFloor(dungeon *models.Dungeon) {
 	bossPosition := models.Position{X: centerX, Y: centerY}
 
 	// Create a boss entity - use a specific mob type based on floor level
-	var bossType models.MobType
+	var bossType string
 	switch {
 	case floorLevel >= 10:
-		bossType = models.MobDragon
+		bossType = "dragon"
 	case floorLevel >= 7:
-		bossType = models.MobLich
+		bossType = "lich"
 	case floorLevel >= 5:
-		bossType = models.MobOgre
+		bossType = "ogre"
 	case floorLevel >= 3:
-		bossType = models.MobTroll
+		bossType = "troll"
 	default:
-		bossType = models.MobGoblin
+		bossType = "goblin"
 	}
 
-	bossInstance := models.CreateMobInstance(bossType, models.DifficultyBoss, floorLevel, bossPosition)
+	// Create the boss entity
+	bossID := uuid.New().String()
+	bossName := fmt.Sprintf("%s (Boss)", bossType)
 
-	// Convert to Entity
-	bossEntity := models.Entity{
-		ID:        bossInstance.ID,
-		Type:      string(bossInstance.Type),
-		Name:      bossInstance.Name,
-		Position:  bossInstance.Position,
-		Health:    bossInstance.Health,
-		MaxHealth: bossInstance.MaxHealth,
-		Damage:    bossInstance.Damage,
-		Defense:   bossInstance.Defense,
-		Speed:     bossInstance.Speed,
-		Status:    bossInstance.Status,
+	// Calculate boss stats based on floor level
+	bossHealth := 50 + (floorLevel * 20)
+	bossDamage := 5 + (floorLevel * 2)
+	bossDefense := 2 + floorLevel
+
+	boss := models.Entity{
+		ID:        bossID,
+		Type:      "boss",
+		Name:      bossName,
+		Position:  bossPosition,
+		Health:    bossHealth,
+		MaxHealth: bossHealth,
+		Damage:    bossDamage,
+		Defense:   bossDefense,
+		Speed:     1,
 	}
 
-	// Add boss to floor
-	floor.Entities = append(floor.Entities, bossEntity)
+	// Add the boss to the floor
+	floor.Entities = append(floor.Entities, boss)
 
-	log.Printf("Spawned boss %s on floor %d", bossEntity.Name, floorLevel)
+	// Place the boss on the tile
+	floor.Tiles[bossPosition.Y][bossPosition.X].Entity = &boss
+
+	log.Printf("Spawned boss %s on floor %d at position (%d, %d)",
+		bossName, floorLevel, bossPosition.X, bossPosition.Y)
 }
 
 // HandleJoinDungeon handles joining a dungeon
@@ -1513,7 +1503,7 @@ func (s *GameServer) HandleListDungeons(conn *websocket.Conn) {
 			Name:         dungeon.Name,
 			PlayerCount:  len(dungeon.Players),
 			CreatedAt:    dungeon.CreatedAt,
-			LastActivity: dungeon.LastActivity,
+			LastActivity: time.Time(dungeon.LastActivity),
 		}
 	}
 

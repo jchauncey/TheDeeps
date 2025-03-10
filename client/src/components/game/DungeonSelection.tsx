@@ -24,7 +24,7 @@ import {
   CardHeader,
   SimpleGrid,
 } from '@chakra-ui/react';
-import { createDungeon, getAvailableDungeons, joinDungeon, sendWebSocketMessage, joinDungeonWS } from '../../services/api';
+import { createDungeon, getAvailableDungeons, joinDungeon } from '../../services/api';
 import { DungeonData, FloorData } from '../../types/game';
 
 interface DungeonSelectionProps {
@@ -178,52 +178,34 @@ export const DungeonSelection = ({ characterId, onDungeonSelected, onBack }: Dun
         return;
       }
       
-      // Store character ID in localStorage to ensure it's available when processing WebSocket messages
-      try {
-        localStorage.setItem('currentCharacterId', characterId);
-        console.log('Stored characterId in localStorage:', characterId);
-      } catch (error) {
-        console.error('Failed to store characterId in localStorage:', error);
-      }
+      // Use the REST API to join the dungeon
+      const result = await joinDungeon(dungeonId, characterId);
       
-      // Use the WebSocket API instead of HTTP API
-      const success = sendWebSocketMessage({
-        type: 'join_dungeon',
-        dungeonId: dungeonId,
-        characterId: characterId
-      });
-      
-      // Alternatively, use the updated joinDungeonWS function
-      // const success = joinDungeonWS(dungeonId, characterId);
-      
-      if (success) {
+      if (result.success && result.floorData) {
         toast({
-          title: 'Joining Dungeon',
-          description: 'Dungeon join request sent',
-          status: 'info',
+          title: 'Success',
+          description: 'Joined dungeon successfully!',
+          status: 'success',
           duration: 3000,
           isClosable: true,
         });
         
-        // Wait for the dungeon to be joined
-        // The server will send a dungeon_joined message and floor_data message
-        // which will be handled by the WebSocket message handler in App.tsx
-        
-        // Note: We no longer need to create a dummy floor data here
-        // as the server will send the real floor data
+        // Call the parent component's callback with the dungeon ID and floor data
+        onDungeonSelected(dungeonId, result.floorData);
       } else {
         toast({
           title: 'Error',
-          description: 'Failed to send dungeon join request',
+          description: result.message || 'Failed to join dungeon',
           status: 'error',
           duration: 5000,
           isClosable: true,
         });
       }
     } catch (error) {
+      console.error('Error joining dungeon:', error);
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred',
         status: 'error',
         duration: 5000,
         isClosable: true,

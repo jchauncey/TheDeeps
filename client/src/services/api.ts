@@ -18,7 +18,7 @@ let onDisconnectCallback: (() => void) | null = null;
 let onReconnectFailedCallback: (() => void) | null = null;
 let onConnectedCallback: (() => void) | null = null;
 
-// Connect to WebSocket
+// Connect to WebSocket - only used for in-dungeon gameplay
 export const connectWebSocket = (onMessage: (event: Event) => void): WebSocket | null => {
   // Store the callback
   onMessageCallback = onMessage;
@@ -105,7 +105,7 @@ export const connectWebSocket = (onMessage: (event: Event) => void): WebSocket |
     
     return ws;
   } catch (error) {
-    console.error('Error creating WebSocket connection:', error);
+    console.error('Error connecting to WebSocket:', error);
     return null;
   }
 };
@@ -180,9 +180,6 @@ export const isWebSocketConnected = (): boolean => {
 // Manually close the WebSocket connection
 export const closeWebSocketConnection = (): void => {
   if (ws) {
-    // Set a flag to prevent reconnection attempts
-    const preventReconnect = true;
-    
     try {
       // Set a short timeout to ensure the connection is closed
       ws.onclose = () => {
@@ -217,279 +214,313 @@ export const closeWebSocketConnection = (): void => {
   messageQueue = [];
 };
 
-// Create a new character
-export const createCharacter = async (character: CharacterData): Promise<{ success: boolean; characterId?: string; message?: string }> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/character`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(character),
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to create character');
-    }
-    
-    return { success: true, characterId: data.id, message: 'Character created successfully' };
-  } catch (error) {
-    console.error('Error creating character:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
-  }
-};
+// REST API functions for static initialization
 
-// Load a character
-export const loadCharacter = async (characterId: string): Promise<{ success: boolean; character?: CharacterData; message?: string }> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/character/${characterId}`);
-    
-    // Check if the response is JSON
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      throw new Error('Server returned non-JSON response');
-    }
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      return { 
-        success: false, 
-        message: data.message || 'Failed to load character'
-      };
-    }
-    
-    return { success: true, character: data };
-  } catch (error) {
-    console.error('Error loading character:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
-  }
-};
-
-// Get list of saved characters
+/**
+ * Get all saved characters for the player
+ */
 export const getSavedCharacters = async (): Promise<{ success: boolean; characters?: { id: string; name: string; characterClass: string }[]; message?: string }> => {
   try {
     const response = await fetch(`${API_BASE_URL}/characters`);
     
-    const data = await response.json();
-    
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to get saved characters');
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
     }
     
+    const data = await response.json();
     return { success: true, characters: data };
   } catch (error) {
-    console.error('Error getting saved characters:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
+    console.error('Error fetching saved characters:', error);
+    return { success: false, message: 'Failed to fetch saved characters' };
   }
 };
 
-// Save the current game
-export const saveGame = async (characterId: string): Promise<{ success: boolean; message?: string }> => {
+/**
+ * Create a new character using REST API
+ */
+export const createCharacter = async (character: CharacterData): Promise<{ success: boolean; characterId?: string; message?: string }> => {
   try {
-    // Send a WebSocket message to save the game
-    const success = sendWebSocketMessage({
-      type: 'action',
-      action: 'save_game',
-      characterId
-    });
-    
-    if (!success) {
-      throw new Error('Failed to send save game request');
-    }
-    
-    return { success: true, message: 'Game save request sent' };
-  } catch (error) {
-    console.error('Error saving game:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
-  }
-};
-
-// Create a new dungeon
-export const createDungeon = async (name: string, numFloors: number): Promise<{ success: boolean; dungeonId?: string; message?: string }> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/dungeon`, {
+    const response = await fetch(`${API_BASE_URL}/characters`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name, numFloors }),
+      body: JSON.stringify({
+        name: character.name,
+        characterClass: character.characterClass,
+        stats: character.stats,
+      }),
     });
     
-    const data = await response.json();
-    
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to create dungeon');
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
     }
     
-    return { success: true, dungeonId: data.id, message: 'Dungeon created successfully' };
+    const data = await response.json();
+    return { success: true, characterId: data.id };
   } catch (error) {
-    console.error('Error creating dungeon:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
+    console.error('Error creating character:', error);
+    return { success: false, message: 'Failed to create character' };
   }
 };
 
-// Get list of available dungeons
+/**
+ * Load a character by ID using REST API
+ */
+export const loadCharacter = async (characterId: string): Promise<{ success: boolean; character?: CharacterData; message?: string }> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/characters/${characterId}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
+    }
+    
+    const character = await response.json();
+    return { success: true, character };
+  } catch (error) {
+    console.error('Error loading character:', error);
+    return { success: false, message: 'Failed to load character' };
+  }
+};
+
+/**
+ * Get available dungeons using REST API
+ */
 export const getAvailableDungeons = async (): Promise<{ success: boolean; dungeons?: DungeonData[]; message?: string }> => {
   try {
     const response = await fetch(`${API_BASE_URL}/dungeons`);
     
-    const data = await response.json();
-    
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to get available dungeons');
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
     }
     
-    return { success: true, dungeons: data };
+    const dungeons = await response.json();
+    return { success: true, dungeons };
   } catch (error) {
-    console.error('Error getting available dungeons:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
+    console.error('Error fetching available dungeons:', error);
+    return { success: false, message: 'Failed to fetch available dungeons' };
   }
 };
 
-// Join an existing dungeon
-export const joinDungeon = async (dungeonId: string, characterId: string): Promise<{ success: boolean; floorData?: FloorData; message?: string }> => {
+/**
+ * Create a new dungeon using REST API
+ */
+export const createDungeon = async (name: string, numFloors: number): Promise<{ success: boolean; dungeonId?: string; message?: string }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/dungeon/${dungeonId}/join?characterId=${characterId}`, {
+    const response = await fetch(`${API_BASE_URL}/dungeons`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        numFloors,
+      }),
     });
     
-    const data = await response.json();
-    
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to join dungeon');
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
     }
     
-    return { success: true, floorData: data, message: 'Joined dungeon successfully' };
+    const data = await response.json();
+    return { success: true, dungeonId: data.id };
   } catch (error) {
-    console.error('Error joining dungeon:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
+    console.error('Error creating dungeon:', error);
+    return { success: false, message: 'Failed to create dungeon' };
   }
 };
 
-// Get a specific floor of a dungeon
+/**
+ * Join a dungeon using REST API
+ */
+export const joinDungeon = async (dungeonId: string, characterId: string): Promise<{ success: boolean; floorData?: FloorData; message?: string }> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/dungeons/${dungeonId}/join`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        characterId,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
+    }
+    
+    const floorData = await response.json();
+    
+    // After joining the dungeon via REST, connect to WebSocket for real-time updates
+    if (!isWebSocketConnected()) {
+      connectWebSocket(onMessageCallback || (() => {}));
+    }
+    
+    return { success: true, floorData };
+  } catch (error) {
+    console.error('Error joining dungeon:', error);
+    return { success: false, message: 'Failed to join dungeon' };
+  }
+};
+
+/**
+ * Get a specific floor of a dungeon
+ */
 export const getDungeonFloor = async (dungeonId: string, level: number, characterId?: string): Promise<{ success: boolean; floor?: FloorData; message?: string }> => {
   try {
-    let url = `${API_BASE_URL}/dungeon/${dungeonId}/floor/${level}`;
+    let url = `${API_BASE_URL}/dungeons/${dungeonId}/floor/${level}`;
     if (characterId) {
       url += `?characterId=${characterId}`;
     }
     
     const response = await fetch(url);
     
-    const data = await response.json();
-    
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to get dungeon floor');
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
     }
     
-    return { success: true, floor: data };
+    const floor = await response.json();
+    return { success: true, floor };
   } catch (error) {
     console.error('Error getting dungeon floor:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
+    return { success: false, message: 'Failed to get dungeon floor' };
   }
 };
 
-// Get the current floor of a character
+/**
+ * Get the current floor of a character
+ */
 export const getCharacterFloor = async (characterId: string): Promise<{ success: boolean; floorData?: FloorData; message?: string }> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/character/${characterId}/floor`);
-    
-    const data = await response.json();
+    const response = await fetch(`${API_BASE_URL}/characters/${characterId}/floor`);
     
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to get character floor');
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
     }
     
-    return { success: true, floorData: data };
+    const floorData = await response.json();
+    return { success: true, floorData };
   } catch (error) {
     console.error('Error getting character floor:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unknown error occurred' 
-    };
+    return { success: false, message: 'Failed to get character floor' };
   }
 };
 
-// WebSocket message types for dungeon management
-export const createDungeonWS = (name: string, numFloors: number): boolean => {
-  return sendWebSocketMessage({
-    type: 'create_dungeon',
-    name,
-    numFloors
-  });
+/**
+ * Save the current game
+ */
+export const saveGame = async (characterId: string): Promise<{ success: boolean; message?: string }> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/characters/${characterId}/save`, {
+      method: 'POST',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { 
+        success: false, 
+        message: errorData.message || `Error: ${response.status} ${response.statusText}` 
+      };
+    }
+    
+    return { success: true, message: 'Game saved successfully' };
+  } catch (error) {
+    console.error('Error saving game:', error);
+    return { success: false, message: 'Failed to save game' };
+  }
 };
 
-export const joinDungeonWS = (dungeonId: string, characterId: string): boolean => {
-  return sendWebSocketMessage({
-    type: 'join_dungeon',
-    dungeonId,
-    characterId
-  });
-};
+// WebSocket-specific game actions (only for in-dungeon gameplay)
 
-export const listDungeonsWS = (): boolean => {
-  return sendWebSocketMessage({
-    type: 'list_dungeons'
-  });
-};
-
-// WebSocket message types for game actions
+/**
+ * Move character in a direction
+ */
 export const moveCharacter = (direction: string): boolean => {
-  return sendWebSocketMessage({
-    type: 'move',
-    direction
-  });
+  return sendWebSocketMessage({ type: 'move', direction });
 };
 
+/**
+ * Perform an action
+ */
 export const performAction = (action: string): boolean => {
-  return sendWebSocketMessage({
-    type: 'action',
-    action
-  });
+  return sendWebSocketMessage({ type: 'action', action });
 };
 
+/**
+ * Request floor data
+ */
 export const getFloorData = (): boolean => {
-  return sendWebSocketMessage({
-    type: 'get_floor'
-  });
+  return sendWebSocketMessage({ type: 'get_floor_data' });
 };
 
-// WebSocket message types for character management
+// Deprecated WebSocket methods - kept for backward compatibility
+// These should be replaced with REST API calls in new code
+
+/**
+ * @deprecated Use createCharacter REST API instead
+ */
 export const createCharacterWS = (character: {
   name: string;
   characterClass: string;
   stats: any;
   abilities: string[];
 }): boolean => {
-  return sendWebSocketMessage({
-    type: 'create_character',
-    character
-  });
+  console.warn('createCharacterWS is deprecated. Use createCharacter REST API instead.');
+  return sendWebSocketMessage({ type: 'create_character', ...character });
+};
+
+/**
+ * @deprecated Use createDungeon REST API instead
+ */
+export const createDungeonWS = (name: string, numFloors: number): boolean => {
+  console.warn('createDungeonWS is deprecated. Use createDungeon REST API instead.');
+  return sendWebSocketMessage({ type: 'create_dungeon', name, numFloors });
+};
+
+/**
+ * @deprecated Use joinDungeon REST API instead
+ */
+export const joinDungeonWS = (dungeonId: string, characterId: string): boolean => {
+  console.warn('joinDungeonWS is deprecated. Use joinDungeon REST API instead.');
+  return sendWebSocketMessage({ type: 'join_dungeon', dungeonId, characterId });
+};
+
+/**
+ * @deprecated Use getAvailableDungeons REST API instead
+ */
+export const listDungeonsWS = (): boolean => {
+  console.warn('listDungeonsWS is deprecated. Use getAvailableDungeons REST API instead.');
+  return sendWebSocketMessage({ type: 'list_dungeons' });
 }; 

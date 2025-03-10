@@ -35,6 +35,13 @@ func sendJSONError(w http.ResponseWriter, message string, statusCode int) {
 	})
 }
 
+// sendJSONResponse sends a standardized JSON success response
+func sendJSONResponse(w http.ResponseWriter, data interface{}, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(data)
+}
+
 // HandleCreateCharacter handles character creation requests
 func (h *Handler) HandleCreateCharacter(w http.ResponseWriter, r *http.Request) {
 	var req game.CreateCharacterRequest
@@ -61,12 +68,10 @@ func (h *Handler) HandleCreateCharacter(w http.ResponseWriter, r *http.Request) 
 		character.Stats.Intelligence, character.Stats.Wisdom, character.Stats.Charisma,
 		character.ID)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	sendJSONResponse(w, map[string]string{
 		"id":   character.ID,
 		"name": character.Name,
-	})
+	}, http.StatusCreated)
 }
 
 // HandleGetCharacter handles requests to get a character by ID
@@ -84,8 +89,7 @@ func (h *Handler) HandleGetCharacter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(character)
+	sendJSONResponse(w, character, http.StatusOK)
 }
 
 // HandleGetCharacters handles requests to get all characters
@@ -101,18 +105,21 @@ func (h *Handler) HandleGetCharacters(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	sendJSONResponse(w, response, http.StatusOK)
 }
 
 // HandleGetFloor handles requests to get a specific floor of a dungeon
 func (h *Handler) HandleGetFloor(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	dungeonID := vars["dungeonId"]
-	if dungeonID == "" {
-		sendJSONError(w, "Dungeon ID is required", http.StatusBadRequest)
+	dungeonID := vars["id"]
+	floorLevel, err := strconv.Atoi(vars["level"])
+	if err != nil {
+		sendJSONError(w, "Invalid floor level", http.StatusBadRequest)
 		return
 	}
+
+	// Get character ID from query parameter if provided
+	characterID := r.URL.Query().Get("characterId")
 
 	// Get the dungeon
 	dungeon, err := h.Server.DungeonRepository.GetByID(dungeonID)
@@ -125,27 +132,19 @@ func (h *Handler) HandleGetFloor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the floor level
-	levelStr := vars["level"]
-	level, err := strconv.Atoi(levelStr)
-	if err != nil {
+	// Check if floor level is valid
+	if floorLevel < 0 || floorLevel >= len(dungeon.Floors) {
 		sendJSONError(w, "Invalid floor level", http.StatusBadRequest)
 		return
 	}
 
-	// Adjust for 1-indexed floors in the API
-	level--
+	// Get the floor
+	floor := dungeon.Floors[floorLevel]
 
-	// Check if the floor level is valid
-	if level < 0 || level >= len(dungeon.Dungeon.Floors) {
-		sendJSONError(w, "Floor level out of range", http.StatusBadRequest)
-		return
-	}
-
-	// If a character ID is provided, update their floor
-	characterID := r.URL.Query().Get("characterId")
+	// If character ID is provided, update visibility for that character
+	var playerPos models.Position
+	var playerData *models.Character
 	if characterID != "" {
-		// Get the character
 		character, err := h.Server.CharacterRepository.GetByID(characterID)
 		if err != nil {
 			if err == repositories.ErrCharacterNotFound {
@@ -156,18 +155,30 @@ func (h *Handler) HandleGetFloor(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Update character's floor in the dungeon
-		dungeon.UpdatePlayerFloor(character.ID, level)
+		// Get player position
+		playerPos = character.Position
+
+		// Set player data
+		playerData = character
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(dungeon.Dungeon.Floors[level])
+	// Create response
+	response := game.FloorMessage{
+		Type:         "floor_data",
+		Floor:        floor,
+		PlayerPos:    playerPos,
+		CurrentFloor: floorLevel,
+		PlayerData:   playerData,
+		DungeonID:    dungeonID,
+	}
+
+	sendJSONResponse(w, response, http.StatusOK)
 }
 
-// HandleGetCharacterFloor handles requests to get the floor of a specific character
+// HandleGetCharacterFloor handles requests to get the current floor of a character
 func (h *Handler) HandleGetCharacterFloor(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	characterID := vars["characterId"]
+	characterID := vars["id"]
 
 	// Get the character
 	character, err := h.Server.CharacterRepository.GetByID(characterID)
@@ -180,46 +191,48 @@ func (h *Handler) HandleGetCharacterFloor(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Find the dungeon the character is in
-	dungeon := h.Server.DungeonRepository.GetPlayerDungeon(characterID)
-	if dungeon == nil {
-		sendJSONError(w, "Character is not in any dungeon", http.StatusNotFound)
+	// Check if character is in a dungeon
+	if character.DungeonID == "" {
+		sendJSONError(w, "Character is not in a dungeon", http.StatusBadRequest)
 		return
 	}
 
-	// Get the character's floor
-	floorIndex := dungeon.GetPlayerFloor(characterID)
-	if floorIndex < 0 || floorIndex >= len(dungeon.Dungeon.Floors) {
-		sendJSONError(w, "Invalid floor index", http.StatusInternalServerError)
+	// Get the dungeon
+	dungeon, err := h.Server.DungeonRepository.GetByID(character.DungeonID)
+	if err != nil {
+		if err == repositories.ErrDungeonNotFound {
+			sendJSONError(w, "Dungeon not found", http.StatusNotFound)
+		} else {
+			sendJSONError(w, "Failed to get dungeon", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	floor := dungeon.Dungeon.Floors[floorIndex]
-
-	// Get the character's position
-	position := dungeon.GetPlayerPosition(characterID)
-
-	response := map[string]interface{}{
-		"floor":         floor,
-		"floorLevel":    floorIndex + 1, // Adjust for 1-indexing in response
-		"position":      position,
-		"dungeonId":     dungeon.ID,
-		"dungeonName":   dungeon.Name,
-		"characterId":   character.ID,
-		"characterName": character.Name,
+	// Check if floor level is valid
+	if character.CurrentFloor < 0 || character.CurrentFloor >= len(dungeon.Floors) {
+		sendJSONError(w, "Invalid floor level", http.StatusBadRequest)
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	// Get the floor
+	floor := dungeon.Floors[character.CurrentFloor]
+
+	// Create response
+	response := game.FloorMessage{
+		Type:         "floor_data",
+		Floor:        floor,
+		PlayerPos:    character.Position,
+		CurrentFloor: character.CurrentFloor,
+		PlayerData:   character,
+		DungeonID:    character.DungeonID,
+	}
+
+	sendJSONResponse(w, response, http.StatusOK)
 }
 
-// HandleCreateDungeon handles requests to create a new dungeon
+// HandleCreateDungeon handles dungeon creation requests
 func (h *Handler) HandleCreateDungeon(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name      string `json:"name"`
-		NumFloors int    `json:"numFloors"`
-	}
-
+	var req game.CreateDungeonMessage
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -231,79 +244,64 @@ func (h *Handler) HandleCreateDungeon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.NumFloors <= 0 {
-		sendJSONError(w, "Number of floors must be positive", http.StatusBadRequest)
+		sendJSONError(w, "Number of floors must be greater than 0", http.StatusBadRequest)
 		return
 	}
 
 	// Create the dungeon
-	dungeon := h.Server.DungeonRepository.Create(req.Name, req.NumFloors)
+	dungeon := models.NewDungeon(req.Name, req.NumFloors)
+	if err := h.Server.DungeonRepository.Create(dungeon); err != nil {
+		sendJSONError(w, "Failed to create dungeon", http.StatusInternalServerError)
+		return
+	}
 
-	// Initialize mobs on each floor
-	h.Server.InitializeGameWorld()
+	// Initialize dungeon mobs
+	h.Server.InitializeDungeonMobs(dungeon)
 
 	log.Printf("[%s] Dungeon created: %s with %d floors (ID: %s)",
 		time.Now().Format("2006-01-02 15:04:05"),
-		dungeon.Name, req.NumFloors, dungeon.ID)
+		dungeon.Name, len(dungeon.Floors), dungeon.ID)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	sendJSONResponse(w, map[string]string{
 		"id":   dungeon.ID,
 		"name": dungeon.Name,
-	})
+	}, http.StatusCreated)
 }
 
-// HandleListDungeons handles requests to list all dungeons
+// HandleListDungeons handles requests to list all available dungeons
 func (h *Handler) HandleListDungeons(w http.ResponseWriter, r *http.Request) {
 	dungeons := h.Server.DungeonRepository.GetAll()
 
-	response := make([]map[string]interface{}, 0, len(dungeons))
+	response := make([]game.DungeonListItemResponse, 0, len(dungeons))
 	for _, dungeon := range dungeons {
-		response = append(response, map[string]interface{}{
-			"id":          dungeon.ID,
-			"name":        dungeon.Name,
-			"playerCount": len(dungeon.Players),
-			"createdAt":   dungeon.CreatedAt,
-			"numFloors":   len(dungeon.Dungeon.Floors),
+		response = append(response, game.DungeonListItemResponse{
+			ID:           dungeon.ID,
+			Name:         dungeon.Name,
+			PlayerCount:  len(dungeon.Players),
+			CreatedAt:    dungeon.CreatedAt,
+			LastActivity: dungeon.LastActivity,
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	sendJSONResponse(w, response, http.StatusOK)
 }
 
 // HandleJoinDungeon handles requests to join a dungeon
 func (h *Handler) HandleJoinDungeon(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	dungeonID := vars["dungeonId"]
+	dungeonID := vars["id"]
 
+	// Parse request body
 	var req struct {
 		CharacterID string `json:"characterId"`
 	}
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if dungeonID == "" {
-		sendJSONError(w, "Dungeon ID is required", http.StatusBadRequest)
-		return
-	}
-
 	if req.CharacterID == "" {
 		sendJSONError(w, "Character ID is required", http.StatusBadRequest)
-		return
-	}
-
-	// Get the dungeon
-	dungeon, err := h.Server.DungeonRepository.GetByID(dungeonID)
-	if err != nil {
-		if err == repositories.ErrDungeonNotFound {
-			sendJSONError(w, "Dungeon not found", http.StatusNotFound)
-		} else {
-			sendJSONError(w, "Failed to get dungeon", http.StatusInternalServerError)
-		}
 		return
 	}
 
@@ -318,31 +316,86 @@ func (h *Handler) HandleJoinDungeon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add the player to the dungeon
-	if err := h.Server.DungeonRepository.AddPlayerToDungeon(dungeonID, req.CharacterID); err != nil {
-		sendJSONError(w, "Failed to add player to dungeon", http.StatusInternalServerError)
+	// Get the dungeon
+	dungeon, err := h.Server.DungeonRepository.GetByID(dungeonID)
+	if err != nil {
+		if err == repositories.ErrDungeonNotFound {
+			sendJSONError(w, "Dungeon not found", http.StatusNotFound)
+		} else {
+			sendJSONError(w, "Failed to get dungeon", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	// Get the first floor of the dungeon
-	floor := dungeon.Dungeon.Floors[0]
+	// Add character to dungeon
+	character.DungeonID = dungeonID
+	character.CurrentFloor = 0
 
-	// Set the player's position to the center of the first room
-	firstRoom := floor.Rooms[0]
+	// Get the starting position (center of first room on first floor)
+	firstRoom := dungeon.Floors[0].Rooms[0]
 	centerX, centerY := firstRoom.Center()
-	position := models.Position{X: centerX, Y: centerY}
+	character.Position = models.Position{X: centerX, Y: centerY}
 
-	// Update the player's position in the dungeon
-	dungeon.UpdatePlayerPosition(req.CharacterID, position)
+	// Update character in repository
+	if err := h.Server.CharacterRepository.Update(character); err != nil {
+		sendJSONError(w, "Failed to update character", http.StatusInternalServerError)
+		return
+	}
 
-	// Update the player's floor in the dungeon (floor 0)
-	dungeon.UpdatePlayerFloor(req.CharacterID, 0)
+	// Add character to dungeon players
+	dungeon.Players[character.ID] = character
 
-	log.Printf("[%s] Character %s joined dungeon %s",
+	// Update dungeon in repository
+	dungeon.LastActivity = time.Now()
+	if err := h.Server.DungeonRepository.Update(dungeon); err != nil {
+		sendJSONError(w, "Failed to update dungeon", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[%s] Character %s (%s) joined dungeon %s (%s)",
 		time.Now().Format("2006-01-02 15:04:05"),
-		character.Name, dungeon.Name)
+		character.Name, character.ID, dungeon.Name, dungeon.ID)
 
-	// Return the floor data
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(floor)
+	// Create response
+	response := game.FloorMessage{
+		Type:         "floor_data",
+		Floor:        dungeon.Floors[0],
+		PlayerPos:    character.Position,
+		CurrentFloor: 0,
+		PlayerData:   character,
+		DungeonID:    dungeonID,
+	}
+
+	sendJSONResponse(w, response, http.StatusOK)
+}
+
+// HandleSaveGame handles requests to save the game state for a character
+func (h *Handler) HandleSaveGame(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	characterID := vars["id"]
+
+	// Get the character
+	character, err := h.Server.CharacterRepository.GetByID(characterID)
+	if err != nil {
+		if err == repositories.ErrCharacterNotFound {
+			sendJSONError(w, "Character not found", http.StatusNotFound)
+		} else {
+			sendJSONError(w, "Failed to get character", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Save character state
+	if err := h.Server.CharacterRepository.Update(character); err != nil {
+		sendJSONError(w, "Failed to save character state", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("[%s] Saved game state for character %s (%s)",
+		time.Now().Format("2006-01-02 15:04:05"),
+		character.Name, character.ID)
+
+	sendJSONResponse(w, map[string]string{
+		"message": "Game state saved successfully",
+	}, http.StatusOK)
 }

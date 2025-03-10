@@ -26,12 +26,21 @@ func NewDungeonRepository() *DungeonRepository {
 	}
 }
 
-// Create creates a new dungeon instance
-func (r *DungeonRepository) Create(name string, numFloors int) *models.DungeonInstance {
+// Create adds a dungeon instance to the repository
+func (r *DungeonRepository) Create(dungeon *models.DungeonInstance) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	dungeon := models.NewDungeonInstance(name, numFloors)
+	r.dungeons[dungeon.ID] = dungeon
+	return nil
+}
+
+// CreateNew creates a new dungeon instance with the given name and number of floors
+func (r *DungeonRepository) CreateNew(name string, numFloors int) *models.DungeonInstance {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	dungeon := models.NewDungeon(name, numFloors)
 	r.dungeons[dungeon.ID] = dungeon
 	return dungeon
 }
@@ -46,6 +55,19 @@ func (r *DungeonRepository) GetByID(id string) (*models.DungeonInstance, error) 
 		return nil, ErrDungeonNotFound
 	}
 	return dungeon, nil
+}
+
+// Update updates a dungeon instance
+func (r *DungeonRepository) Update(dungeon *models.DungeonInstance) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.dungeons[dungeon.ID]; !exists {
+		return ErrDungeonNotFound
+	}
+
+	r.dungeons[dungeon.ID] = dungeon
+	return nil
 }
 
 // GetAll gets all dungeon instances

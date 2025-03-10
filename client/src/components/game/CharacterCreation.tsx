@@ -32,7 +32,6 @@ import {
 import { useState, useEffect } from 'react'
 import { AddIcon, MinusIcon, InfoIcon } from '@chakra-ui/icons'
 import { CharacterData, CHARACTER_CLASSES } from '../../types/game'
-import { isWebSocketConnected, createCharacterWS, connectWebSocket } from '../../services/api'
 import { useClickableToast } from '../ui/ClickableToast'
 
 interface CharacterCreationProps {
@@ -67,126 +66,32 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
   const [pointsRemaining, setPointsRemaining] = useState(27); // Using D&D 5e point buy system
   const [autoAllocated, setAutoAllocated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
-  const [connectionRetries, setConnectionRetries] = useState(0);
   const toast = useClickableToast();
 
-  // Auto-allocate points when class changes
+  // Check if we should auto-allocate points based on class selection
   useEffect(() => {
     if (characterClass && !autoAllocated) {
       const selectedClass = CHARACTER_CLASSES.find(c => c.id === characterClass);
       if (selectedClass && selectedClass.recommendedStats) {
-        // Reset stats to base
-        const newStats = {...BASE_STATS};
-        
-        // Apply class recommended stats
-        Object.entries(selectedClass.recommendedStats).forEach(([stat, value]) => {
-          newStats[stat as keyof typeof newStats] = value;
-        });
-        
-        setStats(newStats);
-        
-        // Calculate points used
-        let pointsUsed = 0;
-        Object.values(newStats).forEach(value => {
-          pointsUsed += calculatePointCost(value);
-        });
-        
-        setPointsRemaining(27 - pointsUsed);
+        // Auto-allocate points based on class recommendation
+        setStats(selectedClass.recommendedStats);
         setAutoAllocated(true);
         
+        // Calculate how many points were allocated
+        const baseTotal = Object.values(BASE_STATS).reduce((sum, val) => sum + val, 0);
+        const newTotal = Object.values(selectedClass.recommendedStats).reduce((sum, val) => sum + val, 0);
+        const pointsUsed = newTotal - baseTotal;
+        
+        setPointsRemaining(27 - pointsUsed);
+        
         toast({
-          title: "Stats auto-allocated",
+          title: `${selectedClass.name} Stats Applied`,
           description: `Points have been allocated based on the ${selectedClass.name} class. You can still adjust them manually.`,
           status: "info",
         });
       }
     }
   }, [characterClass, autoAllocated, toast]);
-
-  // Check WebSocket connection when component mounts
-  useEffect(() => {
-    const checkConnection = () => {
-      const connected = isWebSocketConnected();
-      setConnectionStatus(connected ? 'connected' : 'disconnected');
-      
-      if (!connected && connectionRetries < 5) {
-        // Try to connect
-        console.log(`Attempting to connect WebSocket (attempt ${connectionRetries + 1}/5)...`);
-        connectWebSocket((event) => {
-          console.log('WebSocket message received in CharacterCreation component');
-        });
-        
-        // Schedule another check
-        setTimeout(() => {
-          setConnectionRetries(prev => prev + 1);
-        }, 1000);
-      }
-    };
-    
-    checkConnection();
-    
-    // Set up periodic connection check
-    const intervalId = setInterval(() => {
-      const connected = isWebSocketConnected();
-      setConnectionStatus(connected ? 'connected' : 'disconnected');
-    }, 2000);
-    
-    return () => clearInterval(intervalId);
-  }, [connectionRetries]);
-
-  // Listen for WebSocket messages
-  useEffect(() => {
-    const handleWebSocketMessage = (event: CustomEvent) => {
-      try {
-        const data = event.detail;
-        console.log('CharacterCreation: WebSocket message received:', data);
-        
-        if (data.type === 'character_created') {
-          console.log('Character creation successful:', data);
-          
-          // Character created successfully, notify parent component with the updated character
-          if (data.character && data.character.id) {
-            const updatedCharacter: CharacterData = {
-              ...data.character,
-              name: data.character.name,
-              characterClass: data.character.characterClass,
-              stats: data.character.stats,
-              id: data.character.id,
-              abilities: data.character.abilities || [],
-              proficiencies: data.character.proficiencies || []
-            };
-            
-            console.log('Notifying parent with complete character data:', updatedCharacter);
-            
-            // Notify parent component with the complete character data
-            onCreateCharacter(updatedCharacter);
-            
-            // Show success message
-            toast({
-              title: "Character Created",
-              description: data.message || "Character created successfully",
-              status: "success",
-              duration: 3000,
-            });
-            
-            // Reset submitting state
-            setIsSubmitting(false);
-          }
-        }
-      } catch (error) {
-        console.error('Error handling WebSocket message:', error);
-      }
-    };
-    
-    // Add event listener for raw WebSocket messages
-    window.addEventListener('websocket_raw_message', handleWebSocketMessage as EventListener);
-    
-    // Clean up
-    return () => {
-      window.removeEventListener('websocket_raw_message', handleWebSocketMessage as EventListener);
-    };
-  }, [onCreateCharacter, toast]);
 
   const handleClassChange = (newClass: string) => {
     setCharacterClass(newClass);
@@ -233,6 +138,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
     setPointsRemaining(pointsRemaining - pointDifference);
   };
 
+  // Handle character creation
   const handleCreateCharacter = async () => {
     if (!name || !characterClass) return;
     
@@ -251,83 +157,14 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
     setIsSubmitting(true);
     
     try {
-      // Check WebSocket connection
-      const connected = isWebSocketConnected();
-      if (!connected) {
-        // Try to reconnect
-        toast({
-          title: "Connection Error",
-          description: "Attempting to reconnect to server...",
-          status: "warning",
-          duration: 3000,
-        });
-        
-        // Try to establish connection
-        connectWebSocket((event) => {
-          console.log('WebSocket message received in character creation handler');
-        });
-        
-        // Wait a moment and check again
-        setTimeout(() => {
-          const reconnected = isWebSocketConnected();
-          if (!reconnected) {
-            toast({
-              title: "Connection Failed",
-              description: "Could not connect to server. Please try again later.",
-              status: "error",
-              duration: 5000,
-            });
-            setIsSubmitting(false);
-            return;
-          } else {
-            // Connection established, try to create character
-            sendCharacterData(characterData);
-          }
-        }, 1500);
-      } else {
-        // Already connected, send character data
-        sendCharacterData(characterData);
-      }
+      // Call the parent component's callback with the character data
+      // The parent will handle the API call
+      onCreateCharacter(characterData);
     } catch (error) {
       console.error('Error creating character:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An unknown error occurred",
-        status: "error",
-        duration: 5000,
-      });
-      setIsSubmitting(false);
-    }
-  };
-  
-  // Helper function to send character data
-  const sendCharacterData = (characterData: CharacterData) => {
-    console.log('Sending character data to server:', characterData);
-    
-    // Use WebSocket API directly
-    const success = createCharacterWS({
-      name: characterData.name,
-      characterClass: characterData.characterClass,
-      stats: characterData.stats,
-      abilities: characterData.abilities || []
-    });
-    
-    console.log('Character creation WebSocket message sent:', success);
-    
-    if (success) {
-      toast({
-        title: "Character Creation Request Sent",
-        description: "Creating your character...",
-        status: "info",
-        duration: 3000,
-      });
-      
-      // We'll wait for the character_created message from the server
-      // before notifying the parent component
-    } else {
-      toast({
-        title: "Error Creating Character",
-        description: "Failed to send character data to server. Please try again.",
         status: "error",
         duration: 5000,
       });
@@ -397,7 +234,6 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
               borderColor="purple.300"
               _hover={{ borderColor: 'purple.400' }}
               _focus={{ borderColor: 'purple.500' }}
-              isDisabled={connectionStatus === 'disconnected'}
             />
           </Box>
           
@@ -413,7 +249,6 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
               borderColor="purple.300"
               _hover={{ borderColor: 'purple.400' }}
               _focus={{ borderColor: 'purple.500' }}
-              isDisabled={connectionStatus === 'disconnected'}
             >
               {CHARACTER_CLASSES.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -460,7 +295,6 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
                   colorScheme="purple" 
                   variant="outline" 
                   onClick={resetStats}
-                  isDisabled={connectionStatus === 'disconnected'}
                 >
                   Reset Stats
                 </Button>
@@ -511,7 +345,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
                         size="sm"
                         colorScheme="purple"
                         variant="outline"
-                        isDisabled={stats[statName as keyof typeof stats] <= 8 || isSubmitting || connectionStatus === 'disconnected'}
+                        isDisabled={stats[statName as keyof typeof stats] <= 8 || isSubmitting}
                         onClick={() => handleStatChange(statName as keyof typeof stats, -1)}
                       />
                       <IconButton
@@ -519,7 +353,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
                         icon={<AddIcon />}
                         size="sm"
                         colorScheme="purple"
-                        isDisabled={pointsRemaining <= 0 || stats[statName as keyof typeof stats] >= 15 || isSubmitting || connectionStatus === 'disconnected'}
+                        isDisabled={pointsRemaining <= 0 || stats[statName as keyof typeof stats] >= 15 || isSubmitting}
                         onClick={() => handleStatChange(statName as keyof typeof stats, 1)}
                       />
                     </HStack>
@@ -564,7 +398,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
               size="md"
               variant="outline"
               colorScheme="purple"
-              isDisabled={isSubmitting || connectionStatus === 'disconnected'}
+              isDisabled={isSubmitting}
             >
               Back
             </Button>
@@ -572,7 +406,7 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
               onClick={handleCreateCharacter}
               size="md"
               colorScheme="purple"
-              isDisabled={!name || !characterClass || isSubmitting || connectionStatus === 'disconnected'}
+              isDisabled={!name || !characterClass || isSubmitting}
               leftIcon={isSubmitting ? <Spinner size="sm" /> : undefined}
             >
               {isSubmitting ? 'Creating...' : 'Create Character'}

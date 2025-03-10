@@ -100,21 +100,19 @@ type Dungeon struct {
 	PlayerPosition Position `json:"playerPosition"`
 }
 
-// DungeonInstance represents a specific instance of a dungeon that players can join
+// DungeonInstance represents an instance of a dungeon in the game
 type DungeonInstance struct {
-	ID           string               `json:"id"`
-	Name         string               `json:"name"`
-	Dungeon      *Dungeon             `json:"dungeon"`
-	CreatedAt    time.Time            `json:"createdAt"`
-	LastActivity time.Time            `json:"lastActivity"`
-	Players      map[string]*Position `json:"players"`      // Map of character IDs to their positions
-	PlayerFloors map[string]int       `json:"playerFloors"` // Map of character IDs to their current floor
+	ID           string                `json:"id"`
+	Name         string                `json:"name"`
+	Dungeon      *Dungeon              `json:"dungeon"`
+	Floors       []*Floor              `json:"floors"` // Direct access to floors for convenience
+	CreatedAt    time.Time             `json:"createdAt"`
+	LastActivity time.Time             `json:"lastActivity"`
+	Players      map[string]*Character `json:"players"` // Map of character IDs to Character objects
 }
 
-// NewDungeon creates a new dungeon with the specified number of floors
-func NewDungeon(numFloors int) *Dungeon {
-	rand.Seed(time.Now().UnixNano())
-
+// NewDungeon creates a new dungeon with the given name and number of floors
+func NewDungeon(name string, numFloors int) *DungeonInstance {
 	dungeon := &Dungeon{
 		Floors:       make([]*Floor, numFloors),
 		CurrentFloor: 0,
@@ -122,15 +120,27 @@ func NewDungeon(numFloors int) *Dungeon {
 
 	// Generate each floor
 	for i := 0; i < numFloors; i++ {
-		dungeon.Floors[i] = GenerateFloor(i+1, 80, 50)
+		dungeon.Floors[i] = GenerateFloor(i, 80, 40)
 	}
 
-	// Set player position to the center of the first room on the first floor
-	firstRoom := dungeon.Floors[0].Rooms[0]
-	centerX, centerY := firstRoom.Center()
-	dungeon.PlayerPosition = Position{X: centerX, Y: centerY}
+	// Add stairs between floors
+	for i := 0; i < numFloors; i++ {
+		addStairs(dungeon.Floors[i], i)
+	}
 
-	return dungeon
+	// Create the dungeon instance
+	now := time.Now()
+	instance := &DungeonInstance{
+		ID:           uuid.New().String(),
+		Name:         name,
+		Dungeon:      dungeon,
+		Floors:       dungeon.Floors, // Direct reference to floors
+		CreatedAt:    now,
+		LastActivity: now,
+		Players:      make(map[string]*Character),
+	}
+
+	return instance
 }
 
 // GenerateFloor generates a new dungeon floor
@@ -499,61 +509,50 @@ func abs(x int) int {
 	return x
 }
 
-// NewDungeonInstance creates a new dungeon instance with the given name and number of floors
-func NewDungeonInstance(name string, numFloors int) *DungeonInstance {
-	return &DungeonInstance{
-		ID:           uuid.New().String(),
-		Name:         name,
-		Dungeon:      NewDungeon(numFloors),
-		CreatedAt:    time.Now(),
-		LastActivity: time.Now(),
-		Players:      make(map[string]*Position),
-		PlayerFloors: make(map[string]int),
-	}
-}
-
 // AddPlayer adds a player to the dungeon instance
 func (di *DungeonInstance) AddPlayer(characterID string) {
-	// Get the starting position (first room of first floor)
+	// Get the starting position (center of first room on first floor)
 	firstRoom := di.Dungeon.Floors[0].Rooms[0]
 	centerX, centerY := firstRoom.Center()
 	startPos := Position{X: centerX, Y: centerY}
 
 	// Add player to the dungeon
-	di.Players[characterID] = &startPos
-	di.PlayerFloors[characterID] = 0 // Start at first floor (index 0)
+	di.Players[characterID] = &Character{
+		ID:           characterID,
+		Position:     startPos,
+		CurrentFloor: 0,
+	}
 	di.LastActivity = time.Now()
 }
 
 // RemovePlayer removes a player from the dungeon instance
 func (di *DungeonInstance) RemovePlayer(characterID string) {
 	delete(di.Players, characterID)
-	delete(di.PlayerFloors, characterID)
 	di.LastActivity = time.Now()
 }
 
 // GetPlayerPosition gets a player's position in the dungeon
 func (di *DungeonInstance) GetPlayerPosition(characterID string) *Position {
-	return di.Players[characterID]
+	return &di.Players[characterID].Position
 }
 
 // GetPlayerFloor gets a player's current floor in the dungeon
 func (di *DungeonInstance) GetPlayerFloor(characterID string) int {
-	return di.PlayerFloors[characterID]
+	return di.Players[characterID].CurrentFloor
 }
 
 // UpdatePlayerPosition updates a player's position in the dungeon
 func (di *DungeonInstance) UpdatePlayerPosition(characterID string, position Position) {
 	if _, exists := di.Players[characterID]; exists {
-		di.Players[characterID] = &position
+		di.Players[characterID].Position = position
 		di.LastActivity = time.Now()
 	}
 }
 
 // UpdatePlayerFloor updates a player's current floor in the dungeon
 func (di *DungeonInstance) UpdatePlayerFloor(characterID string, floor int) {
-	if _, exists := di.PlayerFloors[characterID]; exists {
-		di.PlayerFloors[characterID] = floor
+	if _, exists := di.Players[characterID]; exists {
+		di.Players[characterID].CurrentFloor = floor
 		di.LastActivity = time.Now()
 	}
 }
