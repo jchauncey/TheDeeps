@@ -146,3 +146,17 @@ func (r *DungeonRepository) SetCharacterFloor(dungeonID string, characterID stri
 	dungeon.SetCharacterFloor(characterID, floor)
 	return nil
 }
+
+// SaveFloor saves a floor for a dungeon
+func (r *DungeonRepository) SaveFloor(dungeonID string, floorLevel int, floor *models.Floor) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	dungeon, exists := r.dungeons[dungeonID]
+	if !exists {
+		return errors.New("dungeon not found")
+	}
+
+	dungeon.FloorData[floorLevel] = floor
+	return nil
+}

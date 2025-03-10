@@ -38,6 +38,7 @@ type Mob struct {
 	Type      MobType    `json:"type"`
 	Variant   MobVariant `json:"variant"`
 	Name      string     `json:"name"`
+	Level     int        `json:"level"`
 	HP        int        `json:"hp"`
 	MaxHP     int        `json:"maxHp"`
 	Damage    int        `json:"damage"`
@@ -167,6 +168,7 @@ func NewMob(mobType MobType, variant MobVariant, floorLevel int) *Mob {
 		Type:      mobType,
 		Variant:   variant,
 		Name:      name,
+		Level:     floorLevel,
 		HP:        finalHP,
 		MaxHP:     finalHP,
 		Damage:    finalDamage,

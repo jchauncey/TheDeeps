@@ -12,6 +12,7 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
 - WebSocket-based real-time communication
 - Floor navigation with stairs
 - Multiple characters and dungeons
+- Combat system with attacks, critical hits, and fleeing
 
 ## Features
 
@@ -37,6 +38,14 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
 - Item generation based on floor level
 - Gold as currency
 
+### Combat System
+- Turn-based combat with attacks and counterattacks
+- Critical hit system based on character attributes
+- Damage calculation using character and mob stats
+- Experience and gold rewards for defeating mobs
+- Flee mechanics with success chance based on attributes
+- Item usage during combat (potions, etc.)
+
 ## Project Structure
 
 - `server/`: Backend Go server
@@ -54,6 +63,7 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
 - `DELETE /characters/{id}`: Delete a character
 - `POST /characters/{id}/save`: Save a character's state
 - `GET /characters/{id}/floor`: Get a character's current floor
+- `GET /characters/{id}/combat`: Get a character's combat state
 
 ### Dungeon Endpoints
 - `GET /dungeons`: Get all dungeons
@@ -61,14 +71,14 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
 - `POST /dungeons/{id}/join`: Join a dungeon with a character
 - `GET /dungeons/{id}/floor/{level}`: Get a specific floor of a dungeon
 
-### WebSocket Endpoint
-- `/ws?characterId={id}`: Connect to the game with a character
+### WebSocket Endpoints
+- `/ws/game?characterId={id}`: Connect to the game with a character
+- `/ws/combat`: Connect to the combat system
 
 ## WebSocket Messages
 
-### Client to Server
+### Game WebSocket (Client to Server)
 - `move`: Move the character
-- `attack`: Attack a mob
 - `pickup`: Pick up an item
 - `ascend`: Go up stairs
 - `descend`: Go down stairs
@@ -77,7 +87,7 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
 - `equipItem`: Equip an item
 - `unequipItem`: Unequip an item
 
-### Server to Client
+### Game WebSocket (Server to Client)
 - `updateMap`: Update the map
 - `updatePlayer`: Update the player
 - `updateMob`: Update a mob
@@ -87,6 +97,17 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
 - `notification`: Show a notification
 - `floorChange`: Change the floor
 - `error`: Show an error
+
+### Combat WebSocket (Client to Server)
+- `attack`: Attack a mob
+- `useItem`: Use an item during combat
+- `flee`: Attempt to flee from combat
+
+### Combat WebSocket (Server to Client)
+- `attack`: Result of an attack
+- `useItem`: Result of using an item
+- `flee`: Result of a flee attempt
+- `error`: Combat error message
 
 ## Getting Started
 

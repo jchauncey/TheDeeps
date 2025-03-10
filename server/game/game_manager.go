@@ -3,6 +3,8 @@ package game
 import (
 	"encoding/json"
 	"log"
+	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -660,4 +662,97 @@ func (c *Client) writePump() {
 			}
 		}
 	}
+}
+
+// BroadcastFloorUpdate broadcasts a floor update to all players on a specific floor
+func (gm *GameManager) BroadcastFloorUpdate(dungeonID string, floorLevel int) {
+	// Get dungeon
+	dungeon, err := gm.DungeonRepo.GetByID(dungeonID)
+	if err != nil {
+		log.Println("Failed to get dungeon:", err)
+		return
+	}
+
+	// Get floor
+	floor, err := gm.DungeonRepo.GetFloor(dungeonID, floorLevel)
+	if err != nil {
+		log.Println("Failed to get floor:", err)
+		return
+	}
+
+	// Find all characters on this floor
+	for charID, floorStr := range dungeon.Characters {
+		charFloor, err := strconv.Atoi(floorStr)
+		if err != nil {
+			continue
+		}
+
+		// Skip characters on different floors
+		if charFloor != floorLevel {
+			continue
+		}
+
+		// Get character's client connection
+		client, exists := gm.Clients[charID]
+		if !exists {
+			continue
+		}
+
+		// Send floor update
+		message := Message{
+			Type:  MsgFloorChange,
+			Floor: floor,
+		}
+		client.Send <- message
+	}
+}
+
+// HandleConnection handles WebSocket connections for the game
+func (gm *GameManager) HandleConnection(w http.ResponseWriter, r *http.Request) {
+	// Upgrade HTTP connection to WebSocket
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Allow all origins for now
+		},
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Failed to upgrade connection:", err)
+		return
+	}
+
+	// Get character ID from query parameters
+	characterID := r.URL.Query().Get("characterId")
+	if characterID == "" {
+		log.Println("Character ID not provided")
+		conn.Close()
+		return
+	}
+
+	// Get character from repository
+	character, err := gm.CharacterRepo.GetByID(characterID)
+	if err != nil {
+		log.Println("Character not found:", characterID)
+		conn.Close()
+		return
+	}
+
+	// Create a new client
+	client := &Client{
+		ID:         characterID,
+		Connection: conn,
+		Character:  character,
+		Send:       make(chan Message, 256),
+		Manager:    gm,
+	}
+
+	// Register client with game manager
+	gm.Register <- client
+
+	// Start client goroutines
+	go client.readPump()
+	go client.writePump()
 }

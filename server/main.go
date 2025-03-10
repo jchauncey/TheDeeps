@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/jchauncey/TheDeeps/server/handlers"
 	"github.com/rs/cors"
 )
 
@@ -20,33 +18,9 @@ func main() {
 	port := flag.String("port", "8080", "port to run the server on")
 	flag.Parse()
 
-	// Create a new router
-	router := mux.NewRouter()
-
-	// Initialize handlers
-	characterHandler := handlers.NewCharacterHandler()
-	dungeonHandler := handlers.NewDungeonHandler()
-	gameHandler := handlers.NewGameHandler()
-
-	// Start the game manager
-	gameHandler.StartGameManager()
-
-	// Character endpoints
-	router.HandleFunc("/characters", characterHandler.GetCharacters).Methods("GET")
-	router.HandleFunc("/characters/{id}", characterHandler.GetCharacter).Methods("GET")
-	router.HandleFunc("/characters", characterHandler.CreateCharacter).Methods("POST")
-	router.HandleFunc("/characters/{id}", characterHandler.DeleteCharacter).Methods("DELETE")
-	router.HandleFunc("/characters/{id}/save", characterHandler.SaveCharacter).Methods("POST")
-	router.HandleFunc("/characters/{id}/floor", characterHandler.GetCharacterFloor).Methods("GET")
-
-	// Dungeon endpoints
-	router.HandleFunc("/dungeons", dungeonHandler.GetDungeons).Methods("GET")
-	router.HandleFunc("/dungeons", dungeonHandler.CreateDungeon).Methods("POST")
-	router.HandleFunc("/dungeons/{id}/join", dungeonHandler.JoinDungeon).Methods("POST")
-	router.HandleFunc("/dungeons/{id}/floor/{level}", dungeonHandler.GetFloor).Methods("GET")
-
-	// WebSocket endpoint for real-time game mechanics
-	router.HandleFunc("/ws", gameHandler.HandleWebSocket)
+	// Create and set up server
+	server := NewServer()
+	server.SetupRoutes()
 
 	// Set up CORS
 	c := cors.New(cors.Options{
@@ -57,15 +31,15 @@ func main() {
 	})
 
 	// Create HTTP server
-	server := &http.Server{
+	httpServer := &http.Server{
 		Addr:    ":" + *port,
-		Handler: c.Handler(router),
+		Handler: c.Handler(server.router),
 	}
 
 	// Start the server in a goroutine
 	go func() {
 		log.Printf("Server starting on port %s...\n", *port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Could not start server: %v\n", err)
 		}
 	}()
@@ -84,7 +58,7 @@ func main() {
 	defer cancel()
 
 	// Attempt to gracefully shut down the server
-	if err := server.Shutdown(ctx); err != nil {
+	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v\n", err)
 	}
 
