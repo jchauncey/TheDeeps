@@ -70,7 +70,7 @@ function App() {
     try {
       const messageEvent = event as MessageEvent
       const data = JSON.parse(messageEvent.data)
-      console.log('WebSocket message received:', data)
+      console.log('App: WebSocket message received:', data)
       
       if (data.type === 'floor_data') {
         console.log('Received floor_data message:', data)
@@ -109,11 +109,11 @@ function App() {
           status: 'error',
         })
       } else if (data.type === 'character_created') {
-        console.log('Received character_created message:', data)
+        console.log('Received character_created message:', data);
         
         // Update character with ID from server
         if (data.character && data.character.id) {
-          console.log('Setting character ID:', data.character.id)
+          console.log('Setting character ID:', data.character.id);
           
           // Create a complete character object from the server response
           const updatedCharacter = {
@@ -125,7 +125,7 @@ function App() {
             id: data.character.id
           };
           
-          console.log('Updated character object:', updatedCharacter)
+          console.log('Updated character object:', updatedCharacter);
           
           // Update the character state
           setCharacter(updatedCharacter);
@@ -134,25 +134,25 @@ function App() {
             title: 'Character Created',
             description: data.message || 'Character created successfully',
             status: 'success',
-          })
+          });
           
           // Move to dungeon selection screen
-          console.log('Moving to dungeon selection screen')
-          setCurrentScreen('dungeonSelection')
+          console.log('Moving to dungeon selection screen');
+          setCurrentScreen('dungeonSelection');
           
           // If we already have floor data, transition to the game screen
           if (floorData && floorData.dungeonId) {
-            console.log('We have floor data, transitioning to game screen with dungeonId:', floorData.dungeonId)
-            setDungeonId(floorData.dungeonId)
-            setCurrentScreen('game')
+            console.log('We have floor data, transitioning to game screen with dungeonId:', floorData.dungeonId);
+            setDungeonId(floorData.dungeonId);
+            setCurrentScreen('game');
           }
         } else {
-          console.error('Character created but no ID received');
+          console.error('Character created but no ID received:', data);
           toast({
             title: 'Error',
             description: 'Character created but no ID received',
             status: 'error',
-          })
+          });
         }
       } else if (data.type === 'dungeon_created') {
         toast({
@@ -316,12 +316,17 @@ function App() {
   
   // Handle character creation
   const handleCreateCharacter = (characterData: CharacterData) => {
-    console.log('Character created:', characterData)
+    console.log('Character creation initiated:', characterData);
     
-    // Just update the character state
-    setCharacter(characterData)
+    // Update the character state with the initial data
+    setCharacter(characterData);
     
-    // The WebSocket message is now sent directly from the CharacterCreation component
+    // If the character has an ID, it means it was created successfully
+    // and we can transition to the dungeon selection screen
+    if (characterData.id) {
+      console.log('Character has ID, transitioning to dungeon selection:', characterData.id);
+      setCurrentScreen('dungeonSelection');
+    }
   }
   
   // Handle dungeon selection

@@ -135,6 +135,59 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
     return () => clearInterval(intervalId);
   }, [connectionRetries]);
 
+  // Listen for WebSocket messages
+  useEffect(() => {
+    const handleWebSocketMessage = (event: CustomEvent) => {
+      try {
+        const data = event.detail;
+        console.log('CharacterCreation: WebSocket message received:', data);
+        
+        if (data.type === 'character_created') {
+          console.log('Character creation successful:', data);
+          
+          // Character created successfully, notify parent component with the updated character
+          if (data.character && data.character.id) {
+            const updatedCharacter: CharacterData = {
+              ...data.character,
+              name: data.character.name,
+              characterClass: data.character.characterClass,
+              stats: data.character.stats,
+              id: data.character.id,
+              abilities: data.character.abilities || [],
+              proficiencies: data.character.proficiencies || []
+            };
+            
+            console.log('Notifying parent with complete character data:', updatedCharacter);
+            
+            // Notify parent component with the complete character data
+            onCreateCharacter(updatedCharacter);
+            
+            // Show success message
+            toast({
+              title: "Character Created",
+              description: data.message || "Character created successfully",
+              status: "success",
+              duration: 3000,
+            });
+            
+            // Reset submitting state
+            setIsSubmitting(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error handling WebSocket message:', error);
+      }
+    };
+    
+    // Add event listener for raw WebSocket messages
+    window.addEventListener('websocket_raw_message', handleWebSocketMessage as EventListener);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('websocket_raw_message', handleWebSocketMessage as EventListener);
+    };
+  }, [onCreateCharacter, toast]);
+
   const handleClassChange = (newClass: string) => {
     setCharacterClass(newClass);
     setAutoAllocated(false);
@@ -249,6 +302,8 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
   
   // Helper function to send character data
   const sendCharacterData = (characterData: CharacterData) => {
+    console.log('Sending character data to server:', characterData);
+    
     // Use WebSocket API directly
     const success = createCharacterWS({
       name: characterData.name,
@@ -256,6 +311,8 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
       stats: characterData.stats,
       abilities: characterData.abilities || []
     });
+    
+    console.log('Character creation WebSocket message sent:', success);
     
     if (success) {
       toast({
@@ -265,12 +322,12 @@ export const CharacterCreation = ({ onCreateCharacter, onBack }: CharacterCreati
         duration: 3000,
       });
       
-      // Notify parent component
-      onCreateCharacter(characterData);
+      // We'll wait for the character_created message from the server
+      // before notifying the parent component
     } else {
       toast({
         title: "Error Creating Character",
-        description: "Failed to send character data to server.",
+        description: "Failed to send character data to server. Please try again.",
         status: "error",
         duration: 5000,
       });

@@ -60,8 +60,22 @@ export const connectWebSocket = (onMessage: (event: Event) => void): WebSocket |
     };
     
     ws.onmessage = (event) => {
-      if (onMessageCallback) {
-        onMessageCallback(event);
+      console.log('WebSocket message received:', event.data);
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Parsed WebSocket message:', data);
+        
+        // Dispatch a raw message event that components can listen for
+        const rawMessageEvent = new CustomEvent('websocket_raw_message', {
+          detail: data
+        });
+        window.dispatchEvent(rawMessageEvent);
+        
+        if (onMessageCallback) {
+          onMessageCallback(event);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
     };
     
