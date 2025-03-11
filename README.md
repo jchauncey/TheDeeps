@@ -2,7 +2,7 @@
 
 A roguelike dungeon crawler game written in Go with a React/TypeScript frontend.
 
-![Coverage](https://img.shields.io/badge/coverage-44.0%25-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-52.5%25-brightgreen)
 
 ## Description
 
@@ -172,7 +172,7 @@ make server-test-ginkgo-focus FOCUS="TestName"
 make server-open-coverage
 ```
 
-Current test coverage is approximately 44.0% of statements. See the [server README](server/README.md) for more details on testing.
+Current test coverage is approximately 52.5% of statements. See the [server README](server/README.md) for more details on testing.
 
 ### Client Tests
 The client code is tested using Jest and React Testing Library.

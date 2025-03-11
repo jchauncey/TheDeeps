@@ -120,16 +120,16 @@ make server-open-coverage
 
 ## Test Coverage Summary
 
-The current test coverage is approximately 44.6% of statements. Areas with high coverage include:
+The current test coverage is approximately 52.5% of statements. Areas with high coverage include:
 
 - Repository implementations (100%)
 - Logger functionality (91.3%)
 - Character and skill models (62.6%)
+- Map generator (92.1%)
 
 Areas that need improved test coverage:
 
 - Game manager (many functions at 0%)
-- Map generator (most functions at 0%)
 - Combat handler (most functions at 0%)
 
 ## Adding New Tests
