@@ -1,0 +1,3 @@
+- prefer stretchr testify/assert framework
+- use table driven tests
+- test coversage is important so include a variety of test cases
