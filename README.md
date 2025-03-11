@@ -53,6 +53,11 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
   - `repositories/`: Data persistence
   - `handlers/`: HTTP request handlers
   - `game/`: Game state and WebSocket handling
+- `client/`: Frontend React/TypeScript application
+  - `src/components/`: Reusable UI components
+  - `src/pages/`: Page components for different routes
+  - `src/services/`: API services for communicating with the server
+  - `src/types/`: TypeScript type definitions
 
 ## API Endpoints
 
@@ -113,28 +118,45 @@ The Deeps is a roguelike game where you explore procedurally generated dungeons,
 
 ### Prerequisites
 - Go 1.21 or higher
-- Node.js and npm (for the client)
+- Node.js 14+ and npm 6+ (for the client)
 
 ### Building and Running the Server
 ```bash
 # Build the server
-make build-server
+make build
 
 # Run the server
-make run-server
+make run
+
+# Or run directly from the server directory
+cd server
+go run .
 ```
 
 ### Building and Running the Client
 ```bash
-# Install client dependencies
-make client-install
+# Navigate to the client directory
+cd client
 
-# Build the client
-make client-build
+# Install client dependencies
+npm install
 
 # Run the client in development mode
-make client-dev
+npm start
 ```
+
+## Client Features
+
+### Character Selection
+- View all your characters in a grid layout
+- See character details including name, class, level, HP, mana, and XP
+- Delete characters you no longer want
+- Create new characters (up to a maximum of 10)
+
+### Character Creation
+- Choose from 12 different character classes
+- Each class has unique attributes and abilities
+- Simple creation process with class descriptions
 
 ## License
 
