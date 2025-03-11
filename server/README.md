@@ -120,15 +120,15 @@ make server-open-coverage
 
 ## Test Coverage
 
-The server codebase currently has an overall test coverage of 78.9% of statements.
+The server codebase currently has an overall test coverage of 80.3% of statements.
 
 ### Package Coverage
 
-- `game`: 81.2% (Improved from 77.7%)
-- `handlers`: 78.4% (Improved from 61.9%)
-- `log`: 91.3%
-- `models`: 80.1% (Improved from 78.0%)
-- `repositories`: 100.0%
+- `game`: 81.2% (Maintained from previous)
+- `handlers`: 83.5% (Improved from 78.4%)
+- `log`: 91.3% (Maintained from previous)
+- `models`: 80.1% (Maintained from previous)
+- `repositories`: 100.0% (Maintained from previous)
 
 ### Character Model Coverage
 
@@ -150,72 +150,78 @@ The character model has been extensively tested with the following coverage for 
 
 The combat handler has the following coverage for its functions:
 
-- `handleAttack`: 73.7%
-- `handleUseItem`: 100%
-- `handleFlee`: 73.3%
-- `isAdjacent`: 100%
-- `abs`: 100%
-- `findSafePosition`: 63.2%
-- `GetCombatState`: 72.7%
-- `NewCombatHandler`: 50.0%
-- `HandleCombat`: 37.0% (Improved from 0%)
-- `sendResponse`: 50.0% (Improved from 0%)
+- `NewCombatHandler`: 100% (Improved from 50.0%)
+- `HandleCombat`: 100% (Improved from 37.0%)
+- `sendResponse`: 50.0% (Maintained from previous)
+- `handleAttack`: 84.2% (Improved from 73.7%)
+- `handleUseItem`: 100% (Maintained from previous)
+- `handleFlee`: 86.7% (Improved from 73.3%)
+- `isAdjacent`: 100% (Maintained from previous)
+- `abs`: 100% (Maintained from previous)
+- `findSafePosition`: 78.9% (Improved from 63.2%)
+- `GetCombatState`: 72.7% (Maintained from previous)
 
 ### Combat Manager Coverage
 
 The combat manager has excellent coverage for most functions:
 
-- `NewCombatManager`: 100%
-- `AttackMob`: 95.6%
-- `UseItem`: 76.9%
-- `Flee`: 83.3% (Improved from 50.0%)
-- `calculateMobDamage`: 83.3%
-- `calculateExpGain`: 60.0% (Improved from 32.0%)
+- `NewCombatManager`: 100% (Maintained from previous)
+- `AttackMob`: 95.6% (Maintained from previous)
+- `UseItem`: 76.9% (Maintained from previous)
+- `Flee`: 83.3% (Maintained from previous)
+- `calculateMobDamage`: 83.3% (Maintained from previous)
+- `calculateExpGain`: 60.0% (Maintained from previous)
 
 ### Dungeon Handler Coverage
 
 The dungeon handler has excellent coverage for all functions:
 
-- `NewDungeonHandler`: 100%
-- `GetDungeons`: 100%
-- `CreateDungeon`: 78.9%
-- `JoinDungeon`: 62.5% (New coverage)
-- `GetFloor`: 86.4%
+- `NewDungeonHandler`: 100% (Maintained from previous)
+- `GetDungeons`: 100% (Maintained from previous)
+- `CreateDungeon`: 78.9% (Maintained from previous)
+- `JoinDungeon`: 62.5% (Maintained from previous)
+- `GetFloor`: 86.4% (Maintained from previous)
 
 ### Inventory Handler Coverage
 
 The inventory handler has good coverage for most functions:
 
-- `NewInventoryHandler`: 100%
-- `RegisterRoutes`: 100%
-- `GetInventory`: 75.0%
-- `GetInventoryItem`: 69.2%
-- `EquipItem`: 71.4%
-- `UnequipItem`: 86.2% (Improved from 41.4%)
-- `UseItem`: 71.4%
-- `GetEquipment`: 75.0%
-- `GenerateItems`: 63.6%
-- `AddItemToInventory`: 100% (Improved from 0%)
-- `GetAllItems`: 100% (Improved from 0%)
-- `GetCharacterWeight`: 100% (Improved from 0%)
+- `NewInventoryHandler`: 100% (Maintained from previous)
+- `RegisterRoutes`: 100% (Maintained from previous)
+- `GetInventory`: 75.0% (Maintained from previous)
+- `GetInventoryItem`: 69.2% (Maintained from previous)
+- `EquipItem`: 71.4% (Maintained from previous)
+- `UnequipItem`: 86.2% (Maintained from previous)
+- `UseItem`: 71.4% (Maintained from previous)
+- `GetEquipment`: 75.0% (Maintained from previous)
+- `GenerateItems`: 63.6% (Maintained from previous)
+- `AddItemToInventory`: 100% (Maintained from previous)
+- `GetAllItems`: 100% (Maintained from previous)
+- `GetCharacterWeight`: 100% (Maintained from previous)
 
 ### Areas for Improvement
 
 The following areas still need improved test coverage:
 
 1. WebSocket-related functions in the game manager:
-   - `HandleConnection`: 80% (Improved with integration tests)
-   - `HandleMessage`: 90% (Improved with integration tests)
+   - `Start`: 0.0% (No coverage)
+   - `Run`: 0.0% (No coverage)
+   - `HandleConnection`: 61.9% (Needs improvement)
+   - `handlePickup`: 61.9% (Needs improvement)
 
 2. Combat handler functions:
-   - `HandleCombat`: 37.0% (Improved from 0%, but still needs more coverage)
-   - `sendResponse`: 50.0% (Improved from 0%, but still needs more coverage)
+   - `sendResponse`: 50.0% (Needs improvement)
 
 3. Combat manager functions:
-   - `calculateExpGain`: 60.0% (Needs more test cases for different mob types and levels)
+   - `calculateExpGain`: 60.0% (Needs improvement)
 
 4. Character skills:
-   - `UpdateCharacterWithSkills`: 0%
+   - `UpdateCharacterWithSkills`: 0.0% (No coverage)
+
+5. Server initialization:
+   - `NewServer`: 0.0% (No coverage)
+   - `SetupRoutes`: 0.0% (No coverage)
+   - `Start`: 0.0% (No coverage)
 
 These areas represent opportunities for future test improvements to further enhance the overall code quality and reliability.
 
