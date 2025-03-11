@@ -158,8 +158,8 @@ The combat handler has the following coverage for its functions:
 - `findSafePosition`: 63.2%
 - `GetCombatState`: 72.7%
 - `NewCombatHandler`: 50.0%
-- `HandleCombat`: 0%
-- `sendResponse`: 0%
+- `HandleCombat`: 37.0% (Improved from 0%)
+- `sendResponse`: 50.0% (Improved from 0%)
 
 ### Combat Manager Coverage
 
@@ -208,8 +208,8 @@ The following areas still need improved test coverage:
    - `HandleMessage`: 90% (Improved with integration tests)
 
 2. Combat handler functions:
-   - `HandleCombat`: 0% (Difficult to test due to WebSocket dependency)
-   - `sendResponse`: 0% (Difficult to test due to WebSocket dependency)
+   - `HandleCombat`: 37.0% (Improved from 0%, but still needs more coverage)
+   - `sendResponse`: 50.0% (Improved from 0%, but still needs more coverage)
 
 3. Combat manager functions:
    - `calculateExpGain`: 60.0% (Needs more test cases for different mob types and levels)
@@ -396,4 +396,25 @@ Further improvements to the inventory handler tests include:
    - Handling non-existent items
    - Handling weight limit exceeded cases
 3. Achieved 100% coverage for the `AddItemToInventory` function
-4. Further contributed to increasing the handlers package coverage 
+4. Further contributed to increasing the handlers package coverage
+
+### Combat Handler Tests - HandleCombat and sendResponse
+
+Further improvements to the combat handler tests include:
+
+1. Added test coverage for the previously untested `HandleCombat` function:
+   - Created tests for the WebSocket connection handling
+   - Added tests for error cases when the WebSocket upgrade fails
+   - Improved coverage from 0% to 37.0%
+
+2. Added test coverage for the previously untested `sendResponse` function:
+   - Created tests for successful message sending
+   - Added tests for error handling
+   - Improved coverage from 0% to 50.0%
+
+3. Implemented various testing approaches to overcome the challenges of testing WebSocket functionality:
+   - Created mock WebSocket connections
+   - Used real WebSocket connections with test servers
+   - Tested error handling for connection failures
+
+4. Further contributed to increasing the handlers package coverage to 78.4% 
