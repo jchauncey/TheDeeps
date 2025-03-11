@@ -307,14 +307,21 @@ const CharacterCreation: React.FC = () => {
     <Container maxW="container.xl" py={8}>
       <Button 
         leftIcon={<ArrowBackIcon />} 
-        variant="outline" 
+        variant="solid" 
         mb={8} 
         onClick={() => navigate('/')}
+        bg="gray.600"
+        color="cyan.300"
+        borderColor="cyan.500"
+        borderWidth="1px"
+        _hover={{ bg: "gray.700", color: "cyan.200" }}
+        _active={{ bg: "gray.800", color: "cyan.100" }}
+        boxShadow="sm"
       >
         Back to Character Selection
       </Button>
 
-      <Heading as="h1" size="xl" mb={6} textAlign="center">
+      <Heading as="h1" size="xl" mb={6} textAlign="center" color="blue.300">
         Create New Character
       </Heading>
 
@@ -323,9 +330,9 @@ const CharacterCreation: React.FC = () => {
           <Stack spacing={6}>
             <Card bg="gray.700" shadow="md">
               <CardBody>
-                <Heading size="md" mb={4}>Basic Information</Heading>
+                <Heading size="md" mb={4} color="cyan.300">Basic Information</Heading>
                 <FormControl isRequired mb={4}>
-                  <FormLabel>Character Name</FormLabel>
+                  <FormLabel color="gray.200">Character Name</FormLabel>
                   <Input 
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -333,20 +340,22 @@ const CharacterCreation: React.FC = () => {
                     bg="gray.600"
                     _hover={{ bg: "gray.600" }}
                     _focus={{ bg: "gray.600", borderColor: "blue.400" }}
+                    color="white"
                   />
                 </FormControl>
 
                 <FormControl isRequired>
-                  <FormLabel>Character Class</FormLabel>
+                  <FormLabel color="gray.200">Character Class</FormLabel>
                   <Select 
                     value={selectedClass}
                     onChange={(e) => setSelectedClass(e.target.value as CharacterClass)}
                     bg="gray.600"
                     _hover={{ bg: "gray.600" }}
                     _focus={{ bg: "gray.600", borderColor: "blue.400" }}
+                    color="white"
                   >
                     {sortedClasses.map((c) => (
-                      <option key={c.name} value={c.name}>
+                      <option key={c.name} value={c.name} style={{backgroundColor: '#2D3748', color: 'white'}}>
                         {c.name.charAt(0).toUpperCase() + c.name.slice(1)}
                       </option>
                     ))}
@@ -358,8 +367,8 @@ const CharacterCreation: React.FC = () => {
             <Card bg="gray.700" shadow="md">
               <CardBody>
                 <Flex justify="space-between" align="center" mb={4}>
-                  <Heading size="md">Attribute Points</Heading>
-                  <Text>
+                  <Heading size="md" color="cyan.300">Attribute Points</Heading>
+                  <Text color="gray.200">
                     Remaining: <Text as="span" fontWeight="bold" color={pointsRemaining > 0 ? "green.300" : "gray.400"}>
                       {pointsRemaining}
                     </Text>
@@ -372,7 +381,7 @@ const CharacterCreation: React.FC = () => {
                   mb={4}
                   borderRadius="md"
                 />
-                <Text fontSize="sm" mb={4}>
+                <Text fontSize="sm" mb={4} color="gray.300">
                   Allocate your attribute points. Your class's primary attributes have been pre-allocated.
                   <Tooltip label="Higher attributes cost more points. 13-14 costs 2 points per level, 15+ costs 3 points per level.">
                     <InfoIcon ml={2} color="blue.300" cursor="pointer" />
@@ -412,7 +421,7 @@ const CharacterCreation: React.FC = () => {
                         boxShadow="sm"
                       >
                         <Stat size="sm">
-                          <StatLabel textTransform="capitalize" fontSize="md" fontWeight="bold">
+                          <StatLabel textTransform="capitalize" fontSize="md" fontWeight="bold" color="gray.100">
                             {key} {isPrimary && <Badge colorScheme="blue" ml={1}>Primary</Badge>}
                           </StatLabel>
                           <Flex align="center">
@@ -471,10 +480,14 @@ const CharacterCreation: React.FC = () => {
 
             <Button 
               type="submit" 
-              colorScheme="blue" 
+              colorScheme="cyan"
               size="lg" 
               width="full"
               isLoading={isSubmitting}
+              bg="cyan.500"
+              _hover={{ bg: "cyan.600" }}
+              _active={{ bg: "cyan.700" }}
+              boxShadow="md"
             >
               Create Character
             </Button>
@@ -483,12 +496,12 @@ const CharacterCreation: React.FC = () => {
           <Stack spacing={6}>
             <Card bg="gray.700" shadow="md">
               <CardBody>
-                <Heading size="md" mb={2} textTransform="capitalize">
+                <Heading size="md" mb={2} textTransform="capitalize" color="cyan.300">
                   {selectedClass}
                 </Heading>
-                <Text mb={4}>{getSelectedClassInfo().description}</Text>
+                <Text mb={4} color="gray.300">{getSelectedClassInfo().description}</Text>
                 <Divider mb={4} />
-                <Text fontWeight="bold" mb={2}>Primary Attributes:</Text>
+                <Text fontWeight="bold" mb={2} color="gray.200">Primary Attributes:</Text>
                 <Stack direction="row" mb={4}>
                   {getSelectedClassInfo().primaryAttributes.map((attr) => (
                     <Badge key={attr} colorScheme="blue" fontSize="0.8em" p={1}>
@@ -501,7 +514,7 @@ const CharacterCreation: React.FC = () => {
 
             <Card bg="gray.700" shadow="md">
               <CardBody>
-                <Heading size="md" mb={4}>Character Preview</Heading>
+                <Heading size="md" mb={4} color="cyan.300">Character Preview</Heading>
                 <SimpleGrid columns={2} spacing={6}>
                   <Box bg="gray.600" p={4} borderRadius="md">
                     <Text fontWeight="bold" color="gray.300" mb={1}>HP</Text>
@@ -624,53 +637,53 @@ const CharacterCreation: React.FC = () => {
 
             <Card bg="gray.700" shadow="md">
               <CardBody>
-                <Heading size="md" mb={4}>Starting Equipment</Heading>
+                <Heading size="md" mb={4} color="cyan.300">Starting Equipment</Heading>
                 <SimpleGrid columns={1} spacing={3}>
                   {(() => {
                     switch (selectedClass) {
                       case 'warrior':
                         return (
                           <>
-                            <Text>• Longsword (1d8 damage)</Text>
-                            <Text>• Chain mail armor (AC 16)</Text>
-                            <Text>• Shield (+2 AC)</Text>
-                            <Text>• Explorer's pack</Text>
+                            <Text color="gray.200">• Longsword <Text as="span" color="orange.300">(1d8 damage)</Text></Text>
+                            <Text color="gray.200">• Chain mail armor <Text as="span" color="cyan.300">(AC 16)</Text></Text>
+                            <Text color="gray.200">• Shield <Text as="span" color="cyan.300">(+2 AC)</Text></Text>
+                            <Text color="gray.200">• Explorer's pack</Text>
                           </>
                         );
                       case 'mage':
                         return (
                           <>
-                            <Text>• Quarterstaff (1d6 damage)</Text>
-                            <Text>• Spellbook</Text>
-                            <Text>• Arcane focus</Text>
-                            <Text>• Scholar's pack</Text>
+                            <Text color="gray.200">• Quarterstaff <Text as="span" color="orange.300">(1d6 damage)</Text></Text>
+                            <Text color="gray.200">• Spellbook</Text>
+                            <Text color="gray.200">• Arcane focus</Text>
+                            <Text color="gray.200">• Scholar's pack</Text>
                           </>
                         );
                       case 'rogue':
                         return (
                           <>
-                            <Text>• Shortsword (1d6 damage)</Text>
-                            <Text>• Shortbow with 20 arrows (1d6 damage)</Text>
-                            <Text>• Leather armor (AC 11)</Text>
-                            <Text>• Thieves' tools</Text>
+                            <Text color="gray.200">• Shortsword <Text as="span" color="orange.300">(1d6 damage)</Text></Text>
+                            <Text color="gray.200">• Shortbow with 20 arrows <Text as="span" color="orange.300">(1d6 damage)</Text></Text>
+                            <Text color="gray.200">• Leather armor <Text as="span" color="cyan.300">(AC 11)</Text></Text>
+                            <Text color="gray.200">• Thieves' tools</Text>
                           </>
                         );
                       case 'cleric':
                         return (
                           <>
-                            <Text>• Mace (1d6 damage)</Text>
-                            <Text>• Scale mail (AC 14)</Text>
-                            <Text>• Shield (+2 AC)</Text>
-                            <Text>• Holy symbol</Text>
+                            <Text color="gray.200">• Mace <Text as="span" color="orange.300">(1d6 damage)</Text></Text>
+                            <Text color="gray.200">• Scale mail <Text as="span" color="cyan.300">(AC 14)</Text></Text>
+                            <Text color="gray.200">• Shield <Text as="span" color="cyan.300">(+2 AC)</Text></Text>
+                            <Text color="gray.200">• Holy symbol</Text>
                           </>
                         );
                       default:
                         return (
                           <>
-                            <Text>• Basic weapon</Text>
-                            <Text>• Basic armor</Text>
-                            <Text>• Adventurer's pack</Text>
-                            <Text>• 10 gold pieces</Text>
+                            <Text color="gray.200">• Basic weapon</Text>
+                            <Text color="gray.200">• Basic armor</Text>
+                            <Text color="gray.200">• Adventurer's pack</Text>
+                            <Text color="gray.200">• 10 gold pieces</Text>
                           </>
                         );
                     }
