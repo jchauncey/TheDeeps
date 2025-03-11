@@ -143,7 +143,23 @@ npm install
 
 # Run the client in development mode
 npm start
+
+# Or use the run script
+./run.sh
 ```
+
+## Troubleshooting
+
+### Client Issues
+If you encounter the error `ENOENT: no such file or directory, uv_cwd` when running `npm run dev`, try using `npm start` instead.
+
+If you encounter dependency conflicts during installation, you can use:
+```bash
+npm install --legacy-peer-deps
+```
+
+### Server Issues
+If you encounter an error like `undefined: NewServer` when running `go run main.go`, use `go run .` instead to compile all files in the package.
 
 ## Client Features
 
