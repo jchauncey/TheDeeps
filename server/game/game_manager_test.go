@@ -87,8 +87,10 @@ func TestBroadcastMessage(t *testing.T) {
 	// Create test characters
 	character1 := models.NewCharacter("TestCharacter1", models.Warrior)
 	character2 := models.NewCharacter("TestCharacter2", models.Mage)
+	character3 := models.NewCharacter("TestCharacter3", models.Rogue)
 	characterRepo.Save(character1)
 	characterRepo.Save(character2)
+	characterRepo.Save(character3)
 
 	// Create test clients
 	client1 := &Client{
@@ -103,10 +105,21 @@ func TestBroadcastMessage(t *testing.T) {
 		Manager:   manager,
 		Send:      make(chan Message, 10),
 	}
+	// Create a client with a channel that will be full
+	client3 := &Client{
+		ID:        "test-client-3",
+		Character: character3,
+		Manager:   manager,
+		Send:      make(chan Message, 1), // Small buffer size
+	}
 
 	// Register clients
 	manager.registerClient(client1)
 	manager.registerClient(client2)
+	manager.registerClient(client3)
+
+	// Fill client3's channel to trigger the default case
+	client3.Send <- Message{Type: "filler", Text: "This message fills the channel"}
 
 	// Create a test message
 	testMessage := Message{
@@ -114,10 +127,13 @@ func TestBroadcastMessage(t *testing.T) {
 		Text: "Test message",
 	}
 
+	// Verify client count before broadcast
+	assert.Equal(t, 3, len(manager.Clients), "Should have 3 clients before broadcast")
+
 	// Broadcast the message
 	manager.broadcastMessage(testMessage)
 
-	// Verify that both clients received the message
+	// Verify that client1 and client2 received the message
 	select {
 	case msg := <-client1.Send:
 		assert.Equal(t, testMessage, msg, "Client 1 should receive the correct message")
@@ -132,9 +148,21 @@ func TestBroadcastMessage(t *testing.T) {
 		t.Fatal("Client 2 did not receive the message in time")
 	}
 
-	// Clean up
+	// Verify that client3 was removed due to full channel
+	time.Sleep(50 * time.Millisecond) // Give a little time for the cleanup to happen
+	assert.Equal(t, 2, len(manager.Clients), "Should have 2 clients after broadcast (client3 should be removed)")
+	_, exists := manager.Clients[client3.ID]
+	assert.False(t, exists, "Client 3 should be removed from clients map")
+
+	// Test broadcasting to an empty client list
 	manager.unregisterClient(client1)
 	manager.unregisterClient(client2)
+	assert.Equal(t, 0, len(manager.Clients), "Should have 0 clients after unregistering all")
+
+	// This should not cause any errors
+	manager.broadcastMessage(testMessage)
+
+	// No need to manually close channels as they're already closed or will be garbage collected
 }
 
 // TestHandleMessage tests the handling of different message types

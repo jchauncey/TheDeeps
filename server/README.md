@@ -120,17 +120,27 @@ make server-open-coverage
 
 ## Test Coverage Summary
 
-The current test coverage is approximately 55.7% of statements. Areas with high coverage include:
+The current test coverage is approximately 63.9% of statements (improved from 55.7%). Areas with high coverage include:
 
 - Repository implementations (100%)
 - Logger functionality (91.3%)
 - Character and skill models (62.6%)
 - Map generator (92.1%)
 - Character handler (92.3%)
+- Game manager (71.4%, significantly improved from previous version)
 
-Areas that need improved test coverage:
+Key improvements in the game manager coverage:
+- `broadcastMessage`: 100% coverage
+- `registerClient` and `unregisterClient`: 100% coverage
+- `handleAttack`, `handleUseItem`, `handleDropItem`, `handleEquipItem`, `handleUnequipItem`: 100% coverage
+- `HandleMessage`: 85.7% coverage
+- `handleMove`: 75.0% coverage
+- `handleAscend` and `handleDescend`: 77.1% coverage
 
-- Game manager (many functions at 0%)
+Areas that still need improved test coverage:
+
+- WebSocket-related functions in game manager (`Run`, `readPump`, `writePump`, `HandleConnection`): 0%
+- `Start` function in game manager: 0%
 - Combat handler (most functions at 0%)
 
 ## Adding New Tests
