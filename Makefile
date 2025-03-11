@@ -1,4 +1,4 @@
-.PHONY: build run clean client-install client-start client-build client-test client-test-coverage client-test-coverage-detail client-open-coverage server-test-coverage server-test-coverage-html server-open-coverage server-test-coverage-summary server-test-ginkgo server-test-ginkgo-verbose server-test-ginkgo-focus server-coverage-badge
+.PHONY: build run clean client-install client-start client-build client-test client-test-coverage client-test-coverage-detail client-open-coverage server-test-coverage server-test-coverage-html server-open-coverage server-test-coverage-summary server-test-ginkgo server-test-ginkgo-verbose server-test-ginkgo-focus server-coverage-badge server-test-ginkgo-coverage
 
 # Build the server
 build:
@@ -38,19 +38,21 @@ server-test-coverage-summary:
 	go test -coverprofile=coverage.out ./server/...
 	go tool cover -func=coverage.out
 
-# Run server tests with Ginkgo and coverage
+# Run server tests with Ginkgo
 server-test-ginkgo:
+	cd server && $(shell go env GOPATH)/bin/ginkgo ./...
+
+# Run server tests with Ginkgo and coverage
+server-test-ginkgo-coverage:
 	mkdir -p server/coverage
 	cd server && $(shell go env GOPATH)/bin/ginkgo --cover --coverprofile=coverage.out ./...
 	go tool cover -html=server/coverage.out -o server/coverage/coverage.html
-	go tool cover -func=server/coverage.out
 
 # Run server tests with Ginkgo, verbose output and coverage
 server-test-ginkgo-verbose:
 	mkdir -p server/coverage
 	cd server && $(shell go env GOPATH)/bin/ginkgo --v --cover --coverprofile=coverage.out ./...
 	go tool cover -html=server/coverage.out -o server/coverage/coverage.html
-	go tool cover -func=server/coverage.out
 
 # Run server tests with Ginkgo, focusing on specific tests or packages
 # Usage: make server-test-ginkgo-focus FOCUS="TestName"
@@ -58,7 +60,6 @@ server-test-ginkgo-focus:
 	mkdir -p server/coverage
 	cd server && $(shell go env GOPATH)/bin/ginkgo --focus="$(FOCUS)" --cover --coverprofile=coverage.out ./...
 	go tool cover -html=server/coverage.out -o server/coverage/coverage.html
-	go tool cover -func=server/coverage.out
 
 # Generate a coverage badge for the README
 server-coverage-badge:

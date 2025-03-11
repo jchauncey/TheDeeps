@@ -120,14 +120,14 @@ make server-open-coverage
 
 ## Test Coverage
 
-The server codebase currently has an overall test coverage of 78.4% of statements.
+The server codebase currently has an overall test coverage of 79.0% of statements.
 
 ### Package Coverage
 
 - `game`: 81.2% (Improved from 77.7%)
 - `handlers`: 67.9% (Improved from 61.9%)
 - `log`: 91.3%
-- `models`: 78.0%
+- `models`: 80.3% (Improved from 78.0%)
 - `repositories`: 100.0%
 
 ### Character Model Coverage
@@ -182,6 +182,23 @@ The dungeon handler has excellent coverage for all functions:
 - `JoinDungeon`: 62.5% (New coverage)
 - `GetFloor`: 86.4%
 
+### Inventory Handler Coverage
+
+The inventory handler has good coverage for most functions:
+
+- `NewInventoryHandler`: 100%
+- `RegisterRoutes`: 100%
+- `GetInventory`: 75.0%
+- `GetInventoryItem`: 69.2%
+- `EquipItem`: 71.4%
+- `UnequipItem`: 86.2% (Improved from 41.4%)
+- `UseItem`: 71.4%
+- `GetEquipment`: 75.0%
+- `GenerateItems`: 63.6%
+- `GetAllItems`: 0.0% (Needs coverage)
+- `AddItemToInventory`: 0.0% (Needs coverage)
+- `GetCharacterWeight`: 0.0% (Needs coverage)
+
 ### Areas for Improvement
 
 The following areas still need improved test coverage:
@@ -204,8 +221,11 @@ The following areas still need improved test coverage:
 
 4. Character skills:
    - `UpdateCharacterWithSkills`: 0%
-   - `GetSkillCheckDifficulty`: 0%
-   - `GetSkillsForClass`: 0%
+
+5. Inventory handler functions:
+   - `GetAllItems`: 0%
+   - `AddItemToInventory`: 0%
+   - `GetCharacterWeight`: 0%
 
 ### WebSocket Integration Tests
 
@@ -242,6 +262,23 @@ When adding new tests, follow these guidelines:
 For more information on writing tests with Ginkgo, see the [Ginkgo documentation](https://onsi.github.io/ginkgo/).
 
 ## Recent Improvements
+
+### Character Skills Tests
+
+Added comprehensive tests for previously untested character skills functions:
+
+1. Created `TestGetSkillCheckDifficulty` to test the difficulty class labeling system:
+   - Covers all difficulty ranges from "Very Easy" to "Nearly Impossible"
+   - Tests boundary conditions at each difficulty threshold
+   - Ensures consistent difficulty labels across the game
+
+2. Implemented `TestGetSkillsForClass` to verify skill recommendations:
+   - Tests all 12 character classes and their recommended skills
+   - Verifies that each class receives the correct skill recommendations
+   - Includes edge case for invalid character classes
+
+3. Achieved 100% test coverage for both functions
+4. Contributed to increasing the models package coverage from 78.0% to 80.3%
 
 ### Dungeon Handler Tests
 
@@ -287,4 +324,37 @@ The character model tests have been enhanced with:
 1. Added test coverage for the mana increase functionality in the `AddExperience` method
 2. Created a comprehensive `TestAddExperienceManaIncrease` function that tests mana increases for all character classes
 3. Verified that attribute modifiers correctly affect mana increases during level-ups
-4. Achieved 100% coverage for the `AddExperience` function 
+4. Achieved 100% coverage for the `AddExperience` function
+
+### Character Skills Tests
+
+The character skills tests have been enhanced with:
+
+1. Added test coverage for the `GetSkillCheckDifficulty` function, which was previously untested
+2. Created a comprehensive `TestGetSkillCheckDifficulty` function that tests all difficulty class ranges:
+   - Very Easy (DC ≤ 5)
+   - Easy (DC ≤ 10)
+   - Medium (DC ≤ 15)
+   - Hard (DC ≤ 20)
+   - Very Hard (DC ≤ 25)
+   - Nearly Impossible (DC > 25)
+3. Added test coverage for the `GetSkillsForClass` function
+4. Created a comprehensive `TestGetSkillsForClass` function that tests skill recommendations for all character classes
+5. Improved models package coverage from 78.0% to 80.3%
+6. Achieved 100% coverage for both previously untested functions
+
+### Inventory Handler Tests
+
+The inventory handler tests have been enhanced with:
+
+1. Added comprehensive test coverage for the `UnequipItem` function, which was previously at 41.4% coverage
+2. Created multiple test cases to cover all code paths:
+   - Unequipping a weapon
+   - Unequipping armor
+   - Unequipping an accessory
+   - Unequipping an item that's equipped but not in inventory
+   - Handling non-existent characters
+   - Handling non-existent items
+   - Handling failure cases when unequipping fails
+3. Improved coverage for the `UnequipItem` function from 41.4% to 86.2%
+4. Contributed to increasing the handlers package coverage 

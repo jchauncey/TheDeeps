@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/jchauncey/TheDeeps/server/models"
 	"github.com/jchauncey/TheDeeps/server/repositories"
@@ -178,6 +179,157 @@ func TestInventoryHandler(t *testing.T) {
 		// Verify the item is unequipped
 		updatedCharacter, _ := characterRepo.GetByID(character.ID)
 		assert.Nil(t, updatedCharacter.Equipment.Weapon)
+	})
+
+	// Test UnequipItem for non-existent character
+	t.Run("UnequipItem_CharacterNotFound", func(t *testing.T) {
+		req, _ := http.NewRequest("POST", "/api/characters/nonexistent-id/inventory/"+sword.ID+"/unequip", nil)
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Character not found")
+	})
+
+	// Test UnequipItem for non-existent item
+	t.Run("UnequipItem_ItemNotFound", func(t *testing.T) {
+		req, _ := http.NewRequest("POST", "/api/characters/"+character.ID+"/inventory/nonexistent-id/unequip", nil)
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Item not found")
+	})
+
+	// Test UnequipItem for armor
+	t.Run("UnequipItem_Armor", func(t *testing.T) {
+		// First, make sure the armor is equipped
+		character.EquipItem(armor.ID)
+		characterRepo.Save(character)
+
+		req, _ := http.NewRequest("POST", "/api/characters/"+character.ID+"/inventory/"+armor.ID+"/unequip", nil)
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		// Verify the armor is unequipped
+		updatedCharacter, _ := characterRepo.GetByID(character.ID)
+		assert.Nil(t, updatedCharacter.Equipment.Armor)
+	})
+
+	// Test UnequipItem for accessory
+	t.Run("UnequipItem_Accessory", func(t *testing.T) {
+		// Create and equip an accessory (artifact)
+		accessory := &models.Item{
+			ID:          uuid.New().String(),
+			Type:        models.ItemArtifact,
+			Name:        "Test Accessory",
+			Description: "A test accessory",
+			Value:       50,
+			Power:       5,
+			Weight:      0.5,
+		}
+
+		character.AddToInventory(accessory)
+		inventoryRepo.SaveItem(accessory)
+
+		// Directly set the accessory in the equipment slot
+		character.Equipment.Accessory = accessory
+		accessory.Equipped = true
+		characterRepo.Save(character)
+
+		req, _ := http.NewRequest("POST", "/api/characters/"+character.ID+"/inventory/"+accessory.ID+"/unequip", nil)
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		// Verify the accessory is unequipped
+		updatedCharacter, _ := characterRepo.GetByID(character.ID)
+		assert.Nil(t, updatedCharacter.Equipment.Accessory)
+	})
+
+	// Test UnequipItem for item that's equipped but not in inventory
+	t.Run("UnequipItem_EquippedButNotInInventory", func(t *testing.T) {
+		// Create a new weapon and equip it directly to the equipment slot
+		directWeapon := models.NewWeapon("Direct Weapon", 12, 120, 1, nil)
+		inventoryRepo.SaveItem(directWeapon)
+
+		// Manually set the equipment without adding to inventory
+		character.Equipment.Weapon = directWeapon
+		characterRepo.Save(character)
+
+		req, _ := http.NewRequest("POST", "/api/characters/"+character.ID+"/inventory/"+directWeapon.ID+"/unequip", nil)
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		// Verify the weapon is unequipped
+		updatedCharacter, _ := characterRepo.GetByID(character.ID)
+		assert.Nil(t, updatedCharacter.Equipment.Weapon)
+	})
+
+	// Test UnequipItem failure case for item not found
+	t.Run("UnequipItem_FailureCase", func(t *testing.T) {
+		// Create a mock character with a special setup that will cause unequip to fail
+		mockCharacter := models.NewCharacter("MockCharacter", models.Warrior)
+		characterRepo.Save(mockCharacter)
+
+		// Try to unequip an item type that isn't equipped
+		// This will cause the unequip operation to fail
+		req, _ := http.NewRequest("POST", "/api/characters/"+mockCharacter.ID+"/inventory/nonexistent-id/unequip", nil)
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		// Since there's no item to unequip, this should fail
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Item not found")
+	})
+
+	// Test UnequipItem failure case when character model's UnequipItem returns false
+	t.Run("UnequipItem_ModelFailure", func(t *testing.T) {
+		// Create a test character
+		mockCharacter := models.NewCharacter("MockForFailure", models.Warrior)
+		characterRepo.Save(mockCharacter)
+
+		// Create a test item that's in inventory but not equipped
+		testItem := models.NewWeapon("Test Weapon", 10, 100, 1, nil)
+		mockCharacter.AddToInventory(testItem)
+		inventoryRepo.SaveItem(testItem)
+		characterRepo.Save(mockCharacter)
+
+		// When we try to unequip an item that's in inventory but not equipped,
+		// the character model's UnequipItem should return false
+		req, _ := http.NewRequest("POST", "/api/characters/"+mockCharacter.ID+"/inventory/"+testItem.ID+"/unequip", nil)
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		// This should fail with a bad request
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Failed to unequip item")
 	})
 
 	// Test UseItem

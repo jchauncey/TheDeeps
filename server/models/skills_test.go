@@ -159,3 +159,78 @@ func TestSkillLeveling(t *testing.T) {
 	expectedFinalLevel := 3
 	assert.Equal(t, expectedFinalLevel, finalLevel, "Expected final level to be %d, got %d", expectedFinalLevel, finalLevel)
 }
+
+func TestGetSkillCheckDifficulty(t *testing.T) {
+	testCases := []struct {
+		name            string
+		difficultyClass int
+		expectedLabel   string
+	}{
+		{"Very Easy", 3, "Very Easy"},
+		{"Very Easy Boundary", 5, "Very Easy"},
+		{"Easy", 8, "Easy"},
+		{"Easy Boundary", 10, "Easy"},
+		{"Medium", 12, "Medium"},
+		{"Medium Boundary", 15, "Medium"},
+		{"Hard", 18, "Hard"},
+		{"Hard Boundary", 20, "Hard"},
+		{"Very Hard", 22, "Very Hard"},
+		{"Very Hard Boundary", 25, "Very Hard"},
+		{"Nearly Impossible", 30, "Nearly Impossible"},
+		{"Extreme", 50, "Nearly Impossible"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := GetSkillCheckDifficulty(tc.difficultyClass)
+			assert.Equal(t, tc.expectedLabel, result,
+				"Expected difficulty class %d to be labeled as '%s', got '%s'",
+				tc.difficultyClass, tc.expectedLabel, result)
+		})
+	}
+}
+
+func TestGetSkillsForClass(t *testing.T) {
+	testCases := []struct {
+		name           string
+		class          CharacterClass
+		expectedSkills []SkillType
+	}{
+		{"Warrior", Warrior, []SkillType{SkillMelee, SkillBlock}},
+		{"Mage", Mage, []SkillType{SkillArcana, SkillElemental}},
+		{"Rogue", Rogue, []SkillType{SkillStealth, SkillLockpicking}},
+		{"Cleric", Cleric, []SkillType{SkillDivination, SkillPersuasion}},
+		{"Druid", Druid, []SkillType{SkillSurvival, SkillElemental}},
+		{"Warlock", Warlock, []SkillType{SkillArcana, SkillNecromancy}},
+		{"Bard", Bard, []SkillType{SkillPersuasion, SkillDeception}},
+		{"Paladin", Paladin, []SkillType{SkillMelee, SkillPersuasion}},
+		{"Ranger", Ranger, []SkillType{SkillRanged, SkillSurvival}},
+		{"Monk", Monk, []SkillType{SkillDodge, SkillPerception}},
+		{"Barbarian", Barbarian, []SkillType{SkillMelee, SkillIntimidation}},
+		{"Sorcerer", Sorcerer, []SkillType{SkillElemental, SkillArcana}},
+		{"Invalid Class", CharacterClass("invalid"), []SkillType{}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := GetSkillsForClass(tc.class)
+
+			// Check that the result has the same length as expected
+			assert.Equal(t, len(tc.expectedSkills), len(result),
+				"Expected %d skills for class %s, got %d",
+				len(tc.expectedSkills), tc.class, len(result))
+
+			// Check that all expected skills are in the result
+			for _, expectedSkill := range tc.expectedSkills {
+				found := false
+				for _, resultSkill := range result {
+					if expectedSkill == resultSkill {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Expected skill %s not found for class %s", expectedSkill, tc.class)
+			}
+		})
+	}
+}
