@@ -118,42 +118,74 @@ To open the HTML coverage report in your default browser:
 make server-open-coverage
 ```
 
-## Test Coverage Summary
+## Test Coverage
 
-The current test coverage is approximately 68.5% of statements (improved from 63.9%). Areas with high coverage include:
+The server currently has approximately 70.6% test coverage overall. Key components have the following coverage:
 
-- Repository implementations (100%)
-- Logger functionality (91.3%)
-- Character and skill models (62.6%)
-- Map generator (92.1%)
-- Character handler (92.3%)
-- Game manager (71.4%)
-- Combat handler (most functions now have good coverage)
+- Models: 72.1%
+- Game: 68.9%
+- Handlers: 60.3%
+- Repositories: 100.0%
+- Logger: 91.3%
 
-Key improvements in the combat handler coverage:
-- `handleAttack`: 84.2% coverage
-- `handleUseItem`: 100% coverage
-- `handleFlee`: 86.7% coverage
-- `isAdjacent`: 100% coverage
-- `abs`: 100% coverage
-- `findSafePosition`: 78.9% coverage
-- `GetCombatState`: 81.8% coverage
+### Character Model Coverage
 
-Areas that still need improved test coverage:
+The character model has been extensively tested with the following coverage for key functions:
 
-- WebSocket-related functions in game manager (`Run`, `readPump`, `writePump`, `HandleConnection`): 0%
-- `Start` function in game manager: 0%
-- `HandleCombat` in combat handler: 0% (requires WebSocket connection)
-- `sendResponse` in combat handler: 0% (requires WebSocket connection)
+- `AddExperience`: 100%
+- `RemoveFromInventory`: 100%
+- `UnequipItem`: 100%
+- `UseItem`: 86.7%
+- `CalculateAttackPower`: 100%
+- `CalculateDefensePower`: 100%
+- `CalculateBaseAC`: 100%
+- `CalculateArmorAC`: 83.3%
+- `CalculateTotalAC`: 66.7%
+- `CalculateHitChance`: 86.7%
+- `GetSkillBonus`: 66.7%
 
-## Adding New Tests
+### Combat Handler Coverage
+
+The combat handler has good coverage for most functions:
+
+- `handleAttack`: 84.2%
+- `handleUseItem`: 100%
+- `handleFlee`: 86.7%
+- `isAdjacent`: 100%
+- `abs`: 100%
+- `findSafePosition`: 78.9%
+- `GetCombatState`: 81.8%
+- `NewCombatHandler`: 50.0%
+
+### Areas for Improvement
+
+The following areas still need improved test coverage:
+
+1. WebSocket-related functions in the game manager:
+   - `Start`: 0%
+   - `Run`: 0%
+   - `readPump`: 0%
+   - `writePump`: 0%
+   - `HandleConnection`: 0%
+
+2. Combat handler functions:
+   - `HandleCombat`: 0%
+   - `sendResponse`: 0%
+
+3. Character skills:
+   - `UpdateCharacterWithSkills`: 0%
+   - `GetSkillCheckDifficulty`: 0%
+   - `GetSkillsForClass`: 0%
+
+### Adding New Tests
 
 When adding new tests, follow these guidelines:
 
-1. Place test files in the same package as the code being tested
-2. Name test files with the `_test.go` suffix
-3. Use descriptive test names that explain what is being tested
-4. Use table-driven tests where appropriate to test multiple scenarios
-5. Mock external dependencies to isolate the code being tested
+1. Use table-driven tests where appropriate
+2. Mock external dependencies
+3. Use descriptive test names
+4. Aim for high coverage of the code
+5. Test both success and failure cases
+6. Use the testify/assert package for assertions
 
 For more information on writing tests with Ginkgo, see the [Ginkgo documentation](https://onsi.github.io/ginkgo/). 

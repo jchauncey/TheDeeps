@@ -420,3 +420,645 @@ func TestArmorClass(t *testing.T) {
 	monkArmoredAC := monkCharacter.CalculateTotalAC()
 	assert.Equal(t, 17, monkArmoredAC, "Monk AC with armor should be base AC + armor AC")
 }
+
+// TestRemoveFromInventory tests the RemoveFromInventory function
+func TestRemoveFromInventory(t *testing.T) {
+	tests := []struct {
+		name           string
+		inventory      []*Item
+		itemIDToRemove string
+		expectedFound  bool
+		expectedItem   *Item
+	}{
+		{
+			name: "Remove Existing Item",
+			inventory: []*Item{
+				{ID: "item1", Name: "Sword", Type: ItemWeapon},
+				{ID: "item2", Name: "Shield", Type: ItemArmor},
+			},
+			itemIDToRemove: "item1",
+			expectedFound:  true,
+			expectedItem: &Item{
+				ID:   "item1",
+				Name: "Sword",
+				Type: ItemWeapon,
+			},
+		},
+		{
+			name: "Remove Non-Existent Item",
+			inventory: []*Item{
+				{ID: "item1", Name: "Sword", Type: ItemWeapon},
+			},
+			itemIDToRemove: "item2",
+			expectedFound:  false,
+			expectedItem:   nil,
+		},
+		{
+			name:           "Remove From Empty Inventory",
+			inventory:      []*Item{},
+			itemIDToRemove: "item1",
+			expectedFound:  false,
+			expectedItem:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character with the test inventory
+			character := NewCharacter("TestChar", Warrior)
+			character.Inventory = tt.inventory
+
+			// Call RemoveFromInventory
+			item, found := character.RemoveFromInventory(tt.itemIDToRemove)
+
+			// Check results
+			assert.Equal(t, tt.expectedFound, found, "Found status should match expected")
+			if tt.expectedFound {
+				assert.Equal(t, tt.expectedItem.ID, item.ID, "Removed item ID should match expected")
+				assert.Equal(t, tt.expectedItem.Name, item.Name, "Removed item name should match expected")
+				assert.Equal(t, tt.expectedItem.Type, item.Type, "Removed item type should match expected")
+
+				// Verify item is no longer in inventory
+				for _, invItem := range character.Inventory {
+					assert.NotEqual(t, tt.itemIDToRemove, invItem.ID, "Item should be removed from inventory")
+				}
+			} else {
+				assert.Nil(t, item, "Item should be nil when not found")
+			}
+		})
+	}
+}
+
+// TestUnequipItem tests the UnequipItem function
+func TestUnequipItem(t *testing.T) {
+	tests := []struct {
+		name              string
+		equippedItems     map[ItemType]*Item
+		itemTypeToUnequip ItemType
+		expectedSuccess   bool
+	}{
+		{
+			name: "Unequip Weapon",
+			equippedItems: map[ItemType]*Item{
+				ItemWeapon: {ID: "weapon1", Name: "Sword", Type: ItemWeapon},
+			},
+			itemTypeToUnequip: ItemWeapon,
+			expectedSuccess:   true,
+		},
+		{
+			name: "Unequip Armor",
+			equippedItems: map[ItemType]*Item{
+				ItemArmor: {ID: "armor1", Name: "Shield", Type: ItemArmor},
+			},
+			itemTypeToUnequip: ItemArmor,
+			expectedSuccess:   true,
+		},
+		{
+			name: "Unequip Accessory",
+			equippedItems: map[ItemType]*Item{
+				ItemArtifact: {ID: "acc1", Name: "Ring", Type: ItemArtifact},
+			},
+			itemTypeToUnequip: ItemArtifact,
+			expectedSuccess:   true,
+		},
+		{
+			name: "Unequip Non-Equipped Item Type",
+			equippedItems: map[ItemType]*Item{
+				ItemWeapon: {ID: "weapon1", Name: "Sword", Type: ItemWeapon},
+			},
+			itemTypeToUnequip: ItemArmor,
+			expectedSuccess:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character
+			character := NewCharacter("TestChar", Warrior)
+
+			// Set up equipment
+			if weapon, exists := tt.equippedItems[ItemWeapon]; exists {
+				character.Equipment.Weapon = weapon
+			}
+			if armor, exists := tt.equippedItems[ItemArmor]; exists {
+				character.Equipment.Armor = armor
+			}
+			if accessory, exists := tt.equippedItems[ItemArtifact]; exists {
+				character.Equipment.Accessory = accessory
+			}
+
+			// Call UnequipItem
+			success := character.UnequipItem(tt.itemTypeToUnequip)
+
+			// Check results
+			assert.Equal(t, tt.expectedSuccess, success, "Success status should match expected")
+
+			if tt.expectedSuccess {
+				// Check that equipment slot is now empty
+				switch tt.itemTypeToUnequip {
+				case ItemWeapon:
+					assert.Nil(t, character.Equipment.Weapon, "Weapon slot should be empty")
+				case ItemArmor:
+					assert.Nil(t, character.Equipment.Armor, "Armor slot should be empty")
+				case ItemArtifact:
+					assert.Nil(t, character.Equipment.Accessory, "Accessory slot should be empty")
+				}
+			}
+		})
+	}
+}
+
+// TestUseItem tests the UseItem function
+func TestUseItem(t *testing.T) {
+	tests := []struct {
+		name            string
+		inventory       []*Item
+		itemIDToUse     string
+		initialHP       int
+		initialMana     int
+		expectedSuccess bool
+		expectedHP      int
+		expectedMana    int
+	}{
+		{
+			name: "Use Health Potion",
+			inventory: []*Item{
+				{ID: "potion1", Name: "Health Potion", Type: ItemPotion, Power: 10},
+			},
+			itemIDToUse:     "potion1",
+			initialHP:       10,
+			initialMana:     20,
+			expectedSuccess: true,
+			expectedHP:      20,
+			expectedMana:    20,
+		},
+		{
+			name: "Use Mana Potion (Scroll)",
+			inventory: []*Item{
+				{ID: "potion2", Name: "Mana Potion", Type: ItemScroll, Power: 10},
+			},
+			itemIDToUse:     "potion2",
+			initialHP:       20,
+			initialMana:     10,
+			expectedSuccess: true,
+			expectedHP:      20,
+			expectedMana:    20,
+		},
+		{
+			name: "Use Non-Existent Item",
+			inventory: []*Item{
+				{ID: "potion1", Name: "Health Potion", Type: ItemPotion, Power: 10},
+			},
+			itemIDToUse:     "potion2",
+			initialHP:       20,
+			initialMana:     20,
+			expectedSuccess: false,
+			expectedHP:      20,
+			expectedMana:    20,
+		},
+		{
+			name: "Use Non-Consumable Item",
+			inventory: []*Item{
+				{ID: "sword1", Name: "Sword", Type: ItemWeapon},
+			},
+			itemIDToUse:     "sword1",
+			initialHP:       20,
+			initialMana:     20,
+			expectedSuccess: false,
+			expectedHP:      20,
+			expectedMana:    20,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character with the test inventory
+			character := NewCharacter("TestChar", Warrior)
+			character.Inventory = tt.inventory
+			character.MaxHP = 30
+			character.CurrentHP = tt.initialHP
+			character.MaxMana = 30
+			character.CurrentMana = tt.initialMana
+
+			// Initial inventory count
+			initialInventoryCount := len(character.Inventory)
+
+			// Call UseItem
+			success := character.UseItem(tt.itemIDToUse)
+
+			// Check results
+			assert.Equal(t, tt.expectedSuccess, success, "Success status should match expected")
+			assert.Equal(t, tt.expectedHP, character.CurrentHP, "Current HP should match expected")
+			assert.Equal(t, tt.expectedMana, character.CurrentMana, "Current Mana should match expected")
+
+			if tt.expectedSuccess {
+				// Check that item was removed from inventory
+				assert.Equal(t, initialInventoryCount-1, len(character.Inventory), "Inventory should have one less item")
+
+				// Verify item is no longer in inventory
+				for _, invItem := range character.Inventory {
+					assert.NotEqual(t, tt.itemIDToUse, invItem.ID, "Item should be removed from inventory")
+				}
+			} else {
+				// Check that inventory didn't change for non-consumable or non-existent items
+				assert.Equal(t, initialInventoryCount, len(character.Inventory), "Inventory should remain unchanged")
+			}
+		})
+	}
+}
+
+// TestCalculateAttackPower tests the CalculateAttackPower function
+func TestCalculateAttackPower(t *testing.T) {
+	tests := []struct {
+		name          string
+		strength      int
+		weaponPower   int
+		expectedPower int
+	}{
+		{
+			name:          "No Weapon",
+			strength:      14,
+			weaponPower:   0,
+			expectedPower: 3, // Strength modifier of +2 + level 1
+		},
+		{
+			name:          "With Weapon",
+			strength:      16,
+			weaponPower:   5,
+			expectedPower: 9, // Strength modifier of +3 + weapon power of 5 + level 1
+		},
+		{
+			name:          "Low Strength",
+			strength:      8,
+			weaponPower:   3,
+			expectedPower: 3, // Strength modifier of -1 + weapon power of 3 + level 1
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character
+			character := NewCharacter("TestChar", Warrior)
+			character.Attributes.Strength = tt.strength
+
+			// Set up weapon if needed
+			if tt.weaponPower > 0 {
+				character.Equipment.Weapon = &Item{
+					ID:    "weapon1",
+					Name:  "Test Weapon",
+					Type:  ItemWeapon,
+					Power: tt.weaponPower,
+				}
+			}
+
+			// Call CalculateAttackPower
+			power := character.CalculateAttackPower()
+
+			// Check result
+			assert.Equal(t, tt.expectedPower, power, "Attack power should match expected")
+		})
+	}
+}
+
+// TestCalculateDefensePower tests the CalculateDefensePower function
+func TestCalculateDefensePower(t *testing.T) {
+	tests := []struct {
+		name          string
+		constitution  int
+		armorPower    int
+		expectedPower int
+	}{
+		{
+			name:          "No Armor",
+			constitution:  14,
+			armorPower:    0,
+			expectedPower: 2, // Constitution modifier of +2
+		},
+		{
+			name:          "With Armor",
+			constitution:  16,
+			armorPower:    5,
+			expectedPower: 8, // Constitution modifier of +3 + armor power of 5
+		},
+		{
+			name:          "Low Constitution",
+			constitution:  8,
+			armorPower:    3,
+			expectedPower: 2, // Constitution modifier of -1 + armor power of 3
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character
+			character := NewCharacter("TestChar", Warrior)
+			character.Attributes.Constitution = tt.constitution
+
+			// Set up armor if needed
+			if tt.armorPower > 0 {
+				character.Equipment.Armor = &Item{
+					ID:    "armor1",
+					Name:  "Test Armor",
+					Type:  ItemArmor,
+					Power: tt.armorPower,
+				}
+			}
+
+			// Call CalculateDefensePower
+			power := character.CalculateDefensePower()
+
+			// Check result
+			assert.Equal(t, tt.expectedPower, power, "Defense power should match expected")
+		})
+	}
+}
+
+// TestCalculateArmorClass tests the CalculateBaseAC, CalculateArmorAC, and CalculateTotalAC functions
+func TestCalculateArmorClass(t *testing.T) {
+	tests := []struct {
+		name            string
+		dexterity       int
+		armorPower      int
+		expectedBaseAC  int
+		expectedArmorAC int
+		expectedTotalAC int
+	}{
+		{
+			name:            "No Armor, Average Dexterity",
+			dexterity:       10,
+			armorPower:      0,
+			expectedBaseAC:  10,
+			expectedArmorAC: 0,
+			expectedTotalAC: 10,
+		},
+		{
+			name:            "No Armor, High Dexterity",
+			dexterity:       16,
+			armorPower:      0,
+			expectedBaseAC:  13,
+			expectedArmorAC: 0,
+			expectedTotalAC: 13,
+		},
+		{
+			name:            "With Armor, Average Dexterity",
+			dexterity:       10,
+			armorPower:      5,
+			expectedBaseAC:  10,
+			expectedArmorAC: 5,
+			expectedTotalAC: 15,
+		},
+		{
+			name:            "With Armor, High Dexterity",
+			dexterity:       18,
+			armorPower:      7,
+			expectedBaseAC:  14,
+			expectedArmorAC: 7,
+			expectedTotalAC: 21,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character
+			character := NewCharacter("TestChar", Warrior)
+			character.Attributes.Dexterity = tt.dexterity
+
+			// Set up armor if needed
+			if tt.armorPower > 0 {
+				character.Equipment.Armor = &Item{
+					ID:    "armor1",
+					Name:  "Test Armor",
+					Type:  ItemArmor,
+					Power: tt.armorPower,
+				}
+			}
+
+			// Call AC calculation functions
+			baseAC := character.CalculateBaseAC()
+			armorAC := character.CalculateArmorAC()
+			totalAC := character.CalculateTotalAC()
+
+			// Check results
+			assert.Equal(t, tt.expectedBaseAC, baseAC, "Base AC should match expected")
+			assert.Equal(t, tt.expectedArmorAC, armorAC, "Armor AC should match expected")
+			assert.Equal(t, tt.expectedTotalAC, totalAC, "Total AC should match expected")
+		})
+	}
+}
+
+// TestCalculateHitChance tests the CalculateHitChance function
+func TestCalculateHitChance(t *testing.T) {
+	tests := []struct {
+		name           string
+		strength       int
+		targetAC       int
+		expectedChance float64
+	}{
+		{
+			name:           "Easy Hit",
+			strength:       16,
+			targetAC:       10,
+			expectedChance: 0.65, // 65% chance to hit
+		},
+		{
+			name:           "Moderate Hit",
+			strength:       12,
+			targetAC:       15,
+			expectedChance: 0.30, // 30% chance to hit
+		},
+		{
+			name:           "Difficult Hit",
+			strength:       10,
+			targetAC:       20,
+			expectedChance: 0.05, // 5% minimum chance to hit
+		},
+		{
+			name:           "Very Difficult Hit",
+			strength:       8,
+			targetAC:       25,
+			expectedChance: 0.05, // 5% minimum chance to hit
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character
+			character := NewCharacter("TestChar", Warrior)
+			character.Attributes.Strength = tt.strength
+
+			// Call CalculateHitChance
+			chance := character.CalculateHitChance(tt.targetAC)
+
+			// Check result with a small delta for floating point comparison
+			assert.InDelta(t, tt.expectedChance, chance, 0.01, "Hit chance should match expected")
+		})
+	}
+}
+
+// TestGetSkillBonus tests the GetSkillBonus function
+func TestGetSkillBonus(t *testing.T) {
+	tests := []struct {
+		name          string
+		skillType     SkillType
+		skillLevel    int
+		expectedBonus int
+	}{
+		{
+			name:          "Melee Skill",
+			skillType:     SkillMelee,
+			skillLevel:    3,
+			expectedBonus: 1,
+		},
+		{
+			name:          "Stealth Skill",
+			skillType:     SkillStealth,
+			skillLevel:    5,
+			expectedBonus: 2,
+		},
+		{
+			name:          "Perception Skill",
+			skillType:     SkillPerception,
+			skillLevel:    1,
+			expectedBonus: 0,
+		},
+		{
+			name:          "Arcana Skill",
+			skillType:     SkillArcana,
+			skillLevel:    0,
+			expectedBonus: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character with skills
+			character := NewCharacterWithSkills("TestChar", Warrior)
+
+			// Set the skill level directly in the skill list
+			if skill, exists := character.Skills.SkillList[tt.skillType]; exists {
+				skill.Level = tt.skillLevel
+			} else {
+				// Create the skill if it doesn't exist
+				character.Skills.SkillList[tt.skillType] = &Skill{
+					Type:  tt.skillType,
+					Level: tt.skillLevel,
+				}
+			}
+
+			// Call GetSkillBonus
+			bonus := character.GetSkillBonus(tt.skillType)
+
+			// Check result
+			assert.Equal(t, tt.expectedBonus, bonus, "Skill bonus should match expected")
+		})
+	}
+}
+
+// TestAddExperienceManaIncrease tests the mana increase logic for different character classes when leveling up
+func TestAddExperienceManaIncrease(t *testing.T) {
+	tests := []struct {
+		name                 string
+		class                CharacterClass
+		attributeToIncrease  string
+		attributeValue       int
+		expectedManaIncrease int
+	}{
+		{
+			name:                 "Mage Intelligence Bonus",
+			class:                Mage,
+			attributeToIncrease:  "Intelligence",
+			attributeValue:       16, // +3 modifier
+			expectedManaIncrease: 4,  // +3 from Intelligence modifier, +1 base
+		},
+		{
+			name:                 "Sorcerer Intelligence Bonus",
+			class:                Sorcerer,
+			attributeToIncrease:  "Intelligence",
+			attributeValue:       14, // +2 modifier
+			expectedManaIncrease: 3,  // +2 from Intelligence modifier, +1 base
+		},
+		{
+			name:                 "Warlock Intelligence Bonus",
+			class:                Warlock,
+			attributeToIncrease:  "Intelligence",
+			attributeValue:       12, // +1 modifier
+			expectedManaIncrease: 2,  // +1 from Intelligence modifier, +1 base
+		},
+		{
+			name:                 "Cleric Wisdom Bonus",
+			class:                Cleric,
+			attributeToIncrease:  "Wisdom",
+			attributeValue:       18, // +4 modifier
+			expectedManaIncrease: 5,  // +4 from Wisdom modifier, +1 base
+		},
+		{
+			name:                 "Druid Wisdom Bonus",
+			class:                Druid,
+			attributeToIncrease:  "Wisdom",
+			attributeValue:       16, // +3 modifier
+			expectedManaIncrease: 4,  // +3 from Wisdom modifier, +1 base
+		},
+		{
+			name:                 "Bard Charisma Bonus",
+			class:                Bard,
+			attributeToIncrease:  "Charisma",
+			attributeValue:       20, // +5 modifier
+			expectedManaIncrease: 6,  // +5 from Charisma modifier, +1 base
+		},
+		{
+			name:                 "Paladin Charisma Bonus",
+			class:                Paladin,
+			attributeToIncrease:  "Charisma",
+			attributeValue:       14, // +2 modifier
+			expectedManaIncrease: 3,  // +2 from Charisma modifier, +1 base
+		},
+		{
+			name:                 "Ranger Default Bonus",
+			class:                Ranger,
+			attributeToIncrease:  "",
+			attributeValue:       0,
+			expectedManaIncrease: 1, // Just the base +1
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a character of the specified class
+			character := NewCharacter("TestCharacter", tt.class)
+
+			// Set the relevant attribute if specified
+			if tt.attributeToIncrease != "" {
+				switch tt.attributeToIncrease {
+				case "Intelligence":
+					character.Attributes.Intelligence = tt.attributeValue
+				case "Wisdom":
+					character.Attributes.Wisdom = tt.attributeValue
+				case "Charisma":
+					character.Attributes.Charisma = tt.attributeValue
+				}
+			}
+
+			// Skip test if character has no mana
+			if character.MaxMana == 0 {
+				t.Skip("Character class does not use mana")
+				return
+			}
+
+			// Record initial mana
+			initialMana := character.MaxMana
+
+			// Add enough experience to level up
+			expNeeded := CalculateExperienceForNextLevel(character.Level)
+			character.AddExperience(expNeeded)
+
+			// Check that mana increased by the expected amount
+			manaIncrease := character.MaxMana - initialMana
+			assert.Equal(t, tt.expectedManaIncrease, manaIncrease,
+				"Mana should increase by the expected amount on level up")
+
+			// Verify that current mana equals max mana after level up
+			assert.Equal(t, character.MaxMana, character.CurrentMana,
+				"Current mana should equal max mana after level up")
+		})
+	}
+}
