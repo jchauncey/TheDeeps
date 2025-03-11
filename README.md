@@ -2,6 +2,8 @@
 
 A roguelike dungeon crawler game written in Go with a React/TypeScript frontend.
 
+![Coverage](https://img.shields.io/badge/coverage-44.0%25-brightgreen)
+
 ## Description
 
 The Deeps is a roguelike game where you explore procedurally generated dungeons, battle monsters, and collect treasure. The game features:
@@ -146,6 +148,47 @@ npm start
 
 # Or use the run script
 ./run.sh
+```
+
+## Testing
+
+### Server Tests
+The server code is tested using Go's standard testing package and the Ginkgo testing framework.
+
+```bash
+# Run server tests with coverage
+make server-test-coverage
+
+# Run server tests with Ginkgo and coverage
+make server-test-ginkgo
+
+# Run server tests with Ginkgo, verbose output and coverage
+make server-test-ginkgo-verbose
+
+# Run specific tests with Ginkgo
+make server-test-ginkgo-focus FOCUS="TestName"
+
+# Open the coverage report in your browser
+make server-open-coverage
+```
+
+Current test coverage is approximately 44.0% of statements. See the [server README](server/README.md) for more details on testing.
+
+### Client Tests
+The client code is tested using Jest and React Testing Library.
+
+```bash
+# Run client tests
+make client-test
+
+# Run client tests with coverage
+make client-test-coverage
+
+# Run client tests with detailed coverage
+make client-test-coverage-detail
+
+# Open the client coverage report
+make client-open-coverage
 ```
 
 ## Troubleshooting
