@@ -120,12 +120,12 @@ make server-open-coverage
 
 ## Test Coverage
 
-The server codebase currently has an overall test coverage of 74.0% of statements.
+The server codebase currently has an overall test coverage of 78.4% of statements.
 
 ### Package Coverage
 
 - `game`: 81.2% (Improved from 77.7%)
-- `handlers`: 61.9%
+- `handlers`: 67.9% (Improved from 61.9%)
 - `log`: 91.3%
 - `models`: 78.0%
 - `repositories`: 100.0%
@@ -171,6 +171,16 @@ The combat manager has excellent coverage for most functions:
 - `Flee`: 83.3% (Improved from 50.0%)
 - `calculateMobDamage`: 83.3%
 - `calculateExpGain`: 60.0% (Improved from 32.0%)
+
+### Dungeon Handler Coverage
+
+The dungeon handler has excellent coverage for all functions:
+
+- `NewDungeonHandler`: 100%
+- `GetDungeons`: 100%
+- `CreateDungeon`: 78.9%
+- `JoinDungeon`: 62.5% (New coverage)
+- `GetFloor`: 86.4%
 
 ### Areas for Improvement
 
@@ -232,6 +242,21 @@ When adding new tests, follow these guidelines:
 For more information on writing tests with Ginkgo, see the [Ginkgo documentation](https://onsi.github.io/ginkgo/).
 
 ## Recent Improvements
+
+### Dungeon Handler Tests
+
+The dungeon handler tests have been enhanced with:
+
+1. Added test coverage for the `JoinDungeon` function, which was previously untested
+2. Created a comprehensive `TestJoinDungeon` function that tests various scenarios:
+   - Valid character joining a dungeon
+   - Missing character ID
+   - Invalid dungeon ID
+   - Invalid character ID
+   - Invalid JSON request
+3. Added test for the `NewDungeonHandler` function
+4. Improved overall dungeon handler coverage from 0% to 62.5% for the `JoinDungeon` function
+5. Contributed to increasing the handlers package coverage from 61.9% to 67.9%
 
 ### Combat Manager Tests
 

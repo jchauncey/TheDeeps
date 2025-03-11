@@ -267,3 +267,156 @@ func TestGetFloor(t *testing.T) {
 		})
 	}
 }
+
+// TestJoinDungeon tests the JoinDungeon handler
+func TestJoinDungeon(t *testing.T) {
+	// Create a new dungeon repository and handler
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+	mapGenerator := game.NewMapGenerator(12345)
+	handler := &DungeonHandler{
+		dungeonRepo:   dungeonRepo,
+		characterRepo: characterRepo,
+		mapGenerator:  mapGenerator,
+	}
+
+	// Create a test dungeon
+	testDungeon := models.NewDungeon("Test Dungeon", 5, 12345)
+
+	// Generate the first floor with up stairs
+	floor := testDungeon.GenerateFloor(1)
+	mapGenerator.GenerateFloor(floor, 1, false)
+
+	// Ensure there's at least one up stairs for character placement
+	if len(floor.UpStairs) == 0 {
+		upStairsPos := models.Position{X: 5, Y: 5}
+		floor.UpStairs = append(floor.UpStairs, upStairsPos)
+		floor.Tiles[upStairsPos.Y][upStairsPos.X].Type = models.TileUpStairs
+	}
+
+	dungeonRepo.Save(testDungeon)
+
+	// Create a test character
+	testCharacter := models.NewCharacter("Test Character", models.Warrior)
+	characterRepo.Save(testCharacter)
+
+	tests := []struct {
+		name           string
+		dungeonID      string
+		requestBody    map[string]interface{}
+		expectedStatus int
+		validateFunc   func(t *testing.T, resp *httptest.ResponseRecorder)
+	}{
+		{
+			name:      "Valid Join",
+			dungeonID: testDungeon.ID,
+			requestBody: map[string]interface{}{
+				"characterId": testCharacter.ID,
+			},
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				var floor models.Floor
+				err := json.Unmarshal(resp.Body.Bytes(), &floor)
+				require.NoError(t, err, "Failed to unmarshal response")
+
+				// Validate floor properties
+				assert.Equal(t, 1, floor.Level, "Floor level should be 1")
+				assert.Greater(t, floor.Width, 0, "Width should be positive")
+				assert.Greater(t, floor.Height, 0, "Height should be positive")
+				assert.NotEmpty(t, floor.Tiles, "Tiles should be initialized")
+
+				// Verify character was updated
+				updatedCharacter, err := characterRepo.GetByID(testCharacter.ID)
+				require.NoError(t, err, "Failed to get updated character")
+				assert.Equal(t, testDungeon.ID, updatedCharacter.CurrentDungeon, "Character should be in the dungeon")
+				assert.Equal(t, 1, updatedCharacter.CurrentFloor, "Character should be on floor 1")
+				assert.NotEqual(t, models.Position{}, updatedCharacter.Position, "Character should have a position")
+			},
+		},
+		{
+			name:      "Missing Character ID",
+			dungeonID: testDungeon.ID,
+			requestBody: map[string]interface{}{
+				"characterId": "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				assert.Contains(t, resp.Body.String(), "Character ID is required", "Expected error message about missing character ID")
+			},
+		},
+		{
+			name:      "Invalid Dungeon ID",
+			dungeonID: "invalid-id",
+			requestBody: map[string]interface{}{
+				"characterId": testCharacter.ID,
+			},
+			expectedStatus: http.StatusNotFound,
+			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				assert.NotEmpty(t, resp.Body.String(), "Expected error message in response")
+			},
+		},
+		{
+			name:      "Invalid Character ID",
+			dungeonID: testDungeon.ID,
+			requestBody: map[string]interface{}{
+				"characterId": "invalid-id",
+			},
+			expectedStatus: http.StatusNotFound,
+			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				assert.NotEmpty(t, resp.Body.String(), "Expected error message in response")
+			},
+		},
+		{
+			name:      "Invalid JSON",
+			dungeonID: testDungeon.ID,
+			requestBody: map[string]interface{}{
+				"invalid": "json",
+			},
+			expectedStatus: http.StatusBadRequest,
+			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				assert.NotEmpty(t, resp.Body.String(), "Expected error message in response")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create request
+			reqBody, err := json.Marshal(tt.requestBody)
+			require.NoError(t, err, "Failed to marshal request body")
+
+			req, err := http.NewRequest("POST", "/dungeons/"+tt.dungeonID+"/join", bytes.NewBuffer(reqBody))
+			require.NoError(t, err, "Failed to create request")
+
+			req.Header.Set("Content-Type", "application/json")
+
+			// Set up router context with dungeon ID
+			req = mux.SetURLVars(req, map[string]string{
+				"id": tt.dungeonID,
+			})
+
+			// Create response recorder
+			rr := httptest.NewRecorder()
+
+			// Call handler
+			handler.JoinDungeon(rr, req)
+
+			// Check status code
+			assert.Equal(t, tt.expectedStatus, rr.Code, "Status code should match expected")
+
+			// Run validation function
+			tt.validateFunc(t, rr)
+		})
+	}
+}
+
+// TestNewDungeonHandler tests the NewDungeonHandler function
+func TestNewDungeonHandler(t *testing.T) {
+	handler := NewDungeonHandler()
+
+	// Verify handler is initialized correctly
+	assert.NotNil(t, handler, "Handler should not be nil")
+	assert.NotNil(t, handler.dungeonRepo, "Dungeon repository should not be nil")
+	assert.NotNil(t, handler.characterRepo, "Character repository should not be nil")
+	assert.NotNil(t, handler.mapGenerator, "Map generator should not be nil")
+}
