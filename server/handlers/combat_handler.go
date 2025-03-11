@@ -192,6 +192,7 @@ func (h *CombatHandler) handleUseItem(character *models.Character, itemID string
 	// TODO: Implement inventory system
 	// For now, just send an error
 	return CombatResponse{
+		Action:  "useItem",
 		Success: false,
 		Message: "Inventory system not implemented yet",
 	}

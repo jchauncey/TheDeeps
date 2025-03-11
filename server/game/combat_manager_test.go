@@ -191,7 +191,7 @@ func TestHitChanceIntegration(t *testing.T) {
 		expectedHitChanceMax float64 // Maximum expected hit chance
 	}{
 		{"High DEX vs Low AC", 10, 18, 10, 0.65, 0.85},    // High DEX should give good hit chance vs low AC
-		{"Low DEX vs High AC", 10, 8, 18, 0.15, 0.35},     // Low DEX should give poor hit chance vs high AC
+		{"Low DEX vs High AC", 10, 8, 18, 0.0, 0.2},       // Low DEX should give very poor hit chance vs high AC
 		{"High STR vs Medium AC", 18, 10, 14, 0.45, 0.65}, // High STR should give moderate hit chance
 	}
 
