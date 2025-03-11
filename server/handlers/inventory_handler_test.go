@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -393,5 +394,201 @@ func TestInventoryHandler(t *testing.T) {
 		var items []*models.Item
 		json.Unmarshal(rr.Body.Bytes(), &items)
 		assert.Equal(t, 5, len(items))
+	})
+
+	// Test AddItemToInventory - successful case
+	t.Run("AddItemToInventory_Success", func(t *testing.T) {
+		// Create a new item to add
+		newItem := models.NewWeapon("New Weapon", 15, 150, 1, nil)
+		inventoryRepo.SaveItem(newItem)
+
+		// Create the request
+		reqBody := bytes.NewBufferString(fmt.Sprintf(`{"itemID": "%s"}`, newItem.ID))
+		req, _ := http.NewRequest("POST", "/api/characters/"+character.ID+"/inventory/add", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		// Verify the item was added to the character's inventory
+		updatedCharacter, _ := characterRepo.GetByID(character.ID)
+		item, found := updatedCharacter.GetInventoryItem(newItem.ID)
+		assert.True(t, found)
+		assert.Equal(t, newItem.ID, item.ID)
+		assert.Equal(t, "New Weapon", item.Name)
+	})
+
+	// Test AddItemToInventory - character not found
+	t.Run("AddItemToInventory_CharacterNotFound", func(t *testing.T) {
+		// Create a new item to add
+		newItem := models.NewWeapon("Another Weapon", 10, 100, 1, nil)
+		inventoryRepo.SaveItem(newItem)
+
+		// Create the request with non-existent character ID
+		reqBody := bytes.NewBufferString(fmt.Sprintf(`{"itemID": "%s"}`, newItem.ID))
+		req, _ := http.NewRequest("POST", "/api/characters/nonexistent-id/inventory/add", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Character not found")
+	})
+
+	// Test AddItemToInventory - invalid request body
+	t.Run("AddItemToInventory_InvalidRequestBody", func(t *testing.T) {
+		// Create the request with invalid JSON
+		reqBody := bytes.NewBufferString(`{"itemID": invalid-json}`)
+		req, _ := http.NewRequest("POST", "/api/characters/"+character.ID+"/inventory/add", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Invalid request body")
+	})
+
+	// Test AddItemToInventory - item not found
+	t.Run("AddItemToInventory_ItemNotFound", func(t *testing.T) {
+		// Create the request with non-existent item ID
+		reqBody := bytes.NewBufferString(`{"itemID": "nonexistent-item-id"}`)
+		req, _ := http.NewRequest("POST", "/api/characters/"+character.ID+"/inventory/add", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Item not found")
+	})
+
+	// Test AddItemToInventory - weight limit exceeded
+	t.Run("AddItemToInventory_WeightLimitExceeded", func(t *testing.T) {
+		// Create a character with a low weight limit
+		weakCharacter := models.NewCharacter("WeakCharacter", models.Mage)
+		weakCharacter.Attributes.Strength = 3 // Very low strength to reduce weight limit
+		characterRepo.Save(weakCharacter)
+
+		// Create a very heavy item
+		heavyItem := models.NewWeapon("Heavy Weapon", 20, 200, 1, nil)
+		heavyItem.Weight = 1000.0 // Extremely heavy item that exceeds weight limit
+		inventoryRepo.SaveItem(heavyItem)
+
+		// Create the request
+		reqBody := bytes.NewBufferString(fmt.Sprintf(`{"itemID": "%s"}`, heavyItem.ID))
+		req, _ := http.NewRequest("POST", "/api/characters/"+weakCharacter.ID+"/inventory/add", reqBody)
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		router := mux.NewRouter()
+		handler.RegisterRoutes(router)
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "weight limit exceeded")
+	})
+
+	t.Run("GetAllItems", func(t *testing.T) {
+		// Generate some items first
+		req, _ := http.NewRequest("POST", "/items/generate", bytes.NewBuffer([]byte(`{"count": 5, "floorLevel": 1}`)))
+		rr := httptest.NewRecorder()
+		handler.GenerateItems(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		// Now test GetAllItems
+		req, _ = http.NewRequest("GET", "/items", nil)
+		rr = httptest.NewRecorder()
+		handler.GetAllItems(rr, req)
+
+		// Check response
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		// Parse response
+		var items []*models.Item
+		err := json.Unmarshal(rr.Body.Bytes(), &items)
+		assert.NoError(t, err)
+
+		// Verify we got items back
+		assert.GreaterOrEqual(t, len(items), 5)
+
+		// Verify item properties
+		for _, item := range items {
+			assert.NotEmpty(t, item.ID)
+			assert.NotEmpty(t, item.Name)
+		}
+	})
+
+	t.Run("GetCharacterWeight", func(t *testing.T) {
+		// Create a new character for this test to avoid interference
+		weightTestChar := models.NewCharacter("WeightTestChar", models.Warrior)
+		characterRepo.Save(weightTestChar)
+
+		// Generate some items
+		req, _ := http.NewRequest("POST", "/items/generate", bytes.NewBuffer([]byte(`{"count": 2, "floorLevel": 1}`)))
+		rr := httptest.NewRecorder()
+		handler.GenerateItems(rr, req)
+
+		// Get the generated items
+		req, _ = http.NewRequest("GET", "/items", nil)
+		rr = httptest.NewRecorder()
+		handler.GetAllItems(rr, req)
+
+		var items []*models.Item
+		err := json.Unmarshal(rr.Body.Bytes(), &items)
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, len(items), 2)
+
+		// Create request
+		req, _ = http.NewRequest("GET", "/characters/"+weightTestChar.ID+"/weight", nil)
+		req = mux.SetURLVars(req, map[string]string{"characterID": weightTestChar.ID})
+		rr = httptest.NewRecorder()
+
+		// Call the handler
+		handler.GetCharacterWeight(rr, req)
+
+		// Check response
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		// Parse response
+		var response struct {
+			InventoryWeight  float64 `json:"inventoryWeight"`
+			EquipmentWeight  float64 `json:"equipmentWeight"`
+			TotalWeight      float64 `json:"totalWeight"`
+			WeightLimit      float64 `json:"weightLimit"`
+			IsOverEncumbered bool    `json:"isOverEncumbered"`
+			EncumbranceLevel int     `json:"encumbranceLevel"`
+		}
+		err = json.Unmarshal(rr.Body.Bytes(), &response)
+		assert.NoError(t, err)
+
+		// Verify weight calculations
+		assert.GreaterOrEqual(t, response.TotalWeight, 0.0)
+		assert.Greater(t, response.WeightLimit, 0.0)
+	})
+
+	t.Run("GetCharacterWeight_CharacterNotFound", func(t *testing.T) {
+		// Create request with non-existent character ID
+		req, _ := http.NewRequest("GET", "/characters/nonexistent/weight", nil)
+		req = mux.SetURLVars(req, map[string]string{"characterID": "nonexistent"})
+		rr := httptest.NewRecorder()
+
+		// Call the handler
+		handler.GetCharacterWeight(rr, req)
+
+		// Check response
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Character not found")
 	})
 }
