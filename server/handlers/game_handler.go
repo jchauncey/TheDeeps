@@ -36,21 +36,24 @@ func NewGameHandler() *GameHandler {
 
 // HandleWebSocket handles WebSocket connections
 func (h *GameHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := h.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Error("Error upgrading connection: %v", err)
-		return
-	}
-
 	// Get character ID from query params
 	characterID := r.URL.Query().Get("characterId")
 	if characterID == "" {
 		log.Warn("Character ID not provided")
-		conn.Close()
+		http.Error(w, "Character ID is required", http.StatusBadRequest)
 		return
 	}
 
-	// Handle the connection with the game manager
+	// Check if character exists
+	character, err := h.characterRepo.GetByID(characterID)
+	if err != nil || character == nil {
+		log.Warn("Character not found: %s", characterID)
+		http.Error(w, "character not found", http.StatusNotFound)
+		return
+	}
+
+	// Now that we've validated the character, let the game manager handle the connection
+	// The game manager will upgrade the connection and manage the WebSocket
 	h.manager.HandleConnection(w, r)
 }
 

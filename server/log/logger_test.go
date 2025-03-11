@@ -2,8 +2,9 @@ package log
 
 import (
 	"bytes"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLogger(t *testing.T) {
@@ -24,18 +25,10 @@ func TestLogger(t *testing.T) {
 
 	// Check that all messages were logged
 	output := buf.String()
-	if !strings.Contains(output, "[DEBUG]") {
-		t.Error("Debug message not logged")
-	}
-	if !strings.Contains(output, "[INFO]") {
-		t.Error("Info message not logged")
-	}
-	if !strings.Contains(output, "[WARN]") {
-		t.Error("Warning message not logged")
-	}
-	if !strings.Contains(output, "[ERROR]") {
-		t.Error("Error message not logged")
-	}
+	assert.Contains(t, output, "[DEBUG]", "Debug message not logged")
+	assert.Contains(t, output, "[INFO]", "Info message not logged")
+	assert.Contains(t, output, "[WARN]", "Warning message not logged")
+	assert.Contains(t, output, "[ERROR]", "Error message not logged")
 
 	// Test log level filtering
 	buf.Reset()
@@ -45,21 +38,15 @@ func TestLogger(t *testing.T) {
 	logger.Info("This info message should be logged")
 
 	output = buf.String()
-	if strings.Contains(output, "[DEBUG]") {
-		t.Error("Debug message was logged when it should have been filtered")
-	}
-	if !strings.Contains(output, "[INFO]") {
-		t.Error("Info message not logged")
-	}
+	assert.NotContains(t, output, "[DEBUG]", "Debug message was logged when it should have been filtered")
+	assert.Contains(t, output, "[INFO]", "Info message not logged")
 
 	// Test formatted messages
 	buf.Reset()
 	logger.Info("Formatted message: %s, %d", "test", 123)
 
 	output = buf.String()
-	if !strings.Contains(output, "Formatted message: test, 123") {
-		t.Error("Formatted message not logged correctly")
-	}
+	assert.Contains(t, output, "Formatted message: test, 123", "Formatted message not logged correctly")
 
 	// Test caller info
 	buf.Reset()
@@ -67,9 +54,8 @@ func TestLogger(t *testing.T) {
 	logger.Info("Message with caller info")
 
 	output = buf.String()
-	if !strings.Contains(output, "[INFO]") || !strings.Contains(output, "[logger_test.go:") {
-		t.Error("Caller info not included in log message")
-	}
+	assert.Contains(t, output, "[INFO]", "INFO level tag not included in log message")
+	assert.Contains(t, output, "[logger_test.go:", "Caller info not included in log message")
 
 	// Test color output
 	buf.Reset()
@@ -77,9 +63,8 @@ func TestLogger(t *testing.T) {
 	logger.Info("Colored message")
 
 	output = buf.String()
-	if !strings.Contains(output, colorGreen) || !strings.Contains(output, colorReset) {
-		t.Error("Color codes not included in log message")
-	}
+	assert.Contains(t, output, colorGreen, "Green color code not included in log message")
+	assert.Contains(t, output, colorReset, "Color reset code not included in log message")
 }
 
 func TestGlobalLogger(t *testing.T) {
@@ -99,18 +84,10 @@ func TestGlobalLogger(t *testing.T) {
 
 	// Check that all messages were logged
 	output := buf.String()
-	if !strings.Contains(output, "[DEBUG]") {
-		t.Error("Debug message not logged")
-	}
-	if !strings.Contains(output, "[INFO]") {
-		t.Error("Info message not logged")
-	}
-	if !strings.Contains(output, "[WARN]") {
-		t.Error("Warning message not logged")
-	}
-	if !strings.Contains(output, "[ERROR]") {
-		t.Error("Error message not logged")
-	}
+	assert.Contains(t, output, "[DEBUG]", "Debug message not logged")
+	assert.Contains(t, output, "[INFO]", "Info message not logged")
+	assert.Contains(t, output, "[WARN]", "Warning message not logged")
+	assert.Contains(t, output, "[ERROR]", "Error message not logged")
 
 	// Reset the default logger to stdout
 	SetOutput(nil)

@@ -17,11 +17,11 @@ This document outlines the missing components and enhancements needed for the se
   - [x] Calculate stat bonuses from equipped items
   - [x] Implement Armor Class (AC) system for combat
 
-- [ ] **Skill System**
-  - [ ] Create Skills struct with various skills (Stealth, Perception, etc.)
-  - [ ] Implement skill checks based on attributes
-  - [ ] Add skill improvement through use or skill points
-  - [ ] Implement class-specific skills or bonuses
+- [x] **Skill System**
+  - [x] Create Skills struct with various skills (Stealth, Perception, etc.)
+  - [x] Implement skill checks based on attributes
+  - [x] Add skill improvement through use or skill points
+  - [x] Implement class-specific skills or bonuses
 
 - [ ] **Character Death and Respawn**
   - [ ] Implement logic for character death when HP reaches 0
@@ -109,15 +109,16 @@ This document outlines the missing components and enhancements needed for the se
   - [x] Add caller information for easier debugging
   - [x] Support configurable log levels based on environment
 
-- [ ] **Error Handling**
-  - [ ] Improve error messages and logging
-  - [ ] Implement graceful recovery from errors
-  - [ ] Add validation for all user inputs
+- [x] **Error Handling**
+  - [x] Improve error messages and logging
+  - [x] Implement graceful recovery from errors
+  - [x] Add validation for all user inputs
 
-- [ ] **Testing**
-  - [ ] Increase test coverage for all components
-  - [ ] Add integration tests for complex interactions
-  - [ ] Implement load testing for WebSocket connections
+- [x] **Testing**
+  - [x] Increase test coverage for all components
+  - [x] Add integration tests for complex interactions
+  - [x] Implement load testing for WebSocket connections
+  - [x] Update tests to use assertion library for better error reporting
 
 ## Documentation
 

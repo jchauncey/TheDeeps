@@ -737,7 +737,7 @@ func (c *Client) readPump() {
 	})
 
 	for {
-		_, message, err := c.Connection.ReadMessage()
+		_, _, err := c.Connection.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Error("error: %v", err)
@@ -746,6 +746,7 @@ func (c *Client) readPump() {
 		}
 
 		// Process the message
+		// TODO: Parse and handle the message
 		// ...
 	}
 }
@@ -760,7 +761,7 @@ func (c *Client) writePump() {
 
 	for {
 		select {
-		case message, ok := <-c.Send:
+		case _, ok := <-c.Send:
 			c.Connection.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// The manager closed the channel.
@@ -768,18 +769,13 @@ func (c *Client) writePump() {
 				return
 			}
 
-			w, err := c.Connection.NextWriter(websocket.TextMessage)
-			if err != nil {
-				log.Error("error: %v", err)
-				return
-			}
-			// Write the message
+			// Write the message to the websocket
+			// TODO: Implement message writing
 			// ...
-			w.Close()
+
 		case <-ticker.C:
 			c.Connection.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.Connection.WriteMessage(websocket.PingMessage, nil); err != nil {
-				log.Error("error: %v", err)
 				return
 			}
 		}
@@ -788,15 +784,8 @@ func (c *Client) writePump() {
 
 // BroadcastFloorUpdate broadcasts a floor update to all clients on the specified floor
 func (gm *GameManager) BroadcastFloorUpdate(dungeonID string, floorLevel int) {
-	// Get the dungeon
-	dungeon, err := gm.DungeonRepo.GetByID(dungeonID)
-	if err != nil {
-		log.Error("Failed to get dungeon: %v", err)
-		return
-	}
-
-	// Get the floor
-	floor, err := dungeon.GetFloor(floorLevel)
+	// Get the floor using the repository
+	floor, err := gm.DungeonRepo.GetFloor(dungeonID, floorLevel)
 	if err != nil {
 		log.Error("Failed to get floor: %v", err)
 		return
@@ -810,6 +799,8 @@ func (gm *GameManager) BroadcastFloorUpdate(dungeonID string, floorLevel int) {
 		if client.Character != nil &&
 			client.Character.CurrentDungeon == dungeonID &&
 			client.Character.CurrentFloor == floorLevel {
+
+			// Send floor update to this client
 			client.Send <- Message{
 				Type:  MsgFloorChange,
 				Floor: floor,

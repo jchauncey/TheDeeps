@@ -40,6 +40,7 @@ type Character struct {
 	Level          int            `json:"level"`
 	Experience     int            `json:"experience"`
 	Attributes     Attributes     `json:"attributes"`
+	Skills         *Skills        `json:"skills"`
 	MaxHP          int            `json:"maxHp"`
 	CurrentHP      int            `json:"currentHp"`
 	MaxMana        int            `json:"maxMana"`
@@ -148,6 +149,9 @@ func NewCharacter(name string, class CharacterClass) *Character {
 		maxMana = 5 + attributes.Charisma
 	}
 
+	// Initialize skills based on class
+	skills := NewSkills(class)
+
 	return &Character{
 		ID:           uuid.New().String(),
 		Name:         name,
@@ -155,6 +159,7 @@ func NewCharacter(name string, class CharacterClass) *Character {
 		Level:        1,
 		Experience:   0,
 		Attributes:   attributes,
+		Skills:       skills,
 		MaxHP:        maxHP,
 		CurrentHP:    maxHP,
 		MaxMana:      maxMana,
@@ -165,6 +170,18 @@ func NewCharacter(name string, class CharacterClass) *Character {
 		Inventory:    make([]*Item, 0),
 		Equipment:    Equipment{},
 	}
+}
+
+// NewCharacterWithSkills creates a new character with default values based on class
+// This version includes the Skills field initialization
+func NewCharacterWithSkills(name string, class CharacterClass) *Character {
+	// Create a character using the existing NewCharacter function
+	character := NewCharacter(name, class)
+
+	// Initialize skills based on class
+	character.Skills = NewSkills(class)
+
+	return character
 }
 
 // GetModifier calculates the attribute modifier based on D&D rules
@@ -548,4 +565,36 @@ func (c *Character) CalculateHitChance(targetAC int) float64 {
 	}
 
 	return hitChance
+}
+
+// PerformSkillCheck performs a skill check for the character
+func (c *Character) PerformSkillCheck(skillType SkillType, difficultyClass int) bool {
+	if c.Skills == nil {
+		return false
+	}
+	return c.Skills.PerformSkillCheck(skillType, c.Attributes, difficultyClass)
+}
+
+// AddSkillExperience adds experience to a skill and returns true if the skill leveled up
+func (c *Character) AddSkillExperience(skillType SkillType, exp int) bool {
+	if c.Skills == nil {
+		return false
+	}
+	return c.Skills.AddSkillExperience(skillType, exp)
+}
+
+// GetSkillLevel returns the level of a specific skill
+func (c *Character) GetSkillLevel(skillType SkillType) int {
+	if c.Skills == nil {
+		return 0
+	}
+	return c.Skills.GetSkillLevel(skillType)
+}
+
+// GetSkillBonus returns the bonus for a specific skill
+func (c *Character) GetSkillBonus(skillType SkillType) int {
+	if c.Skills == nil {
+		return 0
+	}
+	return c.Skills.GetSkillBonus(skillType)
 }
