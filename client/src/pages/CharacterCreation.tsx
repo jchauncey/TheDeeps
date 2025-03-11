@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -22,11 +22,6 @@ import {
   StatLabel,
   StatNumber,
   StatHelpText,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
   Tooltip,
   Progress,
 } from '@chakra-ui/react';
@@ -200,6 +195,21 @@ const CharacterCreation: React.FC = () => {
     setPointsRemaining(TOTAL_ATTRIBUTE_POINTS);
   };
 
+  // Get color for attribute based on value
+  const getAttributeColor = (value: number): string => {
+    if (value >= 15) return "green.300";
+    if (value >= 13) return "teal.300";
+    if (value >= 11) return "blue.300";
+    if (value === 10) return "white";
+    if (value <= 8) return "red.400";
+    return "orange.300";
+  };
+
+  // Get selected class info
+  const getSelectedClassInfo = useCallback((): ClassInfo => {
+    return classInfo.find(c => c.name === selectedClass) || classInfo[0];
+  }, [selectedClass]);
+
   // Pre-allocate points based on class selection
   useEffect(() => {
     resetAttributes();
@@ -227,7 +237,7 @@ const CharacterCreation: React.FC = () => {
     
     setAttributes(newAttributes);
     setPointsRemaining(remainingPoints);
-  }, [selectedClass]);
+  }, [selectedClass, getSelectedClassInfo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,10 +284,6 @@ const CharacterCreation: React.FC = () => {
     }
   };
 
-  const getSelectedClassInfo = (): ClassInfo => {
-    return classInfo.find(c => c.name === selectedClass) || classInfo[0];
-  };
-
   // Get attribute modifier (D&D style)
   const getAttributeModifier = (value: number): number => {
     return Math.floor((value - 10) / 2);
@@ -286,16 +292,6 @@ const CharacterCreation: React.FC = () => {
   // Format modifier as string with + or -
   const formatModifier = (mod: number): string => {
     return mod >= 0 ? `+${mod}` : `${mod}`;
-  };
-
-  // Get color for attribute based on value
-  const getAttributeColor = (value: number): string => {
-    if (value >= 15) return "green.300";
-    if (value >= 13) return "teal.300";
-    if (value >= 11) return "blue.300";
-    if (value == 10) return "white";
-    if (value <= 8) return "red.400";
-    return "orange.300";
   };
 
   // Sort classes alphabetically for the dropdown
