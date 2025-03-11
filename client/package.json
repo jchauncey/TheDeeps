@@ -1,34 +1,60 @@
 {
-  "name": "client",
+  "name": "the-deeps-client",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "start": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
   "dependencies": {
     "@chakra-ui/icons": "^2.2.4",
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
-    "framer-motion": "^11.0.3",
+    "axios": "^1.6.7",
+    "framer-motion": "^11.0.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "socket.io-client": "^4.7.4",
-    "zustand": "^4.5.0"
+    "react-router-dom": "^6.22.1"
   },
   "devDependencies": {
-    "@types/react": "^18.2.48",
-    "@types/react-dom": "^18.2.18",
-    "@vitejs/plugin-react": "^4.2.1",
-    "eslint": "^8.56.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.5",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.12"
-  }
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/jest": "^29.5.12",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-mock-axios": "^4.7.3",
+    "react-scripts": "5.0.1",
+    "ts-jest": "^29.1.2",
+    "typescript": "^4.9.5"
+  },
+  "scripts": {
+    "start": "NODE_OPTIONS=\"--openssl-legacy-provider --no-deprecation\" react-scripts start",
+    "dev": "NODE_OPTIONS=\"--openssl-legacy-provider --no-deprecation\" react-scripts start",
+    "build": "NODE_OPTIONS=\"--openssl-legacy-provider --no-deprecation\" react-scripts build",
+    "test": "NODE_OPTIONS=\"--openssl-legacy-provider --no-deprecation\" jest",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ],
+    "rules": {
+      "react-hooks/exhaustive-deps": "warn",
+      "eqeqeq": "warn",
+      "@typescript-eslint/no-unused-vars": "warn"
+    }
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:8080"
 }

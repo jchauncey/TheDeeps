@@ -7,12 +7,7 @@ import (
 	"github.com/jchauncey/TheDeeps/server/models"
 )
 
-var (
-	// ErrCharacterNotFound is returned when a character is not found
-	ErrCharacterNotFound = errors.New("character not found")
-)
-
-// CharacterRepository handles character storage
+// CharacterRepository handles storage and retrieval of characters
 type CharacterRepository struct {
 	characters map[string]*models.Character
 	mutex      sync.RWMutex
@@ -25,57 +20,7 @@ func NewCharacterRepository() *CharacterRepository {
 	}
 }
 
-// Create creates a new character
-func (r *CharacterRepository) Create(character *models.Character) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	r.characters[character.ID] = character
-	return nil
-}
-
-// GetByID retrieves a character by ID
-func (r *CharacterRepository) GetByID(id string) (*models.Character, error) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	character, ok := r.characters[id]
-	if !ok {
-		return nil, ErrCharacterNotFound
-	}
-
-	return character, nil
-}
-
-// Update updates an existing character
-func (r *CharacterRepository) Update(character *models.Character) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	_, ok := r.characters[character.ID]
-	if !ok {
-		return ErrCharacterNotFound
-	}
-
-	r.characters[character.ID] = character
-	return nil
-}
-
-// Delete deletes a character by ID
-func (r *CharacterRepository) Delete(id string) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	_, ok := r.characters[id]
-	if !ok {
-		return ErrCharacterNotFound
-	}
-
-	delete(r.characters, id)
-	return nil
-}
-
-// GetAll retrieves all characters
+// GetAll returns all characters
 func (r *CharacterRepository) GetAll() []*models.Character {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -86,4 +31,47 @@ func (r *CharacterRepository) GetAll() []*models.Character {
 	}
 
 	return characters
+}
+
+// GetByID returns a character by ID
+func (r *CharacterRepository) GetByID(id string) (*models.Character, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	character, exists := r.characters[id]
+	if !exists {
+		return nil, errors.New("character not found")
+	}
+
+	return character, nil
+}
+
+// Save saves a character
+func (r *CharacterRepository) Save(character *models.Character) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.characters[character.ID] = character
+	return nil
+}
+
+// Delete deletes a character
+func (r *CharacterRepository) Delete(id string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if _, exists := r.characters[id]; !exists {
+		return errors.New("character not found")
+	}
+
+	delete(r.characters, id)
+	return nil
+}
+
+// Count returns the number of characters
+func (r *CharacterRepository) Count() int {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return len(r.characters)
 }

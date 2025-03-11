@@ -50,3 +50,7 @@ __debug_bin
 # Project specific
 /TheDeeps
 /thedeeps 
+
+# coverage
+coverage.out
+*/coverage/
