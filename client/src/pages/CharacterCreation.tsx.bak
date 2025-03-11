@@ -290,12 +290,10 @@ const CharacterCreation: React.FC = () => {
 
   // Get color for attribute based on value
   const getAttributeColor = (value: number): string => {
-    if (value >= 15) return "green.300";
-    if (value >= 13) return "teal.300";
-    if (value >= 11) return "blue.300";
-    if (value == 10) return "white";
-    if (value <= 8) return "red.400";
-    return "orange.300";
+    if (value >= 14) return "green.300";
+    if (value >= 12) return "blue.300";
+    if (value <= 9) return "red.300";
+    return "white";
   };
 
   // Sort classes alphabetically for the dropdown
@@ -378,14 +376,7 @@ const CharacterCreation: React.FC = () => {
                     <InfoIcon ml={2} color="blue.300" cursor="pointer" />
                   </Tooltip>
                 </Text>
-                <Button 
-                  size="sm" 
-                  onClick={resetAttributes} 
-                  mb={4} 
-                  colorScheme="orange" 
-                  variant="solid"
-                  leftIcon={<MinusIcon />}
-                >
+                <Button size="sm" onClick={resetAttributes} mb={4} colorScheme="red" variant="outline">
                   Reset Attributes
                 </Button>
                 
@@ -406,17 +397,16 @@ const CharacterCreation: React.FC = () => {
                         borderWidth="1px" 
                         borderRadius="md" 
                         borderColor={isPrimary ? "blue.400" : "gray.500"}
-                        bg={isPrimary ? "blue.800" : "gray.700"}
-                        _hover={{ bg: isPrimary ? "blue.700" : "gray.650" }}
+                        bg="gray.600"
+                        _hover={{ bg: "gray.550" }}
                         transition="all 0.2s"
-                        boxShadow="sm"
                       >
                         <Stat size="sm">
-                          <StatLabel textTransform="capitalize" fontSize="md" fontWeight="bold">
+                          <StatLabel textTransform="capitalize" fontSize="md">
                             {key} {isPrimary && <Badge colorScheme="blue" ml={1}>Primary</Badge>}
                           </StatLabel>
                           <Flex align="center">
-                            <StatNumber color={getAttributeColor(value)} fontSize="xl">{value}</StatNumber>
+                            <StatNumber color={getAttributeColor(value)}>{value}</StatNumber>
                             <StatHelpText ml={2} mb={0} color={getAttributeColor(modifier)}>
                               ({formatModifier(modifier)})
                             </StatHelpText>
@@ -429,10 +419,7 @@ const CharacterCreation: React.FC = () => {
                             isDisabled={value <= MIN_ATTRIBUTE_VALUE}
                             mr={1}
                             colorScheme="red"
-                            variant="solid"
-                            bg="red.500"
-                            _hover={{ bg: "red.600" }}
-                            _active={{ bg: "red.700" }}
+                            variant="outline"
                           >
                             <MinusIcon />
                           </Button>
@@ -441,25 +428,9 @@ const CharacterCreation: React.FC = () => {
                             onClick={() => handleAttributeChange(attrKey, value + 1)}
                             isDisabled={value >= MAX_ATTRIBUTE_VALUE || pointsRemaining < getAttributeCost(value)}
                             colorScheme="green"
-                            variant="solid"
-                            bg="green.500"
-                            _hover={{ bg: "green.600" }}
-                            _active={{ bg: "green.700" }}
-                            position="relative"
+                            variant="outline"
                           >
                             <AddIcon />
-                            {value < MAX_ATTRIBUTE_VALUE && (
-                              <Badge 
-                                position="absolute" 
-                                top="-8px" 
-                                right="-8px" 
-                                colorScheme="yellow" 
-                                fontSize="0.6em"
-                                borderRadius="full"
-                              >
-                                {getAttributeCost(value)}
-                              </Badge>
-                            )}
                           </Button>
                         </Flex>
                       </Flex>
