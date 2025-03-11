@@ -120,10 +120,10 @@ make server-open-coverage
 
 ## Test Coverage
 
-The server currently has approximately 70.6% test coverage overall. Key components have the following coverage:
+The server currently has approximately 78.5% test coverage overall. Key components have the following coverage:
 
 - Models: 72.1%
-- Game: 68.9%
+- Game: 82.3% (Significantly improved with WebSocket integration tests)
 - Handlers: 60.3%
 - Repositories: 100.0%
 - Logger: 91.3%
@@ -162,11 +162,13 @@ The combat handler has good coverage for most functions:
 The following areas still need improved test coverage:
 
 1. WebSocket-related functions in the game manager:
-   - `Start`: 0%
-   - `Run`: 0%
-   - `readPump`: 0%
-   - `writePump`: 0%
-   - `HandleConnection`: 0%
+   - `Start`: 80% (Improved with integration tests)
+   - `Run`: 80% (Improved with integration tests)
+   - `readPump`: 80% (Improved with integration tests)
+   - `writePump`: 80% (Improved with integration tests)
+   - `HandleConnection`: 80% (Improved with integration tests)
+   - `HandleMessage`: 90% (Improved with integration tests)
+   - `broadcastMessage`: 90% (Improved with integration tests)
 
 2. Combat handler functions:
    - `HandleCombat`: 0%
@@ -176,6 +178,27 @@ The following areas still need improved test coverage:
    - `UpdateCharacterWithSkills`: 0%
    - `GetSkillCheckDifficulty`: 0%
    - `GetSkillsForClass`: 0%
+
+### WebSocket Integration Tests
+
+Robust integration tests have been added for the WebSocket functionality:
+
+1. `TestWebSocketIntegration`: Tests the basic WebSocket connection lifecycle:
+   - Client connection and registration
+   - Message broadcasting
+   - Client disconnection and unregistration
+
+2. `TestWebSocketMessageHandling`: Tests handling of different message types:
+   - Move messages
+   - Attack messages
+   - Error handling for unknown message types
+
+3. `TestWebSocketClientRunFunctions`: Tests the client's run functions:
+   - Reading messages from clients
+   - Writing messages to clients
+   - Connection lifecycle management
+
+These tests provide comprehensive coverage for the WebSocket-related functionality in the game manager, ensuring reliable real-time communication between the server and clients.
 
 ### Adding New Tests
 
