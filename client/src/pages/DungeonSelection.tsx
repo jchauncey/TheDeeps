@@ -39,7 +39,7 @@ import {
   Stack,
 } from '@chakra-ui/react';
 import { AddIcon, ArrowBackIcon, ArrowForwardIcon } from '@chakra-ui/icons';
-import { getDungeons, createDungeon, joinDungeon } from '../services/api';
+import { getDungeons, createDungeon, joinDungeon, getCharacter } from '../services/api';
 import { Character, Dungeon } from '../types';
 
 interface LocationState {
@@ -77,7 +77,25 @@ const DungeonSelection: React.FC = () => {
       return;
     }
     
-    fetchDungeons();
+    // Refresh character data to ensure it exists
+    const refreshCharacterData = async () => {
+      try {
+        await getCharacter(character.id);
+        fetchDungeons();
+      } catch (err) {
+        console.error('Failed to verify character:', err);
+        toast({
+          title: 'Character not found',
+          description: 'The selected character no longer exists. Please select another character.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        navigate('/');
+      }
+    };
+    
+    refreshCharacterData();
   }, [character, navigate, toast]);
 
   const fetchDungeons = async () => {
@@ -159,6 +177,25 @@ const DungeonSelection: React.FC = () => {
 
     try {
       setJoiningDungeon(true);
+      
+      // First verify the character exists
+      try {
+        await getCharacter(character.id);
+      } catch (characterErr) {
+        console.error('Character verification failed:', characterErr);
+        toast({
+          title: 'Character not found',
+          description: 'The selected character no longer exists. Please select another character.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        setJoiningDungeon(false);
+        navigate('/'); // Return to character selection
+        return;
+      }
+      
+      // Now join the dungeon
       await joinDungeon(character.id, selectedDungeon.id);
       
       // Navigate to game screen with character and dungeon info

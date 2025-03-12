@@ -96,4 +96,67 @@ export const createCharacter = jest.fn().mockImplementation((characterData: any)
   return Promise.resolve(newCharacter);
 });
 
-export const deleteCharacter = jest.fn().mockResolvedValue(undefined); 
+export const deleteCharacter = jest.fn().mockResolvedValue(undefined);
+
+// Mock dungeon data
+export const mockDungeons = [
+  {
+    id: 'dungeon-1',
+    name: 'The Dark Cave',
+    floors: 5,
+    difficulty: 'easy',
+    createdAt: new Date().toISOString(),
+    playerCount: 0
+  },
+  {
+    id: 'dungeon-2',
+    name: 'The Forgotten Temple',
+    floors: 10,
+    difficulty: 'medium',
+    createdAt: new Date().toISOString(),
+    playerCount: 2
+  }
+];
+
+// Add dungeon API mocks
+export const getDungeons = jest.fn().mockResolvedValue(mockDungeons);
+
+export const createDungeon = jest.fn().mockImplementation((dungeonData: any) => {
+  const newDungeon = {
+    id: `dungeon-${Date.now()}`, // Mock ID generation
+    name: dungeonData.name,
+    floors: dungeonData.floors,
+    difficulty: dungeonData.difficulty || 'easy',
+    createdAt: new Date().toISOString(),
+    playerCount: 0
+  };
+  return Promise.resolve(newDungeon);
+});
+
+// Add joinDungeon mock
+export const joinDungeon = jest.fn().mockImplementation((characterId: string, dungeonId: string) => {
+  // Check if character exists
+  const character = mockCharacters.find(char => char.id === characterId);
+  if (!character) {
+    return Promise.reject({
+      isAxiosError: true,
+      response: {
+        status: 404,
+        data: 'character not found'
+      }
+    });
+  }
+  
+  // Mock dungeon check (just check if dungeonId is valid-looking)
+  if (!dungeonId || dungeonId === 'non-existent-id') {
+    return Promise.reject({
+      isAxiosError: true,
+      response: {
+        status: 404,
+        data: 'dungeon not found'
+      }
+    });
+  }
+  
+  return Promise.resolve();
+}); 

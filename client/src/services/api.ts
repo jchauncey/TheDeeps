@@ -105,6 +105,20 @@ export const joinDungeon = async (characterId: string, dungeonId: string): Promi
     await axios.post(`${API_URL}/dungeons/${dungeonId}/join`, { characterId });
   } catch (error) {
     console.error(`Failed to join dungeon ${dungeonId}:`, error);
+    
+    // Add more specific error handling
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        if (error.response.data === "character not found") {
+          console.error('Character not found');
+          throw new Error('Character not found. Please select another character.');
+        } else if (error.response.data === "dungeon not found") {
+          console.error('Dungeon not found');
+          throw new Error('Dungeon not found. Please select another dungeon.');
+        }
+      }
+    }
+    
     throw error;
   }
 }; 
