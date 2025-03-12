@@ -295,8 +295,15 @@ const DungeonSelection: React.FC = () => {
           <Flex justify="space-between" mt={8}>
             <Button
               leftIcon={<ArrowBackIcon />}
-              variant="outline"
+              variant="solid" 
               onClick={handleBack}
+              bg="gray.600"
+              color="cyan.300"
+              borderColor="cyan.500"
+              borderWidth="1px"
+              _hover={{ bg: "gray.700", color: "cyan.200" }}
+              _active={{ bg: "gray.800", color: "cyan.100" }}
+              boxShadow="sm"
             >
               Back to Characters
             </Button>

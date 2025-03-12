@@ -195,6 +195,82 @@ const CharacterCreation: React.FC = () => {
     setPointsRemaining(TOTAL_ATTRIBUTE_POINTS);
   };
 
+  // Auto allocate attribute points based on class
+  const autoAllocateAttributes = () => {
+    // Reset attributes first
+    resetAttributes();
+    
+    // Get primary attributes for the selected class
+    const primaryAttrs = getSelectedClassInfo().primaryAttributes
+      .map(attr => attr.toLowerCase() as keyof Attributes);
+    
+    // Secondary attributes (all non-primary attributes)
+    const secondaryAttrs = Object.keys(attributes)
+      .filter(attr => !primaryAttrs.includes(attr as keyof Attributes))
+      .map(attr => attr as keyof Attributes);
+    
+    // Create a new attributes object starting with base values
+    let newAttributes = { ...attributes };
+    let remainingPoints = TOTAL_ATTRIBUTE_POINTS;
+    
+    // First, maximize primary attributes to 15 (or as high as possible)
+    for (const attr of primaryAttrs) {
+      while (newAttributes[attr] < MAX_ATTRIBUTE_VALUE && remainingPoints >= getAttributeCost(newAttributes[attr])) {
+        const cost = getAttributeCost(newAttributes[attr]);
+        if (remainingPoints >= cost) {
+          newAttributes[attr]++;
+          remainingPoints -= cost;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    // Then, distribute remaining points to secondary attributes
+    // Prioritize Constitution for survivability if it's not already a primary attribute
+    if (!primaryAttrs.includes('constitution') && secondaryAttrs.includes('constitution')) {
+      while (newAttributes.constitution < 14 && remainingPoints >= getAttributeCost(newAttributes.constitution)) {
+        const cost = getAttributeCost(newAttributes.constitution);
+        if (remainingPoints >= cost) {
+          newAttributes.constitution++;
+          remainingPoints -= cost;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    // Distribute remaining points evenly among other secondary attributes
+    let currentAttr = 0;
+    while (remainingPoints > 0) {
+      const attr = secondaryAttrs[currentAttr];
+      
+      // Skip if already at max
+      if (newAttributes[attr] >= MAX_ATTRIBUTE_VALUE) {
+        currentAttr = (currentAttr + 1) % secondaryAttrs.length;
+        continue;
+      }
+      
+      const cost = getAttributeCost(newAttributes[attr]);
+      if (remainingPoints >= cost) {
+        newAttributes[attr]++;
+        remainingPoints -= cost;
+      }
+      
+      // Move to next attribute
+      currentAttr = (currentAttr + 1) % secondaryAttrs.length;
+      
+      // If we've gone through all attributes and can't allocate more, break
+      if (currentAttr === 0 && remainingPoints < getAttributeCost(newAttributes[secondaryAttrs[0]])) {
+        break;
+      }
+    }
+    
+    // Update state
+    setAttributes(newAttributes);
+    setPointsRemaining(remainingPoints);
+  };
+
   // Get color for attribute based on value
   const getAttributeColor = (value: number): string => {
     if (value >= 15) return "green.300";
@@ -390,8 +466,20 @@ const CharacterCreation: React.FC = () => {
                   colorScheme="orange" 
                   variant="solid"
                   leftIcon={<MinusIcon />}
+                  mr={2}
                 >
                   Reset Attributes
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  onClick={autoAllocateAttributes} 
+                  mb={4} 
+                  colorScheme="blue" 
+                  variant="solid"
+                  leftIcon={<AddIcon />}
+                >
+                  Auto Allocate
                 </Button>
                 
                 <SimpleGrid columns={1} spacing={4}>
