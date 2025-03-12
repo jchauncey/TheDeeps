@@ -123,8 +123,6 @@
     - ✅ No fog of war implementation
     - ✅ Clear visual distinction between different terrain types
     - ✅ Animated transitions between map areas
-    - Zoom functionality for map view
-    - Mini-map in corner for larger dungeons
     - ✅ Visual indicators for interactive objects (doors, chests, etc.)
     - ✅ Enemy representations with distinct symbols/colors
     - Turn counter or game clock display

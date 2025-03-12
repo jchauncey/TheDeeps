@@ -83,8 +83,8 @@ const Game: React.FC = () => {
 
   return (
     <Flex h="100vh">
-      {/* Left side - Map window */}
-      <Box flex="3" bg="gray.900" p={4}>
+      {/* Map window taking up the entire browser window */}
+      <Box flex="1" bg="gray.900" p={4} w="100%">
         <Text fontSize="xl" mb={4}>
           {dungeon.name} - Floor {character.currentFloor}
         </Text>
@@ -102,18 +102,6 @@ const Game: React.FC = () => {
           <Text mt={4}>Character: {character.name} ({character.class})</Text>
           <Text>Position: ({character.position.x}, {character.position.y})</Text>
         </Box>
-      </Box>
-      
-      {/* Right side - Character status panel */}
-      <Box flex="1" bg="gray.800" p={4}>
-        <Text fontSize="xl" mb={4}>
-          {character.name}
-        </Text>
-        <Text>Level: {character.level}</Text>
-        <Text>Class: {character.class}</Text>
-        <Text mt={2}>HP: {character.currentHp}/{character.maxHp}</Text>
-        <Text>Mana: {character.currentMana}/{character.maxMana}</Text>
-        <Text mt={2}>Floor: {character.currentFloor}</Text>
       </Box>
     </Flex>
   );
