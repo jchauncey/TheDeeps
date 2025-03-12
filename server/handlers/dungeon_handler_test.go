@@ -51,6 +51,31 @@ func TestCreateDungeon(t *testing.T) {
 				assert.Equal(t, 5, dungeon.Floors, "Dungeon floors should match")
 				assert.Equal(t, int64(12345), dungeon.Seed, "Dungeon seed should match")
 				assert.NotEmpty(t, dungeon.ID, "Dungeon ID should be generated")
+				// Default difficulty should be "normal"
+				assert.Equal(t, "normal", dungeon.Difficulty, "Default difficulty should be 'normal'")
+			},
+		},
+		{
+			name: "Dungeon With Custom Difficulty",
+			requestBody: map[string]interface{}{
+				"name":       "Hard Dungeon",
+				"floors":     3,
+				"difficulty": "hard",
+				"seed":       12345,
+			},
+			expectedStatus: http.StatusCreated,
+			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				var dungeon models.Dungeon
+				err := json.Unmarshal(resp.Body.Bytes(), &dungeon)
+				require.NoError(t, err, "Failed to unmarshal response")
+
+				// Validate dungeon properties
+				assert.Equal(t, "Hard Dungeon", dungeon.Name, "Dungeon name should match")
+				assert.Equal(t, 3, dungeon.Floors, "Dungeon floors should match")
+				assert.Equal(t, int64(12345), dungeon.Seed, "Dungeon seed should match")
+				assert.NotEmpty(t, dungeon.ID, "Dungeon ID should be generated")
+				// Custom difficulty should be preserved
+				assert.Equal(t, "hard", dungeon.Difficulty, "Difficulty should be 'hard'")
 			},
 		},
 		{

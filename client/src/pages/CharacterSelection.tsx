@@ -65,9 +65,8 @@ const CharacterSelection: React.FC = () => {
   };
 
   const handleSelectCharacter = (character: Character) => {
-    // For now, just log the selection. Later, this will navigate to the game
-    console.log('Selected character:', character);
-    // TODO: Navigate to game with selected character
+    // Navigate to dungeon selection with the selected character
+    navigate('/dungeon-selection', { state: { character } });
   };
 
   const handleCreateCharacter = () => {

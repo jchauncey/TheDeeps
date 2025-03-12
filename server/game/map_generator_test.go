@@ -663,3 +663,86 @@ func TestHelperFunctions(t *testing.T) {
 	assert.Equal(t, 5, max(-5, 5))
 	assert.Equal(t, -5, max(-5, -10))
 }
+
+// TestGenerateFloorWithDifficulty tests the GenerateFloorWithDifficulty function
+func TestGenerateFloorWithDifficulty(t *testing.T) {
+	// Create a map generator with a fixed seed for deterministic tests
+	generator := NewMapGenerator(12345)
+
+	tests := []struct {
+		name         string
+		level        int
+		isFinalFloor bool
+		difficulty   string
+	}{
+		{
+			name:         "Easy Difficulty",
+			level:        3,
+			isFinalFloor: false,
+			difficulty:   "easy",
+		},
+		{
+			name:         "Normal Difficulty",
+			level:        3,
+			isFinalFloor: false,
+			difficulty:   "normal",
+		},
+		{
+			name:         "Hard Difficulty",
+			level:        3,
+			isFinalFloor: false,
+			difficulty:   "hard",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a floor
+			floor := &models.Floor{
+				Level:  tt.level,
+				Width:  50,
+				Height: 50,
+				Tiles:  make([][]models.Tile, 50),
+			}
+
+			// Initialize tiles
+			for y := range floor.Tiles {
+				floor.Tiles[y] = make([]models.Tile, 50)
+			}
+
+			// Generate the floor
+			generator.GenerateFloorWithDifficulty(floor, tt.level, tt.isFinalFloor, tt.difficulty)
+
+			// Verify that the floor was generated
+			assert.NotEmpty(t, floor.Rooms, "Rooms should be generated")
+			assert.NotEmpty(t, floor.Mobs, "Mobs should be generated")
+
+			// Count mobs by variant
+			easyCount := 0
+			normalCount := 0
+			hardCount := 0
+
+			for _, mob := range floor.Mobs {
+				switch mob.Variant {
+				case models.VariantEasy:
+					easyCount++
+				case models.VariantNormal:
+					normalCount++
+				case models.VariantHard:
+					hardCount++
+				}
+			}
+
+			// Verify that the difficulty affects mob variants
+			switch tt.difficulty {
+			case "easy":
+				// Easy difficulty should have more easy mobs
+				assert.True(t, easyCount > normalCount, "Easy difficulty should have more easy mobs than normal mobs")
+				assert.True(t, normalCount > hardCount, "Easy difficulty should have more normal mobs than hard mobs")
+			case "hard":
+				// Hard difficulty should have more hard mobs
+				assert.True(t, hardCount > 0, "Hard difficulty should have at least some hard mobs")
+			}
+		})
+	}
+}

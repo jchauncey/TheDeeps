@@ -58,6 +58,45 @@ func (g *MapGenerator) GenerateFloor(floor *models.Floor, level int, isFinalFloo
 	g.placeItems(floor, rooms, level)
 }
 
+// GenerateFloorWithDifficulty generates a complete floor for a dungeon with the specified difficulty
+func (g *MapGenerator) GenerateFloorWithDifficulty(floor *models.Floor, level int, isFinalFloor bool, difficulty string) {
+	// Initialize the floor with walls
+	for y := 0; y < floor.Height; y++ {
+		for x := 0; x < floor.Width; x++ {
+			floor.Tiles[y][x] = models.Tile{
+				Type:     models.TileWall,
+				Walkable: false,
+				Explored: false,
+			}
+		}
+	}
+
+	// Determine number of rooms based on floor level
+	minRooms := 5
+	maxRooms := 10 + level
+	if maxRooms > 20 {
+		maxRooms = 20
+	}
+
+	numRooms := minRooms + g.rng.Intn(maxRooms-minRooms+1)
+
+	// Generate rooms
+	rooms := g.generateRooms(floor, numRooms, level, isFinalFloor)
+	floor.Rooms = rooms
+
+	// Connect rooms with corridors
+	g.connectRooms(floor, rooms)
+
+	// Place stairs
+	g.placeStairs(floor, rooms, level, isFinalFloor)
+
+	// Place mobs with difficulty
+	g.placeMobsWithDifficulty(floor, rooms, level, isFinalFloor, difficulty)
+
+	// Place items
+	g.placeItems(floor, rooms, level)
+}
+
 // generateRooms creates a set of rooms for the floor
 func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level int, isFinalFloor bool) []models.Room {
 	rooms := make([]models.Room, 0, numRooms)
@@ -221,6 +260,12 @@ func (g *MapGenerator) placeStairs(floor *models.Floor, rooms []models.Room, lev
 
 // placeMobs places mobs on the floor
 func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level int, isFinalFloor bool) {
+	// Default to normal difficulty
+	g.placeMobsWithDifficulty(floor, rooms, level, isFinalFloor, "normal")
+}
+
+// placeMobsWithDifficulty places mobs on the floor with the specified difficulty
+func (g *MapGenerator) placeMobsWithDifficulty(floor *models.Floor, rooms []models.Room, level int, isFinalFloor bool, difficulty string) {
 	floor.Mobs = make(map[string]*models.Mob)
 
 	// Determine mob types based on floor level
@@ -285,6 +330,13 @@ func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level
 		// Adjust based on floor level
 		numMobs += level / 3
 
+		// Adjust based on difficulty
+		if difficulty == "hard" {
+			numMobs += 1
+		} else if difficulty == "easy" {
+			numMobs = max(1, numMobs-1)
+		}
+
 		// Cap at reasonable number
 		if numMobs > 8 {
 			numMobs = 8
@@ -294,16 +346,42 @@ func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level
 			// Pick a random mob type
 			mobType := mobTypes[g.rng.Intn(len(mobTypes))]
 
-			// Determine variant
+			// Determine variant based on difficulty
 			variant := models.VariantNormal
 			variantRoll := g.rng.Float64()
 
-			if variantRoll < 0.6 {
-				variant = models.VariantEasy
-			} else if variantRoll < 0.9 {
-				variant = models.VariantNormal
-			} else {
-				variant = models.VariantHard
+			switch difficulty {
+			case "easy":
+				if variantRoll < 0.8 {
+					variant = models.VariantEasy
+				} else {
+					variant = models.VariantNormal
+				}
+			case "normal":
+				if variantRoll < 0.6 {
+					variant = models.VariantEasy
+				} else if variantRoll < 0.9 {
+					variant = models.VariantNormal
+				} else {
+					variant = models.VariantHard
+				}
+			case "hard":
+				if variantRoll < 0.3 {
+					variant = models.VariantEasy
+				} else if variantRoll < 0.7 {
+					variant = models.VariantNormal
+				} else {
+					variant = models.VariantHard
+				}
+			default:
+				// Default to normal difficulty distribution
+				if variantRoll < 0.6 {
+					variant = models.VariantEasy
+				} else if variantRoll < 0.9 {
+					variant = models.VariantNormal
+				} else {
+					variant = models.VariantHard
+				}
 			}
 
 			// Create the mob

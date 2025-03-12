@@ -72,6 +72,7 @@ type Dungeon struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
 	Floors      int               `json:"floors"`
+	Difficulty  string            `json:"difficulty"`
 	CreatedAt   time.Time         `json:"createdAt"`
 	FloorData   map[int]*Floor    `json:"floorData"`
 	Characters  map[string]string `json:"characters"` // Map of character ID to floor level
@@ -89,6 +90,7 @@ func NewDungeon(name string, floors int, seed int64) *Dungeon {
 		ID:         uuid.New().String(),
 		Name:       name,
 		Floors:     floors,
+		Difficulty: "normal", // Default difficulty
 		CreatedAt:  time.Now(),
 		FloorData:  make(map[int]*Floor),
 		Characters: make(map[string]string),

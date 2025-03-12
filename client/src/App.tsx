@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import CharacterSelection from './pages/CharacterSelection';
 import CharacterCreation from './pages/CharacterCreation';
+import DungeonSelection from './pages/DungeonSelection';
+import Game from './pages/Game';
 import SplashScreen from './components/SplashScreen';
 
 const App: React.FC = () => {
@@ -30,6 +32,8 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<CharacterSelection />} />
             <Route path="/create-character" element={<CharacterCreation />} />
+            <Route path="/dungeon-selection" element={<DungeonSelection />} />
+            <Route path="/game" element={<Game />} />
           </Routes>
         </Router>
       )}

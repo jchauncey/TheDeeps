@@ -40,9 +40,10 @@ func (h *DungeonHandler) GetDungeons(w http.ResponseWriter, r *http.Request) {
 func (h *DungeonHandler) CreateDungeon(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var request struct {
-		Name   string `json:"name"`
-		Floors int    `json:"floors"`
-		Seed   int64  `json:"seed,omitempty"`
+		Name       string `json:"name"`
+		Floors     int    `json:"floors"`
+		Difficulty string `json:"difficulty"`
+		Seed       int64  `json:"seed,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -61,12 +62,17 @@ func (h *DungeonHandler) CreateDungeon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if request.Difficulty == "" {
+		request.Difficulty = "normal" // Default difficulty
+	}
+
 	// Create dungeon
 	dungeon := models.NewDungeon(request.Name, request.Floors, request.Seed)
+	dungeon.Difficulty = request.Difficulty
 
 	// Generate first floor
 	floor := dungeon.GenerateFloor(1)
-	h.mapGenerator.GenerateFloor(floor, 1, request.Floors == 1)
+	h.mapGenerator.GenerateFloorWithDifficulty(floor, 1, request.Floors == 1, request.Difficulty)
 
 	// Save dungeon
 	if err := h.dungeonRepo.Save(dungeon); err != nil {
@@ -196,7 +202,7 @@ func (h *DungeonHandler) GetFloor(w http.ResponseWriter, r *http.Request) {
 
 	// If floor hasn't been generated yet, generate it
 	if len(floor.Rooms) == 0 {
-		h.mapGenerator.GenerateFloor(floor, level, level == dungeon.Floors)
+		h.mapGenerator.GenerateFloorWithDifficulty(floor, level, level == dungeon.Floors, dungeon.Difficulty)
 	}
 
 	// Return floor
