@@ -20,10 +20,10 @@ type DungeonHandler struct {
 }
 
 // NewDungeonHandler creates a new dungeon handler
-func NewDungeonHandler() *DungeonHandler {
+func NewDungeonHandler(dungeonRepo *repositories.DungeonRepository, characterRepo *repositories.CharacterRepository) *DungeonHandler {
 	return &DungeonHandler{
-		dungeonRepo:   repositories.NewDungeonRepository(),
-		characterRepo: repositories.NewCharacterRepository(),
+		dungeonRepo:   dungeonRepo,
+		characterRepo: characterRepo,
 		mapGenerator:  game.NewMapGenerator(time.Now().UnixNano()),
 	}
 }

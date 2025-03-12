@@ -17,15 +17,15 @@ import (
 
 // TestCreateDungeon tests the CreateDungeon handler
 func TestCreateDungeon(t *testing.T) {
-	// Create a new dungeon handler with a repository
+	// Create repositories
 	dungeonRepo := repositories.NewDungeonRepository()
 	characterRepo := repositories.NewCharacterRepository()
-	mapGenerator := game.NewMapGenerator(12345)
-	handler := &DungeonHandler{
-		dungeonRepo:   dungeonRepo,
-		characterRepo: characterRepo,
-		mapGenerator:  mapGenerator,
-	}
+
+	// Create handler using the constructor
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
+
+	// Override the map generator for deterministic tests
+	handler.mapGenerator = game.NewMapGenerator(12345)
 
 	tests := []struct {
 		name           string
@@ -295,8 +295,12 @@ func TestGetFloor(t *testing.T) {
 
 // TestJoinDungeon tests the JoinDungeon handler
 func TestJoinDungeon(t *testing.T) {
-	// Create a new dungeon handler with mock repositories
-	handler := NewDungeonHandler()
+	// Create repositories
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+
+	// Create handler using the constructor
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
 
 	// Create a test dungeon
 	dungeon := models.NewDungeon("Test Dungeon", 5, 0)
@@ -397,11 +401,76 @@ func TestJoinDungeon(t *testing.T) {
 
 // TestNewDungeonHandler tests the NewDungeonHandler function
 func TestNewDungeonHandler(t *testing.T) {
-	handler := NewDungeonHandler()
+	// Create repositories
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+
+	// Create handler using the constructor
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
 
 	// Verify handler is initialized correctly
 	assert.NotNil(t, handler, "Handler should not be nil")
 	assert.NotNil(t, handler.dungeonRepo, "Dungeon repository should not be nil")
 	assert.NotNil(t, handler.characterRepo, "Character repository should not be nil")
 	assert.NotNil(t, handler.mapGenerator, "Map generator should not be nil")
+
+	// Verify the repositories are the ones we passed in
+	assert.Same(t, dungeonRepo, handler.dungeonRepo, "Dungeon repository should be the same instance")
+	assert.Same(t, characterRepo, handler.characterRepo, "Character repository should be the same instance")
+}
+
+// TestSharedRepositories tests that the repositories are shared correctly
+func TestSharedRepositories(t *testing.T) {
+	// Create shared repositories
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+
+	// Create a test character in the character repository
+	character := models.NewCharacter("Test Character", models.Warrior)
+	err := characterRepo.Save(character)
+	assert.NoError(t, err, "Failed to save character")
+
+	// Create a test dungeon in the dungeon repository
+	dungeon := models.NewDungeon("Test Dungeon", 5, 0)
+	err = dungeonRepo.Save(dungeon)
+	assert.NoError(t, err, "Failed to save dungeon")
+
+	// Create handler using the shared repositories
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
+
+	// Create request to join the dungeon
+	requestBody := map[string]string{
+		"characterId": character.ID,
+	}
+	bodyBytes, err := json.Marshal(requestBody)
+	assert.NoError(t, err, "Failed to marshal request body")
+
+	req, err := http.NewRequest("POST", "/dungeons/"+dungeon.ID+"/join", bytes.NewBuffer(bodyBytes))
+	assert.NoError(t, err, "Failed to create request")
+	req.Header.Set("Content-Type", "application/json")
+
+	// Set up router with mux vars
+	req = mux.SetURLVars(req, map[string]string{
+		"id": dungeon.ID,
+	})
+
+	// Create response recorder
+	rr := httptest.NewRecorder()
+
+	// Call handler directly
+	handler.JoinDungeon(rr, req)
+
+	// Check status code
+	assert.Equal(t, http.StatusOK, rr.Code, "Status code should be OK")
+
+	// Verify character was added to dungeon
+	updatedDungeon, err := dungeonRepo.GetByID(dungeon.ID)
+	assert.NoError(t, err, "Failed to get updated dungeon")
+	assert.Contains(t, updatedDungeon.Characters, character.ID, "Character should be added to dungeon")
+
+	// Verify character has dungeon reference
+	updatedCharacter, err := characterRepo.GetByID(character.ID)
+	assert.NoError(t, err, "Failed to get updated character")
+	assert.Equal(t, dungeon.ID, updatedCharacter.CurrentDungeon, "Character should reference dungeon")
+	assert.Equal(t, 1, updatedCharacter.CurrentFloor, "Character should be on floor 1")
 }

@@ -34,8 +34,8 @@ func NewServer() *Server {
 	gameManager := game.NewGameManager(characterRepo, dungeonRepo)
 
 	// Create handlers
-	characterHandler := handlers.NewCharacterHandler()
-	dungeonHandler := handlers.NewDungeonHandler()
+	characterHandler := handlers.NewCharacterHandler(characterRepo)
+	dungeonHandler := handlers.NewDungeonHandler(dungeonRepo, characterRepo)
 	combatHandler := handlers.NewCombatHandler(characterRepo, dungeonRepo, gameManager)
 	inventoryHandler := handlers.NewInventoryHandler(characterRepo, inventoryRepo)
 
@@ -51,6 +51,9 @@ func NewServer() *Server {
 		combatHandler:    combatHandler,
 		inventoryHandler: inventoryHandler,
 	}
+
+	// Setup routes
+	server.SetupRoutes()
 
 	return server
 }

@@ -15,9 +15,9 @@ type CharacterHandler struct {
 }
 
 // NewCharacterHandler creates a new character handler
-func NewCharacterHandler() *CharacterHandler {
+func NewCharacterHandler(characterRepo *repositories.CharacterRepository) *CharacterHandler {
 	return &CharacterHandler{
-		characterRepo: repositories.NewCharacterRepository(),
+		characterRepo: characterRepo,
 	}
 }
 
