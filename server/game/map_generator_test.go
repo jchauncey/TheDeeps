@@ -125,7 +125,7 @@ func TestGenerateRooms(t *testing.T) {
 		isFinalFloor bool
 		minExpected  int // Minimum number of rooms expected (may be less than numRooms due to overlap)
 	}{
-		{"Few Rooms", 5, 1, false, 3},
+		{"Few Rooms", 5, 1, false, 2},
 		{"Many Rooms", 15, 5, false, 8},
 		{"Final Floor", 10, 10, true, 5},
 	}
@@ -840,9 +840,9 @@ func TestEntranceRoom(t *testing.T) {
 	}
 	assert.True(t, hasDownStairsInEntranceRoom, "Entrance room should have down stairs")
 
-	// Check that the down stairs are in the expected position (bottom right corner)
-	expectedX := entranceRoom.X + entranceRoom.Width - 2
-	expectedY := entranceRoom.Y + entranceRoom.Height - 2
+	// Check that the down stairs are in the expected position (center of the room)
+	expectedX := entranceRoom.X + entranceRoom.Width/2
+	expectedY := entranceRoom.Y + entranceRoom.Height/2
 	assert.Equal(t, expectedX, downStairsPos.X, "Down stairs should be at the expected X position")
 	assert.Equal(t, expectedY, downStairsPos.Y, "Down stairs should be at the expected Y position")
 

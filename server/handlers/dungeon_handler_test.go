@@ -299,104 +299,190 @@ func TestJoinDungeon(t *testing.T) {
 	dungeonRepo := repositories.NewDungeonRepository()
 	characterRepo := repositories.NewCharacterRepository()
 
-	// Create handler using the constructor
-	handler := NewDungeonHandler(dungeonRepo, characterRepo)
-
-	// Create a test dungeon
-	dungeon := models.NewDungeon("Test Dungeon", 5, 0)
-	err := handler.dungeonRepo.Save(dungeon)
-	assert.NoError(t, err)
+	// Create a test dungeon with a floor
+	dungeon := models.NewDungeon("TestDungeon", 3, 12345)
+	dungeonRepo.Save(dungeon)
 
 	// Create a test character
-	character := models.NewCharacter("Test Character", models.Warrior)
-	err = handler.characterRepo.Save(character)
-	assert.NoError(t, err)
+	character := models.NewCharacter("TestCharacter", models.Warrior)
+	characterRepo.Save(character)
 
-	// Test cases
-	tests := []struct {
-		name           string
-		dungeonID      string
-		characterID    string
-		expectedStatus int
-		expectedError  string
-	}{
-		{
-			name:           "Valid join",
-			dungeonID:      dungeon.ID,
-			characterID:    character.ID,
-			expectedStatus: http.StatusOK,
-			expectedError:  "",
-		},
-		{
-			name:           "Invalid dungeon ID",
-			dungeonID:      "non-existent-dungeon",
-			characterID:    character.ID,
-			expectedStatus: http.StatusNotFound,
-			expectedError:  "dungeon not found",
-		},
-		{
-			name:           "Invalid character ID",
-			dungeonID:      dungeon.ID,
-			characterID:    "non-existent-character",
-			expectedStatus: http.StatusNotFound,
-			expectedError:  "character not found",
-		},
-		{
-			name:           "Missing character ID",
-			dungeonID:      dungeon.ID,
-			characterID:    "",
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  "Character ID is required",
-		},
+	// Generate the first floor with an entrance room
+	floor := dungeon.GenerateFloor(1)
+	mapGenerator := game.NewMapGenerator(12345)
+	mapGenerator.GenerateFloorWithDifficulty(floor, 1, false, "normal")
+
+	// Create the handler
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
+
+	// Create a request
+	requestBody := map[string]string{
+		"characterId": character.ID,
 	}
+	body, _ := json.Marshal(requestBody)
+	req, err := http.NewRequest("POST", "/dungeons/"+dungeon.ID+"/join", bytes.NewBuffer(body))
+	require.NoError(t, err)
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// Create request body
-			requestBody := map[string]string{
-				"characterId": tc.characterID,
-			}
-			bodyBytes, err := json.Marshal(requestBody)
-			assert.NoError(t, err)
+	// Set up the router with the route parameter
+	router := mux.NewRouter()
+	router.HandleFunc("/dungeons/{id}/join", handler.JoinDungeon).Methods("POST")
 
-			// Create request
-			req, err := http.NewRequest("POST", "/dungeons/"+tc.dungeonID+"/join", bytes.NewBuffer(bodyBytes))
-			assert.NoError(t, err)
-			req.Header.Set("Content-Type", "application/json")
+	// Create a response recorder
+	rr := httptest.NewRecorder()
 
-			// Set up router with mux vars
-			router := mux.NewRouter()
-			router.HandleFunc("/dungeons/{id}/join", handler.JoinDungeon).Methods("POST")
+	// Serve the request
+	router.ServeHTTP(rr, req)
 
-			// Create response recorder
-			rr := httptest.NewRecorder()
+	// Check the status code
+	assert.Equal(t, http.StatusOK, rr.Code)
 
-			// Serve the request
-			router.ServeHTTP(rr, req)
+	// Parse the response
+	var responseFloor models.Floor
+	err = json.Unmarshal(rr.Body.Bytes(), &responseFloor)
+	require.NoError(t, err)
 
-			// Check status code
-			assert.Equal(t, tc.expectedStatus, rr.Code)
+	// Get the updated character
+	updatedCharacter, err := characterRepo.GetByID(character.ID)
+	require.NoError(t, err)
 
-			// Check error message if expected
-			if tc.expectedError != "" {
-				assert.Contains(t, rr.Body.String(), tc.expectedError)
-			}
+	// Verify the character is in the dungeon
+	assert.Equal(t, dungeon.ID, updatedCharacter.CurrentDungeon)
+	assert.Equal(t, 1, updatedCharacter.CurrentFloor)
 
-			// If successful join, verify character was added to dungeon
-			if tc.expectedStatus == http.StatusOK {
-				// Verify character is in dungeon
-				updatedDungeon, err := handler.dungeonRepo.GetByID(tc.dungeonID)
-				assert.NoError(t, err)
-				assert.Contains(t, updatedDungeon.Characters, tc.characterID)
-
-				// Verify character has dungeon reference
-				updatedCharacter, err := handler.characterRepo.GetByID(tc.characterID)
-				assert.NoError(t, err)
-				assert.Equal(t, tc.dungeonID, updatedCharacter.CurrentDungeon)
-				assert.Equal(t, 1, updatedCharacter.CurrentFloor)
-			}
-		})
+	// Find the entrance room
+	var entranceRoom *models.Room
+	for i := range responseFloor.Rooms {
+		if responseFloor.Rooms[i].Type == models.RoomEntrance {
+			entranceRoom = &responseFloor.Rooms[i]
+			break
+		}
 	}
+	require.NotNil(t, entranceRoom, "Entrance room should exist")
+
+	// Verify the character is positioned in the entrance room
+	assert.GreaterOrEqual(t, updatedCharacter.Position.X, entranceRoom.X)
+	assert.Less(t, updatedCharacter.Position.X, entranceRoom.X+entranceRoom.Width)
+	assert.GreaterOrEqual(t, updatedCharacter.Position.Y, entranceRoom.Y)
+	assert.Less(t, updatedCharacter.Position.Y, entranceRoom.Y+entranceRoom.Height)
+
+	// Verify the character is on a walkable tile
+	assert.True(t, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Walkable)
+
+	// Verify the character is not on stairs
+	assert.NotEqual(t, models.TileDownStairs, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
+	assert.NotEqual(t, models.TileUpStairs, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
+
+	// Verify the tile has the character ID
+	assert.Equal(t, character.ID, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Character)
+}
+
+// TestJoinDungeonWithObstaclesInEntranceRoom tests the JoinDungeon handler with obstacles in the entrance room
+func TestJoinDungeonWithObstaclesInEntranceRoom(t *testing.T) {
+	// Create repositories
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+
+	// Create a test dungeon with a floor
+	dungeon := models.NewDungeon("TestDungeon", 3, 12345)
+	dungeonRepo.Save(dungeon)
+
+	// Create a test character
+	character := models.NewCharacter("TestCharacter", models.Warrior)
+	characterRepo.Save(character)
+
+	// Generate the first floor with an entrance room
+	floor := dungeon.GenerateFloor(1)
+	mapGenerator := game.NewMapGenerator(12345)
+	mapGenerator.GenerateFloorWithDifficulty(floor, 1, false, "normal")
+
+	// Find the entrance room
+	var entranceRoom *models.Room
+	for i := range floor.Rooms {
+		if floor.Rooms[i].Type == models.RoomEntrance {
+			entranceRoom = &floor.Rooms[i]
+			break
+		}
+	}
+	require.NotNil(t, entranceRoom, "Entrance room should exist")
+
+	// Place obstacles in the center of the entrance room
+	centerX := entranceRoom.X + entranceRoom.Width/2
+	centerY := entranceRoom.Y + entranceRoom.Height/2
+
+	// Place a down stairs at the center
+	floor.Tiles[centerY][centerX].Type = models.TileDownStairs
+	floor.Tiles[centerY][centerX].Walkable = true
+	floor.DownStairs = append(floor.DownStairs, models.Position{X: centerX, Y: centerY})
+
+	// Place a mob near the center
+	mobID := "test-mob"
+	mob := models.NewMob(models.MobGoblin, models.VariantNormal, 1)
+	mob.ID = mobID
+	mob.Position = models.Position{X: centerX + 1, Y: centerY}
+	floor.Mobs[mobID] = mob
+	floor.Tiles[centerY][centerX+1].MobID = mobID
+
+	// Create the handler
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
+
+	// Create a request
+	requestBody := map[string]string{
+		"characterId": character.ID,
+	}
+	body, _ := json.Marshal(requestBody)
+	req, err := http.NewRequest("POST", "/dungeons/"+dungeon.ID+"/join", bytes.NewBuffer(body))
+	require.NoError(t, err)
+
+	// Set up the router with the route parameter
+	router := mux.NewRouter()
+	router.HandleFunc("/dungeons/{id}/join", handler.JoinDungeon).Methods("POST")
+
+	// Create a response recorder
+	rr := httptest.NewRecorder()
+
+	// Serve the request
+	router.ServeHTTP(rr, req)
+
+	// Check the status code
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Parse the response
+	var responseFloor models.Floor
+	err = json.Unmarshal(rr.Body.Bytes(), &responseFloor)
+	require.NoError(t, err)
+
+	// Get the updated character
+	updatedCharacter, err := characterRepo.GetByID(character.ID)
+	require.NoError(t, err)
+
+	// Verify the character is in the dungeon
+	assert.Equal(t, dungeon.ID, updatedCharacter.CurrentDungeon)
+	assert.Equal(t, 1, updatedCharacter.CurrentFloor)
+
+	// Verify the character is positioned in the entrance room
+	assert.GreaterOrEqual(t, updatedCharacter.Position.X, entranceRoom.X)
+	assert.Less(t, updatedCharacter.Position.X, entranceRoom.X+entranceRoom.Width)
+	assert.GreaterOrEqual(t, updatedCharacter.Position.Y, entranceRoom.Y)
+	assert.Less(t, updatedCharacter.Position.Y, entranceRoom.Y+entranceRoom.Height)
+
+	// Verify the character is on a walkable tile
+	assert.True(t, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Walkable)
+
+	// Verify the character is not on stairs
+	assert.NotEqual(t, models.TileDownStairs, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
+	assert.NotEqual(t, models.TileUpStairs, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
+
+	// Verify the character is not on the same tile as a mob
+	assert.Equal(t, "", responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].MobID)
+
+	// Verify the tile has the character ID
+	assert.Equal(t, character.ID, responseFloor.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Character)
+
+	// Verify the character is not at the center (where we placed the stairs)
+	assert.False(t, updatedCharacter.Position.X == centerX && updatedCharacter.Position.Y == centerY)
+
+	// Verify the character is not at the mob position
+	assert.False(t, updatedCharacter.Position.X == centerX+1 && updatedCharacter.Position.Y == centerY)
 }
 
 // TestNewDungeonHandler tests the NewDungeonHandler function

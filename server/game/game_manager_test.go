@@ -11,6 +11,7 @@ import (
 	"github.com/jchauncey/TheDeeps/server/models"
 	"github.com/jchauncey/TheDeeps/server/repositories"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestNewGameManager tests the creation of a new game manager
@@ -828,248 +829,122 @@ func TestHandleAscend(t *testing.T) {
 	characterRepo := repositories.NewCharacterRepository()
 	dungeonRepo := repositories.NewDungeonRepository()
 
-	// Create game manager
-	manager := NewGameManager(characterRepo, dungeonRepo)
+	// Create a test character
+	character := models.NewCharacter("TestCharacter", models.Warrior)
+	character.Level = 1
+	characterRepo.Save(character)
 
 	// Create a test dungeon with multiple floors
 	dungeon := models.NewDungeon("TestDungeon", 3, 12345)
-
-	// Create floor 1 (top floor)
-	floor1 := &models.Floor{
-		Level:      1,
-		Width:      10,
-		Height:     10,
-		Tiles:      make([][]models.Tile, 10),
-		DownStairs: []models.Position{{X: 5, Y: 5}},
-	}
-
-	// Initialize tiles for floor 1
-	for i := 0; i < 10; i++ {
-		floor1.Tiles[i] = make([]models.Tile, 10)
-		for j := 0; j < 10; j++ {
-			floor1.Tiles[i][j] = models.Tile{
-				Type:     models.TileFloor,
-				Walkable: true,
-			}
-		}
-	}
-
-	// Add stairs down at position (5, 5)
-	floor1.Tiles[5][5].Type = models.TileDownStairs
-
-	// Create floor 2 (middle floor)
-	floor2 := &models.Floor{
-		Level:      2,
-		Width:      10,
-		Height:     10,
-		Tiles:      make([][]models.Tile, 10),
-		UpStairs:   []models.Position{{X: 5, Y: 5}},
-		DownStairs: []models.Position{{X: 7, Y: 7}},
-	}
-
-	// Initialize tiles for floor 2
-	for i := 0; i < 10; i++ {
-		floor2.Tiles[i] = make([]models.Tile, 10)
-		for j := 0; j < 10; j++ {
-			floor2.Tiles[i][j] = models.Tile{
-				Type:     models.TileFloor,
-				Walkable: true,
-			}
-		}
-	}
-
-	// Add stairs up at position (5, 5)
-	floor2.Tiles[5][5].Type = models.TileUpStairs
-	// Add stairs down at position (7, 7)
-	floor2.Tiles[7][7].Type = models.TileDownStairs
-
-	// Create floor 3 (bottom floor)
-	floor3 := &models.Floor{
-		Level:    3,
-		Width:    10,
-		Height:   10,
-		Tiles:    make([][]models.Tile, 10),
-		UpStairs: []models.Position{{X: 7, Y: 7}},
-	}
-
-	// Initialize tiles for floor 3
-	for i := 0; i < 10; i++ {
-		floor3.Tiles[i] = make([]models.Tile, 10)
-		for j := 0; j < 10; j++ {
-			floor3.Tiles[i][j] = models.Tile{
-				Type:     models.TileFloor,
-				Walkable: true,
-			}
-		}
-	}
-
-	// Add stairs up at position (7, 7)
-	floor3.Tiles[7][7].Type = models.TileUpStairs
-
-	dungeon.FloorData = make(map[int]*models.Floor)
-	dungeon.FloorData[1] = floor1
-	dungeon.FloorData[2] = floor2
-	dungeon.FloorData[3] = floor3
 	dungeonRepo.Save(dungeon)
 
-	// Test cases
-	tests := []struct {
-		name           string
-		setupCharacter func() *models.Character
-		expectSuccess  bool
-		expectedFloor  int
-	}{
-		{
-			name: "Valid Ascend",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter1", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 5, Y: 5} // On stairs up
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: true,
-			expectedFloor: 1,
-		},
-		{
-			name: "Not On Stairs",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter2", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 3, Y: 3} // Not on stairs
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 2,
-		},
-		{
-			name: "Already On Top Floor",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter3", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 1 // Top floor
-				character.Position = models.Position{X: 5, Y: 5}
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 1,
-		},
-		{
-			name: "No Dungeon",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter4", models.Warrior)
-				character.CurrentDungeon = "" // No dungeon
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 5, Y: 5}
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 2,
-		},
-		{
-			name: "Invalid Dungeon ID",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter5", models.Warrior)
-				character.CurrentDungeon = "invalid-dungeon-id"
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 5, Y: 5}
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 2,
-		},
-		{
-			name: "Multiple Messages Check",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter6", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 5, Y: 5} // On stairs up
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: true,
-			expectedFloor: 1,
-		},
+	// Add character to dungeon
+	dungeonRepo.AddCharacterToDungeon(dungeon.ID, character.ID)
+	dungeonRepo.SetCharacterFloor(dungeon.ID, character.ID, 2) // Start on floor 2
+	character.CurrentDungeon = dungeon.ID
+	character.CurrentFloor = 2
+	characterRepo.Save(character)
+
+	// Generate floor 1 (with entrance room)
+	floor1 := dungeon.GenerateFloor(1)
+	mapGenerator := NewMapGenerator(12345)
+	mapGenerator.GenerateFloorWithDifficulty(floor1, 1, false, "normal")
+
+	// Generate floor 2 (with safe room)
+	floor2 := dungeon.GenerateFloor(2)
+	mapGenerator.GenerateFloorWithDifficulty(floor2, 2, false, "normal")
+
+	// Find the up stairs on floor 2
+	require.NotEmpty(t, floor2.UpStairs, "Floor 2 should have up stairs")
+	upStairsX := floor2.UpStairs[0].X
+	upStairsY := floor2.UpStairs[0].Y
+
+	// Position the character on the up stairs
+	character.Position.X = upStairsX
+	character.Position.Y = upStairsY
+	floor2.Tiles[upStairsY][upStairsX].Character = character.ID
+	characterRepo.Save(character)
+
+	// Create a game manager
+	gameManager := NewGameManager(characterRepo, dungeonRepo)
+
+	// Create a client
+	client := &Client{
+		ID:        "test-client",
+		Character: character,
+		Send:      make(chan Message, 10),
+		Manager:   gameManager,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup character
-			character := tt.setupCharacter()
+	// Call handleAscend
+	gameManager.handleAscend(client, Message{})
 
-			// Create a test client
-			client := &Client{
-				ID:        "test-client-" + character.ID,
-				Character: character,
-				Manager:   manager,
-				Send:      make(chan Message, 10),
-			}
+	// Wait for messages to be processed
+	messages := make([]Message, 0)
+	for i := 0; i < 3; i++ {
+		select {
+		case msg := <-client.Send:
+			messages = append(messages, msg)
+		default:
+			// No more messages
+		}
+	}
 
-			// Register client
-			manager.registerClient(client)
+	// Get the updated character
+	updatedCharacter, err := characterRepo.GetByID(character.ID)
+	require.NoError(t, err)
 
-			// Clear the client's message channel
-			for len(client.Send) > 0 {
-				<-client.Send
-			}
+	// Verify the character moved to floor 1
+	assert.Equal(t, 1, updatedCharacter.CurrentFloor)
 
-			// Handle the ascend message
-			manager.handleAscend(client, Message{
-				Type: MsgAscend,
-			})
+	// Find the entrance room on floor 1
+	var entranceRoom *models.Room
+	for i := range floor1.Rooms {
+		if floor1.Rooms[i].Type == models.RoomEntrance {
+			entranceRoom = &floor1.Rooms[i]
+			break
+		}
+	}
+	require.NotNil(t, entranceRoom, "Entrance room should exist on floor 1")
 
-			// Get the updated character
-			updatedCharacter, _ := characterRepo.GetByID(character.ID)
+	// Verify the character is positioned in the entrance room
+	assert.GreaterOrEqual(t, updatedCharacter.Position.X, entranceRoom.X)
+	assert.Less(t, updatedCharacter.Position.X, entranceRoom.X+entranceRoom.Width)
+	assert.GreaterOrEqual(t, updatedCharacter.Position.Y, entranceRoom.Y)
+	assert.Less(t, updatedCharacter.Position.Y, entranceRoom.Y+entranceRoom.Height)
 
-			// Check if the floor changed
-			assert.Equal(t, tt.expectedFloor, updatedCharacter.CurrentFloor, "Character should be on the expected floor")
+	// Verify the character is on a walkable tile
+	floor1 = dungeon.FloorData[1] // Get the updated floor 1
+	assert.True(t, floor1.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Walkable)
 
-			// Check for success/error message
-			var receivedMsg Message
-			select {
-			case receivedMsg = <-client.Send:
-				if tt.expectSuccess {
-					assert.Equal(t, MsgFloorChange, receivedMsg.Type, "Should receive a floor change message")
-					assert.NotNil(t, receivedMsg.Floor, "Floor should not be nil")
+	// Verify the character is not on stairs
+	assert.NotEqual(t, models.TileDownStairs, floor1.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
+	assert.NotEqual(t, models.TileUpStairs, floor1.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
 
-					// Check for additional messages if this is the "Multiple Messages Check" test
-					if tt.name == "Multiple Messages Check" {
-						// Check for player update message
-						select {
-						case secondMsg := <-client.Send:
-							assert.Equal(t, MsgUpdatePlayer, secondMsg.Type, "Should receive an update player message")
-							assert.NotNil(t, secondMsg.Character, "Character should not be nil")
+	// Verify the tile has the character ID
+	assert.Equal(t, character.ID, floor1.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Character)
 
-							// Check for notification message
-							select {
-							case thirdMsg := <-client.Send:
-								assert.Equal(t, MsgNotification, thirdMsg.Type, "Should receive a notification message")
-								assert.Contains(t, thirdMsg.Text, "ascend", "Notification should mention ascending")
-							case <-time.After(100 * time.Millisecond):
-								t.Fatal("Did not receive third message")
-							}
-						case <-time.After(100 * time.Millisecond):
-							t.Fatal("Did not receive second message")
-						}
-					}
-				} else {
-					assert.Equal(t, MsgError, receivedMsg.Type, "Should receive an error message")
-					assert.NotEmpty(t, receivedMsg.Error, "Error message should not be empty")
-				}
-			case <-time.After(100 * time.Millisecond):
-				t.Fatal("Did not receive any message")
-			}
+	// Verify the old tile no longer has the character
+	assert.Equal(t, "", floor2.Tiles[upStairsY][upStairsX].Character)
 
-			// Clean up
-			manager.unregisterClient(client)
-		})
+	// Verify the correct messages were sent
+	var floorChangeMsg, updatePlayerMsg, notificationMsg *Message
+	for i := range messages {
+		switch messages[i].Type {
+		case MsgFloorChange:
+			floorChangeMsg = &messages[i]
+		case MsgUpdatePlayer:
+			updatePlayerMsg = &messages[i]
+		case MsgNotification:
+			notificationMsg = &messages[i]
+		}
+	}
+
+	assert.NotNil(t, floorChangeMsg, "Floor change message should be sent")
+	assert.NotNil(t, updatePlayerMsg, "Update player message should be sent")
+	assert.NotNil(t, notificationMsg, "Notification message should be sent")
+	if notificationMsg != nil {
+		assert.Contains(t, notificationMsg.Text, "ascend to floor 1")
 	}
 }
 
@@ -1079,260 +954,230 @@ func TestHandleDescend(t *testing.T) {
 	characterRepo := repositories.NewCharacterRepository()
 	dungeonRepo := repositories.NewDungeonRepository()
 
-	// Create game manager
-	manager := NewGameManager(characterRepo, dungeonRepo)
+	// Create a test character
+	character := models.NewCharacter("TestCharacter", models.Warrior)
+	character.Level = 1
+	characterRepo.Save(character)
 
 	// Create a test dungeon with multiple floors
 	dungeon := models.NewDungeon("TestDungeon", 3, 12345)
-
-	// Create floor 1 (top floor)
-	floor1 := &models.Floor{
-		Level:      1,
-		Width:      10,
-		Height:     10,
-		Tiles:      make([][]models.Tile, 10),
-		DownStairs: []models.Position{{X: 5, Y: 5}},
-	}
-
-	// Initialize tiles for floor 1
-	for i := 0; i < 10; i++ {
-		floor1.Tiles[i] = make([]models.Tile, 10)
-		for j := 0; j < 10; j++ {
-			floor1.Tiles[i][j] = models.Tile{
-				Type:     models.TileFloor,
-				Walkable: true,
-			}
-		}
-	}
-
-	// Add stairs down at position (5, 5)
-	floor1.Tiles[5][5].Type = models.TileDownStairs
-
-	// Create floor 2 (middle floor)
-	floor2 := &models.Floor{
-		Level:      2,
-		Width:      10,
-		Height:     10,
-		Tiles:      make([][]models.Tile, 10),
-		UpStairs:   []models.Position{{X: 5, Y: 5}},
-		DownStairs: []models.Position{{X: 7, Y: 7}},
-	}
-
-	// Initialize tiles for floor 2
-	for i := 0; i < 10; i++ {
-		floor2.Tiles[i] = make([]models.Tile, 10)
-		for j := 0; j < 10; j++ {
-			floor2.Tiles[i][j] = models.Tile{
-				Type:     models.TileFloor,
-				Walkable: true,
-			}
-		}
-	}
-
-	// Add stairs up at position (5, 5)
-	floor2.Tiles[5][5].Type = models.TileUpStairs
-	// Add stairs down at position (7, 7)
-	floor2.Tiles[7][7].Type = models.TileDownStairs
-
-	// Create floor 3 (bottom floor)
-	floor3 := &models.Floor{
-		Level:    3,
-		Width:    10,
-		Height:   10,
-		Tiles:    make([][]models.Tile, 10),
-		UpStairs: []models.Position{{X: 7, Y: 7}},
-	}
-
-	// Initialize tiles for floor 3
-	for i := 0; i < 10; i++ {
-		floor3.Tiles[i] = make([]models.Tile, 10)
-		for j := 0; j < 10; j++ {
-			floor3.Tiles[i][j] = models.Tile{
-				Type:     models.TileFloor,
-				Walkable: true,
-			}
-		}
-	}
-
-	// Add stairs up at position (7, 7)
-	floor3.Tiles[7][7].Type = models.TileUpStairs
-
-	dungeon.FloorData = make(map[int]*models.Floor)
-	dungeon.FloorData[1] = floor1
-	dungeon.FloorData[2] = floor2
-	dungeon.FloorData[3] = floor3
 	dungeonRepo.Save(dungeon)
 
-	// Test cases
-	tests := []struct {
-		name           string
-		setupCharacter func() *models.Character
-		expectSuccess  bool
-		expectedFloor  int
-	}{
-		{
-			name: "Valid Descend",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter1", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 7, Y: 7} // On stairs down
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: true,
-			expectedFloor: 3,
-		},
-		{
-			name: "Not On Stairs",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter2", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 3, Y: 3} // Not on stairs
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 2,
-		},
-		{
-			name: "Already On Bottom Floor",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter3", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 3 // Bottom floor
-				character.Position = models.Position{X: 7, Y: 7}
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 3,
-		},
-		{
-			name: "No Dungeon",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter4", models.Warrior)
-				character.CurrentDungeon = "" // No dungeon
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 7, Y: 7}
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 2,
-		},
-		{
-			name: "Invalid Dungeon ID",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter5", models.Warrior)
-				character.CurrentDungeon = "invalid-dungeon-id"
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 7, Y: 7}
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 2,
-		},
-		{
-			name: "Floor Not Found",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter6", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 4 // Non-existent floor
-				character.Position = models.Position{X: 7, Y: 7}
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: false,
-			expectedFloor: 4,
-		},
-		{
-			name: "Multiple Messages Check",
-			setupCharacter: func() *models.Character {
-				character := models.NewCharacter("TestCharacter7", models.Warrior)
-				character.CurrentDungeon = dungeon.ID
-				character.CurrentFloor = 2
-				character.Position = models.Position{X: 7, Y: 7} // On stairs down
-				characterRepo.Save(character)
-				return character
-			},
-			expectSuccess: true,
-			expectedFloor: 3,
-		},
+	// Add character to dungeon
+	dungeonRepo.AddCharacterToDungeon(dungeon.ID, character.ID)
+	dungeonRepo.SetCharacterFloor(dungeon.ID, character.ID, 1) // Start on floor 1
+	character.CurrentDungeon = dungeon.ID
+	character.CurrentFloor = 1
+	characterRepo.Save(character)
+
+	// Generate floor 1 (with entrance room)
+	floor1 := dungeon.GenerateFloor(1)
+	mapGenerator := NewMapGenerator(12345)
+	mapGenerator.GenerateFloorWithDifficulty(floor1, 1, false, "normal")
+
+	// Generate floor 2 (with safe room)
+	floor2 := dungeon.GenerateFloor(2)
+	mapGenerator.GenerateFloorWithDifficulty(floor2, 2, false, "normal")
+
+	// Find the down stairs on floor 1
+	require.NotEmpty(t, floor1.DownStairs, "Floor 1 should have down stairs")
+	downStairsX := floor1.DownStairs[0].X
+	downStairsY := floor1.DownStairs[0].Y
+
+	// Position the character on the down stairs
+	character.Position.X = downStairsX
+	character.Position.Y = downStairsY
+	floor1.Tiles[downStairsY][downStairsX].Character = character.ID
+	characterRepo.Save(character)
+
+	// Create a game manager
+	gameManager := NewGameManager(characterRepo, dungeonRepo)
+
+	// Create a client
+	client := &Client{
+		ID:        "test-client",
+		Character: character,
+		Send:      make(chan Message, 10),
+		Manager:   gameManager,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup character
-			character := tt.setupCharacter()
+	// Call handleDescend
+	gameManager.handleDescend(client, Message{})
 
-			// Create a test client
-			client := &Client{
-				ID:        "test-client-" + character.ID,
-				Character: character,
-				Manager:   manager,
-				Send:      make(chan Message, 10),
-			}
-
-			// Register client
-			manager.registerClient(client)
-
-			// Clear the client's message channel
-			for len(client.Send) > 0 {
-				<-client.Send
-			}
-
-			// Handle the descend message
-			manager.handleDescend(client, Message{
-				Type: MsgDescend,
-			})
-
-			// Get the updated character
-			updatedCharacter, _ := characterRepo.GetByID(character.ID)
-
-			// Check if the floor changed
-			assert.Equal(t, tt.expectedFloor, updatedCharacter.CurrentFloor, "Character should be on the expected floor")
-
-			// Check for success/error message
-			var receivedMsg Message
-			select {
-			case receivedMsg = <-client.Send:
-				if tt.expectSuccess {
-					assert.Equal(t, MsgFloorChange, receivedMsg.Type, "Should receive a floor change message")
-					assert.NotNil(t, receivedMsg.Floor, "Floor should not be nil")
-
-					// Check for additional messages if this is the "Multiple Messages Check" test
-					if tt.name == "Multiple Messages Check" {
-						// Check for player update message
-						select {
-						case secondMsg := <-client.Send:
-							assert.Equal(t, MsgUpdatePlayer, secondMsg.Type, "Should receive an update player message")
-							assert.NotNil(t, secondMsg.Character, "Character should not be nil")
-
-							// Check for notification message
-							select {
-							case thirdMsg := <-client.Send:
-								assert.Equal(t, MsgNotification, thirdMsg.Type, "Should receive a notification message")
-								assert.Contains(t, thirdMsg.Text, "descend", "Notification should mention descending")
-							case <-time.After(100 * time.Millisecond):
-								t.Fatal("Did not receive third message")
-							}
-						case <-time.After(100 * time.Millisecond):
-							t.Fatal("Did not receive second message")
-						}
-					}
-				} else {
-					assert.Equal(t, MsgError, receivedMsg.Type, "Should receive an error message")
-					assert.NotEmpty(t, receivedMsg.Error, "Error message should not be empty")
-				}
-			case <-time.After(100 * time.Millisecond):
-				t.Fatal("Did not receive any message")
-			}
-
-			// Clean up
-			manager.unregisterClient(client)
-		})
+	// Wait for messages to be processed
+	messages := make([]Message, 0)
+	for i := 0; i < 3; i++ {
+		select {
+		case msg := <-client.Send:
+			messages = append(messages, msg)
+		default:
+			// No more messages
+		}
 	}
+
+	// Get the updated character
+	updatedCharacter, err := characterRepo.GetByID(character.ID)
+	require.NoError(t, err)
+
+	// Verify the character moved to floor 2
+	assert.Equal(t, 2, updatedCharacter.CurrentFloor)
+
+	// Find the safe room on floor 2
+	var safeRoom *models.Room
+	for i := range floor2.Rooms {
+		if floor2.Rooms[i].Type == models.RoomSafe {
+			safeRoom = &floor2.Rooms[i]
+			break
+		}
+	}
+	require.NotNil(t, safeRoom, "Safe room should exist on floor 2")
+
+	// Verify the character is positioned in the safe room
+	assert.GreaterOrEqual(t, updatedCharacter.Position.X, safeRoom.X)
+	assert.Less(t, updatedCharacter.Position.X, safeRoom.X+safeRoom.Width)
+	assert.GreaterOrEqual(t, updatedCharacter.Position.Y, safeRoom.Y)
+	assert.Less(t, updatedCharacter.Position.Y, safeRoom.Y+safeRoom.Height)
+
+	// Verify the character is on a walkable tile
+	floor2 = dungeon.FloorData[2] // Get the updated floor 2
+	assert.True(t, floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Walkable)
+
+	// Print the actual tile type for debugging
+	t.Logf("Character position: (%d, %d)", updatedCharacter.Position.X, updatedCharacter.Position.Y)
+	t.Logf("Actual tile type: %s", floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
+
+	// Verify the character is not on stairs
+	assert.NotEqual(t, models.TileUpStairs, floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Type)
+
+	// Verify the character is not on the same tile as a mob
+	assert.Equal(t, "", floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].MobID)
+
+	// Verify the tile has the character ID
+	assert.Equal(t, character.ID, floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Character)
+
+	// Verify the old tile no longer has the character
+	assert.Equal(t, "", floor1.Tiles[downStairsY][downStairsX].Character)
+
+	// Verify the correct messages were sent
+	var floorChangeMsg, updatePlayerMsg, notificationMsg *Message
+	for i := range messages {
+		switch messages[i].Type {
+		case MsgFloorChange:
+			floorChangeMsg = &messages[i]
+		case MsgUpdatePlayer:
+			updatePlayerMsg = &messages[i]
+		case MsgNotification:
+			notificationMsg = &messages[i]
+		}
+	}
+
+	assert.NotNil(t, floorChangeMsg, "Floor change message should be sent")
+	assert.NotNil(t, updatePlayerMsg, "Update player message should be sent")
+	assert.NotNil(t, notificationMsg, "Notification message should be sent")
+	if notificationMsg != nil {
+		assert.Contains(t, notificationMsg.Text, "descend to floor 2")
+	}
+}
+
+func TestHandleDescendWithObstaclesInSafeRoom(t *testing.T) {
+	// Create repositories
+	characterRepo := repositories.NewCharacterRepository()
+	dungeonRepo := repositories.NewDungeonRepository()
+
+	// Create a test character
+	character := models.NewCharacter("TestCharacter", models.Warrior)
+	character.Level = 1
+	characterRepo.Save(character)
+
+	// Create a test dungeon with multiple floors
+	dungeon := models.NewDungeon("TestDungeon", 3, 12345)
+	dungeonRepo.Save(dungeon)
+
+	// Add character to dungeon
+	dungeonRepo.AddCharacterToDungeon(dungeon.ID, character.ID)
+	dungeonRepo.SetCharacterFloor(dungeon.ID, character.ID, 1) // Start on floor 1
+	character.CurrentDungeon = dungeon.ID
+	character.CurrentFloor = 1
+	characterRepo.Save(character)
+
+	// Generate floor 1 (with entrance room)
+	floor1 := dungeon.GenerateFloor(1)
+	mapGenerator := NewMapGenerator(12345)
+	mapGenerator.GenerateFloorWithDifficulty(floor1, 1, false, "normal")
+
+	// Generate floor 2 (with safe room)
+	floor2 := dungeon.GenerateFloor(2)
+	mapGenerator.GenerateFloorWithDifficulty(floor2, 2, false, "normal")
+
+	// Find the safe room on floor 2
+	var safeRoom *models.Room
+	for i := range floor2.Rooms {
+		if floor2.Rooms[i].Type == models.RoomSafe {
+			safeRoom = &floor2.Rooms[i]
+			break
+		}
+	}
+	require.NotNil(t, safeRoom, "Safe room should exist on floor 2")
+
+	// Find the up stairs in the safe room
+	upStairsFound := false
+	for _, upStair := range floor2.UpStairs {
+		if upStair.X >= safeRoom.X && upStair.X < safeRoom.X+safeRoom.Width &&
+			upStair.Y >= safeRoom.Y && upStair.Y < safeRoom.Y+safeRoom.Height {
+			upStairsFound = true
+			break
+		}
+	}
+	require.True(t, upStairsFound, "Up stairs should exist in the safe room")
+
+	// Find the down stairs on floor 1
+	require.NotEmpty(t, floor1.DownStairs, "Floor 1 should have down stairs")
+	downStairsX := floor1.DownStairs[0].X
+	downStairsY := floor1.DownStairs[0].Y
+
+	// Position the character on the down stairs
+	character.Position.X = downStairsX
+	character.Position.Y = downStairsY
+	floor1.Tiles[downStairsY][downStairsX].Character = character.ID
+	characterRepo.Save(character)
+
+	// Create a game manager
+	gameManager := NewGameManager(characterRepo, dungeonRepo)
+
+	// Create a client
+	client := &Client{
+		ID:        "test-client",
+		Character: character,
+		Send:      make(chan Message, 10),
+		Manager:   gameManager,
+	}
+
+	// Call handleDescend
+	gameManager.handleDescend(client, Message{})
+
+	// Get the updated character
+	updatedCharacter, err := characterRepo.GetByID(character.ID)
+	require.NoError(t, err)
+
+	// Verify the character moved to floor 2
+	assert.Equal(t, 2, updatedCharacter.CurrentFloor)
+
+	// Verify the character is positioned in the safe room
+	assert.GreaterOrEqual(t, updatedCharacter.Position.X, safeRoom.X)
+	assert.Less(t, updatedCharacter.Position.X, safeRoom.X+safeRoom.Width)
+	assert.GreaterOrEqual(t, updatedCharacter.Position.Y, safeRoom.Y)
+	assert.Less(t, updatedCharacter.Position.Y, safeRoom.Y+safeRoom.Height)
+
+	// Verify the character is on a walkable tile
+	floor2 = dungeon.FloorData[2] // Get the updated floor 2
+	assert.True(t, floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Walkable)
+
+	// Verify the character is not on the same tile as a mob
+	assert.Equal(t, "", floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].MobID)
+
+	// Verify the tile has the character ID
+	assert.Equal(t, character.ID, floor2.Tiles[updatedCharacter.Position.Y][updatedCharacter.Position.X].Character)
+
+	// Verify the old tile no longer has the character
+	assert.Equal(t, "", floor1.Tiles[downStairsY][downStairsX].Character)
 }

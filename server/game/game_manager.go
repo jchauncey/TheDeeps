@@ -534,20 +534,152 @@ func (manager *GameManager) handleAscend(client *Client, message Message) {
 		return
 	}
 
-	// Find the down stairs on the new floor that corresponds to our up stairs
-	// In a real implementation, you would need to track which stairs connect to which
-	// For now, just place the character at the first down stairs
-	if len(newFloor.DownStairs) == 0 {
-		client.Send <- Message{
-			Type:  MsgError,
-			Error: "No down stairs found on the floor above",
+	// Check if we're going to floor 1 (entrance floor)
+	if client.Character.CurrentFloor == 1 {
+		// Find the entrance room
+		var entranceRoom *models.Room
+		for i := range newFloor.Rooms {
+			if newFloor.Rooms[i].Type == models.RoomEntrance {
+				entranceRoom = &newFloor.Rooms[i]
+				break
+			}
 		}
-		return
-	}
 
-	// Update character position
-	client.Character.Position.X = newFloor.DownStairs[0].X
-	client.Character.Position.Y = newFloor.DownStairs[0].Y
+		if entranceRoom != nil {
+			// Find the down stairs in the entrance room
+			var stairsX, stairsY int
+			var stairsFound bool
+
+			for _, downStair := range newFloor.DownStairs {
+				// Check if this stair is in the entrance room
+				if downStair.X >= entranceRoom.X && downStair.X < entranceRoom.X+entranceRoom.Width &&
+					downStair.Y >= entranceRoom.Y && downStair.Y < entranceRoom.Y+entranceRoom.Height {
+					stairsX = downStair.X
+					stairsY = downStair.Y
+					stairsFound = true
+					break
+				}
+			}
+
+			if stairsFound {
+				// Place character one tile away from the stairs
+				// Try different directions until we find a walkable tile
+				directions := []struct{ dx, dy int }{
+					{0, 1}, {1, 0}, {0, -1}, {-1, 0}, // Cardinal directions
+					{1, 1}, {1, -1}, {-1, 1}, {-1, -1}, // Diagonals
+				}
+
+				placed := false
+				for _, dir := range directions {
+					newX, newY := stairsX+dir.dx, stairsY+dir.dy
+
+					// Check if position is valid and walkable
+					if newX >= 0 && newX < newFloor.Width &&
+						newY >= 0 && newY < newFloor.Height &&
+						newFloor.Tiles[newY][newX].Walkable &&
+						newFloor.Tiles[newY][newX].Character == "" &&
+						newFloor.Tiles[newY][newX].MobID == "" {
+						client.Character.Position.X = newX
+						client.Character.Position.Y = newY
+						placed = true
+						break
+					}
+				}
+
+				// If we couldn't place adjacent to stairs, use center of room
+				if !placed {
+					client.Character.Position.X = entranceRoom.X + entranceRoom.Width/2
+					client.Character.Position.Y = entranceRoom.Y + entranceRoom.Height/2
+				}
+			} else {
+				// Fallback to center of entrance room
+				client.Character.Position.X = entranceRoom.X + entranceRoom.Width/2
+				client.Character.Position.Y = entranceRoom.Y + entranceRoom.Height/2
+			}
+		} else if len(newFloor.DownStairs) > 0 {
+			// Fallback: Place character at the first down stairs
+			client.Character.Position.X = newFloor.DownStairs[0].X
+			client.Character.Position.Y = newFloor.DownStairs[0].Y
+		} else {
+			// Emergency fallback: find any walkable tile
+			for y := 0; y < newFloor.Height; y++ {
+				for x := 0; x < newFloor.Width; x++ {
+					if newFloor.Tiles[y][x].Walkable &&
+						newFloor.Tiles[y][x].Character == "" &&
+						newFloor.Tiles[y][x].MobID == "" {
+						client.Character.Position.X = x
+						client.Character.Position.Y = y
+						break
+					}
+				}
+				if client.Character.Position.X != 0 || client.Character.Position.Y != 0 {
+					break
+				}
+			}
+		}
+	} else {
+		// For other floors, find a room with down stairs
+		// First try to find the down stairs that correspond to our up stairs
+		if len(newFloor.DownStairs) == 0 {
+			client.Send <- Message{
+				Type:  MsgError,
+				Error: "No down stairs found on the floor above",
+			}
+			return
+		}
+
+		// Find which room contains the down stairs
+		var stairsRoom *models.Room
+		var stairsPosition models.Position
+
+		// Use the first down stairs as default
+		stairsPosition = newFloor.DownStairs[0]
+
+		// Try to find which room contains these stairs
+		for i := range newFloor.Rooms {
+			room := &newFloor.Rooms[i]
+			if stairsPosition.X >= room.X && stairsPosition.X < room.X+room.Width &&
+				stairsPosition.Y >= room.Y && stairsPosition.Y < room.Y+room.Height {
+				stairsRoom = room
+				break
+			}
+		}
+
+		if stairsRoom != nil {
+			// Place character one tile away from the stairs
+			directions := []struct{ dx, dy int }{
+				{0, 1}, {1, 0}, {0, -1}, {-1, 0}, // Cardinal directions
+				{1, 1}, {1, -1}, {-1, 1}, {-1, -1}, // Diagonals
+			}
+
+			placed := false
+			for _, dir := range directions {
+				newX, newY := stairsPosition.X+dir.dx, stairsPosition.Y+dir.dy
+
+				// Check if position is valid and walkable
+				if newX >= 0 && newX < newFloor.Width &&
+					newY >= 0 && newY < newFloor.Height &&
+					newFloor.Tiles[newY][newX].Walkable &&
+					newFloor.Tiles[newY][newX].Character == "" &&
+					newFloor.Tiles[newY][newX].MobID == "" {
+					client.Character.Position.X = newX
+					client.Character.Position.Y = newY
+					placed = true
+					break
+				}
+			}
+
+			// If we couldn't place adjacent to stairs, use center of room
+			if !placed {
+				client.Character.Position.X = stairsRoom.X + stairsRoom.Width/2
+				client.Character.Position.Y = stairsRoom.Y + stairsRoom.Height/2
+			}
+		} else {
+			// Fallback: Place character at the stairs position
+			client.Character.Position.X = stairsPosition.X
+			client.Character.Position.Y = stairsPosition.Y
+		}
+	}
 
 	// Update the new tile
 	newFloor.Tiles[client.Character.Position.Y][client.Character.Position.X].Character = client.Character.ID
@@ -639,20 +771,89 @@ func (manager *GameManager) handleDescend(client *Client, message Message) {
 		return
 	}
 
-	// Find the up stairs on the new floor that corresponds to our down stairs
-	// In a real implementation, you would need to track which stairs connect to which
-	// For now, just place the character at the first up stairs
-	if len(newFloor.UpStairs) == 0 {
-		client.Send <- Message{
-			Type:  MsgError,
-			Error: "No up stairs found on the floor below",
+	// Find a safe room with up stairs if possible
+	var safeRoom *models.Room
+	for i := range newFloor.Rooms {
+		if newFloor.Rooms[i].Type == models.RoomSafe {
+			safeRoom = &newFloor.Rooms[i]
+			break
 		}
-		return
 	}
 
-	// Update character position
-	client.Character.Position.X = newFloor.UpStairs[0].X
-	client.Character.Position.Y = newFloor.UpStairs[0].Y
+	// Place character at appropriate position
+	if safeRoom != nil {
+		// Place character in the center of the safe room, slightly offset from the stairs
+		// First find the up stairs in this room
+		var stairsX, stairsY int
+		var stairsFound bool
+
+		for _, upStair := range newFloor.UpStairs {
+			// Check if this stair is in the safe room
+			if upStair.X >= safeRoom.X && upStair.X < safeRoom.X+safeRoom.Width &&
+				upStair.Y >= safeRoom.Y && upStair.Y < safeRoom.Y+safeRoom.Height {
+				stairsX = upStair.X
+				stairsY = upStair.Y
+				stairsFound = true
+				break
+			}
+		}
+
+		if stairsFound {
+			// Place character one tile away from the stairs
+			// Try different directions until we find a walkable tile
+			directions := []struct{ dx, dy int }{
+				{0, 1}, {1, 0}, {0, -1}, {-1, 0}, // Cardinal directions
+				{1, 1}, {1, -1}, {-1, 1}, {-1, -1}, // Diagonals
+			}
+
+			placed := false
+			for _, dir := range directions {
+				newX, newY := stairsX+dir.dx, stairsY+dir.dy
+
+				// Check if position is valid and walkable
+				if newX >= 0 && newX < newFloor.Width &&
+					newY >= 0 && newY < newFloor.Height &&
+					newFloor.Tiles[newY][newX].Walkable &&
+					newFloor.Tiles[newY][newX].Character == "" &&
+					newFloor.Tiles[newY][newX].MobID == "" {
+					client.Character.Position.X = newX
+					client.Character.Position.Y = newY
+					placed = true
+					break
+				}
+			}
+
+			// If we couldn't place adjacent to stairs, use center of room
+			if !placed {
+				client.Character.Position.X = safeRoom.X + safeRoom.Width/2
+				client.Character.Position.Y = safeRoom.Y + safeRoom.Height/2
+			}
+		} else {
+			// Fallback to center of safe room
+			client.Character.Position.X = safeRoom.X + safeRoom.Width/2
+			client.Character.Position.Y = safeRoom.Y + safeRoom.Height/2
+		}
+	} else if len(newFloor.UpStairs) > 0 {
+		// Fallback: Place character at the first up stairs
+		client.Character.Position.X = newFloor.UpStairs[0].X
+		client.Character.Position.Y = newFloor.UpStairs[0].Y
+	} else {
+		// Emergency fallback: find any walkable tile
+		for y := 0; y < newFloor.Height; y++ {
+			for x := 0; x < newFloor.Width; x++ {
+				if newFloor.Tiles[y][x].Walkable &&
+					newFloor.Tiles[y][x].Character == "" &&
+					newFloor.Tiles[y][x].MobID == "" {
+					client.Character.Position.X = x
+					client.Character.Position.Y = y
+					break
+				}
+			}
+			if client.Character.Position.X != 0 || client.Character.Position.Y != 0 {
+				break
+			}
+		}
+	}
 
 	// Update the new tile
 	newFloor.Tiles[client.Character.Position.Y][client.Character.Position.X].Character = client.Character.ID

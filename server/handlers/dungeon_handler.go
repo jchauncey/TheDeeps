@@ -144,10 +144,73 @@ func (h *DungeonHandler) JoinDungeon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if entranceRoom != nil {
-		// Place character in the center of the entrance room
+		// Try to place the character in the center of the entrance room
+		// but make sure it's not on top of stairs or other entities
 		centerX := entranceRoom.X + entranceRoom.Width/2
 		centerY := entranceRoom.Y + entranceRoom.Height/2
-		character.Position = models.Position{X: centerX, Y: centerY}
+
+		// Check if the center position is valid and walkable
+		if centerX >= 0 && centerX < floor.Width &&
+			centerY >= 0 && centerY < floor.Height &&
+			floor.Tiles[centerY][centerX].Walkable &&
+			floor.Tiles[centerY][centerX].Character == "" &&
+			floor.Tiles[centerY][centerX].MobID == "" &&
+			floor.Tiles[centerY][centerX].Type != models.TileDownStairs &&
+			floor.Tiles[centerY][centerX].Type != models.TileUpStairs {
+			// Center position is good
+			character.Position = models.Position{X: centerX, Y: centerY}
+		} else {
+			// Try positions around the center
+			directions := []struct{ dx, dy int }{
+				{0, 1}, {1, 0}, {0, -1}, {-1, 0}, // Cardinal directions
+				{1, 1}, {1, -1}, {-1, 1}, {-1, -1}, // Diagonals
+				{0, 2}, {2, 0}, {0, -2}, {-2, 0}, // Extended cardinal
+				{2, 2}, {2, -2}, {-2, 2}, {-2, -2}, // Extended diagonal
+			}
+
+			placed := false
+			for _, dir := range directions {
+				newX, newY := centerX+dir.dx, centerY+dir.dy
+
+				// Check if position is valid and walkable
+				if newX >= entranceRoom.X && newX < entranceRoom.X+entranceRoom.Width &&
+					newY >= entranceRoom.Y && newY < entranceRoom.Y+entranceRoom.Height &&
+					floor.Tiles[newY][newX].Walkable &&
+					floor.Tiles[newY][newX].Character == "" &&
+					floor.Tiles[newY][newX].MobID == "" &&
+					floor.Tiles[newY][newX].Type != models.TileDownStairs &&
+					floor.Tiles[newY][newX].Type != models.TileUpStairs {
+					character.Position = models.Position{X: newX, Y: newY}
+					placed = true
+					break
+				}
+			}
+
+			// If we still couldn't place the character, scan the entire room
+			if !placed {
+				for y := entranceRoom.Y; y < entranceRoom.Y+entranceRoom.Height; y++ {
+					for x := entranceRoom.X; x < entranceRoom.X+entranceRoom.Width; x++ {
+						if floor.Tiles[y][x].Walkable &&
+							floor.Tiles[y][x].Character == "" &&
+							floor.Tiles[y][x].MobID == "" &&
+							floor.Tiles[y][x].Type != models.TileDownStairs &&
+							floor.Tiles[y][x].Type != models.TileUpStairs {
+							character.Position = models.Position{X: x, Y: y}
+							placed = true
+							break
+						}
+					}
+					if placed {
+						break
+					}
+				}
+			}
+
+			// Last resort: just use the center position even if it's not ideal
+			if !placed {
+				character.Position = models.Position{X: centerX, Y: centerY}
+			}
+		}
 	} else if len(floor.UpStairs) > 0 {
 		// Fallback: Place character on first floor at the first up stairs
 		character.Position = floor.UpStairs[0]

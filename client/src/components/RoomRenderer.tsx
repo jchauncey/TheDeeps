@@ -312,6 +312,21 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
     const mobs: { [key: string]: Mob } = {};
     const items: { [key: string]: Item } = {};
     
+    // Calculate player position (slightly offset from center)
+    const playerX = centerX - 1;
+    const playerY = centerY;
+    
+    // Add player character to all room types
+    if (playerX >= roomX && playerX < roomX + roomWidth && 
+        playerY >= roomY && playerY < roomY + roomHeight) {
+      tiles[playerY][playerX] = {
+        type: 'floor',
+        walkable: true,
+        explored: true,
+        character: 'player'
+      };
+    }
+    
     switch (roomType) {
       case 'entrance':
         // Add down stairs in the center of the room
@@ -369,14 +384,6 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
           explored: true,
           mobId: bossId
         };
-        
-        // Add player character for reference
-        tiles[centerY][centerX - 1] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          character: 'player'
-        };
         break;
         
       case 'treasure':
@@ -406,9 +413,9 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
             name: 'Goblin',
             health: 20,
             maxHealth: 20,
-            position: { x: centerX, y: centerY }
+            position: { x: centerX + 1, y: centerY }
           };
-          tiles[centerY][centerX] = {
+          tiles[centerY][centerX + 1] = {
             type: 'floor',
             walkable: true,
             explored: true,
@@ -493,7 +500,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
         case 'skeleton':
           return '#FFF'; // White for skeleton
         case 'shopkeeper':
-          return '#88F'; // Blue for shopkeeper
+          return '#F44'; // Red for shopkeeper (matching server-side definition)
         default:
           return '#F88'; // Default mob color
       }
@@ -636,7 +643,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
                 // Create a simple room layout
                 const isWall = x === 0 || x === 9 || y === 0 || y === 9;
                 const isBoss = roomType === 'boss' && x === 5 && y === 5;
-                const isPlayer = roomType === 'boss' && x === 3 && y === 5;
+                const isPlayer = x === 3 && y === 5; // Player is always at position (3,5)
                 const isItem = roomType === 'treasure' && x === 5 && y === 5;
                 const isStairs = roomType === 'entrance' && x === 5 && y === 5;
                 const isDoor = x === 5 && y === 0;
