@@ -1,84 +1,128 @@
-# AI Map
-## Map Generation Requirements
+# TheDeeps Map System Documentation
 
-1. **Map Structure**
-   - Maps must have a minimum of 5 rooms and a maximum of 20 rooms per floor
-   - Each floor should have at least one staircase to the next floor
-   - The final floor must contain a boss room
-   - Maps should have a logical layout with no disconnected areas
-   - Hallways should connect rooms in a sensible manner
-   - ✅ Each floor must have both up and down staircases (except for the first and last floors)
+## Overview
 
-2. **Room Types**
-   - Standard rooms (empty or with basic enemies)
-   - Treasure rooms (containing loot)
-   - Boss rooms (containing a powerful enemy)
-   - Puzzle rooms (requiring player to solve a puzzle)
-   - Safe rooms (no enemies, may contain healing resources)
-   - Shop rooms (where players can trade resources)
+TheDeeps features a procedurally generated dungeon system with multiple floors, room types, and navigation mechanics. The map generation system creates varied and interesting environments while ensuring gameplay balance and proper progression.
 
-3. **Room Properties**
-   - Each room must have a unique identifier
-   - Rooms should have variable sizes (small, medium, large)
-   - Rooms can contain environmental hazards (traps, lava, etc.)
-   - Rooms may contain interactive objects (chests, levers, etc.)
-   - Rooms should have appropriate enemy spawns based on difficulty level
+## Map Structure
 
-4. **Doors and Connections**
-   - Doors can be standard, locked, or hidden
-   - Locked doors require specific keys or conditions to open
-   - Hidden doors require player discovery (through skills or items)
-   - Some doors may be one-way only
-   - Doors should visually match their environment
+### Dungeon Organization
 
-5. **Difficulty Scaling**
-   - Lower floors should be easier than deeper floors
-   - Enemy density and strength should increase with depth
-   - Loot quality should improve with depth
-   - Environmental hazards should become more dangerous with depth
-   - Puzzles should become more complex with depth
+- **Multi-Floor Design**: Dungeons consist of multiple floors (levels) with increasing difficulty
+- **Floor Structure**: Each floor contains a grid of tiles representing walls, floors, and special features
+- **Room-Based Layout**: Floors are organized into distinct rooms connected by corridors
+- **Stair System**: Floors are connected by staircases allowing vertical movement through the dungeon
 
-6. **Procedural Generation Parameters**
-   - Maps should be generated with a seed value for reproducibility
-   - Generation should account for desired difficulty level
-   - Maps should have themes that affect visual appearance and enemy types
-   - Generation should ensure all areas are accessible
-   - Special rooms (boss, treasure) should be appropriately placed
-   - ✅ Staircases should be placed in accessible locations on each floor
+### Tile System
 
-7. **Navigation and Exploration**
-   - Unexplored areas should be hidden until discovered
-   - Map should track discovered rooms, doors, and stairs
-   - Map should be fully visible when character profile modal is open
-   - Player position should be clearly indicated on the map
-   - ✅ Staircases should be clearly visible and distinguishable from other map elements
+- **Tile Types**:
+  - Wall: Non-walkable boundary tiles
+  - Floor: Basic walkable tiles
+  - Up Stairs: Connection to previous floor (except on first floor)
+  - Down Stairs: Connection to next floor (except on final floor)
+  - Special tiles: Shop counters, traps, etc.
+- **Tile Properties**:
+  - Walkability: Determines if entities can move onto the tile
+  - Visibility: Controls if the tile is visible to the player
+  - Explored status: Tracks if the player has seen the tile
+  - Room ID: Associates the tile with a specific room
+  - Entity references: Links to characters, mobs, or items on the tile
 
-8. **Technical Requirements**
-   - Map data structure should be serializable for saving/loading
-   - Generation should be efficient and complete in under 5 seconds
-   - Map should support dynamic modifications during gameplay
-   - Collision detection system for walls and obstacles
-   - Pathfinding system for AI navigation
-   - Map rendering should be optimized for performance
-   - Map should maintain visibility when UI modals are displayed
-   - ✅ Map should track player positions across multiple floors
+## Room Generation
 
-9. **UI Integration**
-   - Map should be the primary focus of the game interface
-   - Map should occupy the majority of the screen space
-   - Map should be responsive to window size changes
-   - Map should maintain proper aspect ratio
-   - Map should have clear visual indicators for player, enemies, and objects
-   - Map should be accessible via keyboard navigation
-   - Map should support hotkeys for common actions (movement, interaction)
-   - ✅ Map should update smoothly when transitioning between floors
+### Room Types
 
-10. **Floor Navigation**
-    - ✅ Players can move between floors using staircases
-    - ✅ Up staircases allow players to move to the previous floor
-    - ✅ Down staircases allow players to move to the next floor
-    - ✅ Players are positioned at the corresponding staircase when changing floors
-    - ✅ The first floor only has down staircases
-    - ✅ The last floor only has up staircases
-    - ✅ Middle floors have both up and down staircases
-    - ✅ Floor transitions maintain player state (health, inventory, etc.)
+- **Entrance Room**: Starting point on the first floor, always contains down stairs
+- **Safe Room**: First room on floors 2+, always contains up stairs, never has mobs
+- **Standard Room**: Common room type with basic encounters
+- **Treasure Room**: Contains higher quality and quantity of items
+- **Shop Room**: Contains a shopkeeper and purchasable items
+- **Boss Room**: Present on the final floor, contains a boss enemy
+
+### Room Properties
+
+- **Size**: Variable dimensions (minimum 5x5, maximum 10x10)
+- **Position**: Placed to avoid overlapping with other rooms
+- **Type**: Determines the room's purpose and contents
+- **Exploration Status**: Tracks if the player has discovered the room
+
+### Room Distribution
+
+- **First Floor**:
+  - Always has an entrance room near the center
+  - Always has a shop room
+  - Additional standard rooms based on floor size
+- **Middle Floors**:
+  - Always has a safe room with up stairs
+  - Mix of standard, treasure, and shop rooms
+  - Room count increases with floor depth
+- **Final Floor**:
+  - Always has a safe room with up stairs
+  - Always has a boss room
+  - Additional standard and treasure rooms
+
+## Corridor System
+
+- **Connection Algorithm**: Rooms are connected with L-shaped corridors
+- **Pathfinding**: Ensures all rooms are accessible
+- **Corridor Properties**: Corridors are walkable and can contain items or mobs
+
+## Stair Placement
+
+- **Up Stairs**:
+  - Located in safe rooms on floors 2+
+  - Positioned in the center of the room
+  - Marked as explored when the floor is generated
+- **Down Stairs**:
+  - Located in entrance rooms on floor 1
+  - Located in the last room on other floors
+  - Positioned in the center of the room on floor 1
+  - Randomly positioned in other rooms
+
+## Entity Placement
+
+### Mob Placement
+
+- **Room-Based**: Mobs are placed in appropriate rooms based on type
+- **Exclusion Zones**: No mobs in entrance rooms or safe rooms
+- **Density Control**: Number of mobs scales with room size and floor depth
+- **Variant Distribution**: Mix of easy, normal, and hard variants based on difficulty setting
+- **Boss Placement**: Boss mobs only appear in boss rooms
+
+### Item Placement
+
+- **Room-Based**: Items are distributed throughout rooms with higher concentrations in treasure rooms
+- **Type Distribution**: Item types and quality scale with floor depth
+- **Placement Rules**: Items are only placed on walkable tiles not occupied by other entities
+
+## Floor Navigation
+
+- **Player Positioning**:
+  - When descending, players are positioned near up stairs in the safe room
+  - When ascending, players are positioned near down stairs
+  - Player positions are always on walkable tiles, avoiding stairs and other entities
+- **Floor Transitions**:
+  - Maintain player state across floors (inventory, health, etc.)
+  - Update visibility and exploration status
+  - Trigger appropriate notifications
+
+## Map Generation Parameters
+
+- **Seed-Based**: Maps can be generated deterministically using a seed value
+- **Difficulty Levels**: Easy, normal, and hard difficulties affect mob distribution
+- **Floor Scaling**: Deeper floors have more rooms, stronger mobs, and better loot
+- **Room Count**: 5-20 rooms per floor, scaling with floor depth
+
+## Technical Implementation
+
+- **Data Structure**: Maps are represented as 2D arrays of tile objects
+- **Serialization**: Map data can be saved and loaded for game persistence
+- **Client-Server Model**: Maps are generated on the server and transmitted to clients
+- **Optimization**: Generation algorithms are designed for efficiency and performance
+
+## Visualization
+
+- **Rendering**: Maps are displayed as a grid of colored tiles
+- **Entity Representation**: Characters, mobs, and items have distinct visual styles
+- **Room Differentiation**: Different room types have subtle visual distinctions
+- **Navigation Aids**: Stairs are clearly marked with directional indicators
