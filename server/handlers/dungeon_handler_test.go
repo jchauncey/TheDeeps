@@ -700,3 +700,254 @@ func TestGenerateTestRoom(t *testing.T) {
 		})
 	}
 }
+
+// TestJoinDungeonErrorCases tests error cases for the JoinDungeon handler
+func TestJoinDungeonErrorCases(t *testing.T) {
+	// Create repositories
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+
+	// Create a test dungeon with a floor
+	dungeon := models.NewDungeon("TestDungeon", 3, 12345)
+	dungeonRepo.Save(dungeon)
+
+	// Create a test character
+	character := models.NewCharacter("TestCharacter", models.Warrior)
+	characterRepo.Save(character)
+
+	// Create the handler
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
+
+	// Set up the router
+	router := mux.NewRouter()
+	router.HandleFunc("/dungeons/{id}/join", handler.JoinDungeon).Methods("POST")
+
+	tests := []struct {
+		name           string
+		dungeonID      string
+		requestBody    interface{}
+		expectedStatus int
+	}{
+		{
+			name:      "Invalid Request Body",
+			dungeonID: dungeon.ID,
+			requestBody: `{
+				"characterId": "` + character.ID + `"
+			`, // Malformed JSON
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:      "Missing Character ID",
+			dungeonID: dungeon.ID,
+			requestBody: map[string]string{
+				"characterId": "",
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:      "Invalid Dungeon ID",
+			dungeonID: "invalid-dungeon-id",
+			requestBody: map[string]string{
+				"characterId": character.ID,
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:      "Invalid Character ID",
+			dungeonID: dungeon.ID,
+			requestBody: map[string]string{
+				"characterId": "invalid-character-id",
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var body []byte
+			var err error
+
+			// Handle string or map for request body
+			if bodyStr, ok := tt.requestBody.(string); ok {
+				body = []byte(bodyStr)
+			} else {
+				body, err = json.Marshal(tt.requestBody)
+				require.NoError(t, err)
+			}
+
+			req, err := http.NewRequest("POST", "/dungeons/"+tt.dungeonID+"/join", bytes.NewBuffer(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			// Create a response recorder
+			rr := httptest.NewRecorder()
+
+			// Serve the request
+			router.ServeHTTP(rr, req)
+
+			// Check the status code
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+		})
+	}
+}
+
+// TestJoinDungeonFallbacks tests fallback scenarios for the JoinDungeon handler
+func TestJoinDungeonFallbacks(t *testing.T) {
+	// Create repositories
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+
+	// Create the handler
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
+
+	// Set up the router
+	router := mux.NewRouter()
+	router.HandleFunc("/dungeons/{id}/join", handler.JoinDungeon).Methods("POST")
+
+	tests := []struct {
+		name           string
+		setupFunc      func() (string, string) // Returns dungeonID, characterID
+		validateFunc   func(t *testing.T, floor models.Floor, character *models.Character)
+		expectedStatus int
+	}{
+		{
+			name: "Fallback to UpStairs",
+			setupFunc: func() (string, string) {
+				// Create a test dungeon with a floor
+				dungeon := models.NewDungeon("TestDungeon", 3, 12345)
+				dungeonRepo.Save(dungeon)
+
+				// Create a test character
+				character := models.NewCharacter("TestCharacter", models.Warrior)
+				characterRepo.Save(character)
+
+				// Generate the first floor WITHOUT an entrance room
+				floor := dungeon.GenerateFloor(1)
+
+				// Manually create a floor without entrance rooms but with upstairs
+				floor.Rooms = []models.Room{
+					{
+						ID:       "room-1",
+						Type:     models.RoomStandard,
+						X:        10,
+						Y:        10,
+						Width:    10,
+						Height:   10,
+						Explored: true,
+					},
+				}
+
+				// Add upstairs
+				upStairsPos := models.Position{X: 15, Y: 15}
+				floor.UpStairs = []models.Position{upStairsPos}
+				floor.Tiles[upStairsPos.Y][upStairsPos.X].Type = models.TileUpStairs
+				floor.Tiles[upStairsPos.Y][upStairsPos.X].Walkable = true
+
+				// Save the floor
+				dungeonRepo.SaveFloor(dungeon.ID, 1, floor)
+
+				return dungeon.ID, character.ID
+			},
+			validateFunc: func(t *testing.T, floor models.Floor, character *models.Character) {
+				// Verify the character is positioned at the upstairs
+				assert.Equal(t, floor.UpStairs[0].X, character.Position.X)
+				assert.Equal(t, floor.UpStairs[0].Y, character.Position.Y)
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "Fallback to Random Walkable Tile",
+			setupFunc: func() (string, string) {
+				// Create a test dungeon with a floor
+				dungeon := models.NewDungeon("TestDungeon", 3, 12345)
+				dungeonRepo.Save(dungeon)
+
+				// Create a test character
+				character := models.NewCharacter("TestCharacter", models.Warrior)
+				characterRepo.Save(character)
+
+				// Generate the first floor WITHOUT an entrance room or upstairs
+				floor := dungeon.GenerateFloor(1)
+
+				// Manually create a floor without entrance rooms or upstairs
+				floor.Rooms = []models.Room{
+					{
+						ID:       "room-1",
+						Type:     models.RoomStandard,
+						X:        10,
+						Y:        10,
+						Width:    10,
+						Height:   10,
+						Explored: true,
+					},
+				}
+
+				// Make sure there are no upstairs
+				floor.UpStairs = []models.Position{}
+
+				// Ensure there are walkable tiles
+				for y := 10; y < 20; y++ {
+					for x := 10; x < 20; x++ {
+						floor.Tiles[y][x].Walkable = true
+						floor.Tiles[y][x].Type = models.TileFloor
+					}
+				}
+
+				// Save the floor
+				dungeonRepo.SaveFloor(dungeon.ID, 1, floor)
+
+				return dungeon.ID, character.ID
+			},
+			validateFunc: func(t *testing.T, floor models.Floor, character *models.Character) {
+				// Verify the character is positioned on a walkable tile
+				assert.True(t, floor.Tiles[character.Position.Y][character.Position.X].Walkable)
+
+				// Verify the character is in the standard room
+				assert.GreaterOrEqual(t, character.Position.X, 10)
+				assert.Less(t, character.Position.X, 20)
+				assert.GreaterOrEqual(t, character.Position.Y, 10)
+				assert.Less(t, character.Position.Y, 20)
+			},
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dungeonID, characterID := tt.setupFunc()
+
+			requestBody := map[string]string{
+				"characterId": characterID,
+			}
+			body, err := json.Marshal(requestBody)
+			require.NoError(t, err)
+
+			req, err := http.NewRequest("POST", "/dungeons/"+dungeonID+"/join", bytes.NewBuffer(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			// Create a response recorder
+			rr := httptest.NewRecorder()
+
+			// Serve the request
+			router.ServeHTTP(rr, req)
+
+			// Check the status code
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+
+			if tt.expectedStatus == http.StatusOK {
+				// Parse the response
+				var responseFloor models.Floor
+				err = json.Unmarshal(rr.Body.Bytes(), &responseFloor)
+				require.NoError(t, err)
+
+				// Get the updated character
+				updatedCharacter, err := characterRepo.GetByID(characterID)
+				require.NoError(t, err)
+
+				// Run validation
+				tt.validateFunc(t, responseFloor, updatedCharacter)
+			}
+		})
+	}
+}

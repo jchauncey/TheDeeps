@@ -4,7 +4,6 @@ import {
   Text,
   Spinner,
   Center,
-  Grid,
 } from '@chakra-ui/react';
 
 // Define the types we need
@@ -663,7 +662,6 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
                 const isDoor = x === 5 && y === 0;
                 
                 // Determine tile type and entity
-                const tileType = isWall ? 'wall' : isStairs ? 'downStairs' : isDoor ? 'door' : 'floor';
                 const tileColor = isWall ? '#555' : isDoor ? '#850' : '#111';
                 
                 // Entity color
