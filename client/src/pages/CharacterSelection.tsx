@@ -142,6 +142,20 @@ const CharacterSelection: React.FC = () => {
               Maximum number of characters reached (10)
             </Text>
           )}
+
+          <Flex justify="center" mt={8}>
+            <Button
+              variant="outline"
+              colorScheme="teal"
+              size="md"
+              onClick={() => navigate('/component-playground')}
+            >
+              Component Playground
+            </Button>
+          </Flex>
+          <Text textAlign="center" fontSize="sm" color="gray.500" mt={2}>
+            View and test individual components in isolation
+          </Text>
         </>
       )}
     </Container>

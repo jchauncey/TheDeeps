@@ -1,4 +1,4 @@
-import { Character, CharacterClass, Attributes } from '../../types';
+import { Character } from '../../types';
 
 // Add jest type
 declare const jest: any;

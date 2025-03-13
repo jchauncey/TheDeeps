@@ -161,6 +161,90 @@ func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level in
 		}
 
 		rooms = append(rooms, entranceRoom)
+
+		// Always add a shop room on the first floor
+		// Try to place the shop room
+		for i := 0; i < 50; i++ { // Try up to 50 times to place the shop
+			// Random room size
+			width := minRoomSize + g.rng.Intn(maxRoomSize-minRoomSize+1)
+			height := minRoomSize + g.rng.Intn(maxRoomSize-minRoomSize+1)
+
+			// Random position (leaving a 1-tile border)
+			x := 1 + g.rng.Intn(floor.Width-width-2)
+			y := 1 + g.rng.Intn(floor.Height-height-2)
+
+			// Check if the room overlaps with existing rooms
+			overlaps := false
+			for _, room := range rooms {
+				if x+width > room.X-2 && x < room.X+room.Width+2 &&
+					y+height > room.Y-2 && y < room.Y+room.Height+2 {
+					overlaps = true
+					break
+				}
+			}
+
+			if !overlaps {
+				// Create the shop room
+				shopRoom := models.Room{
+					ID:       uuid.New().String(),
+					Type:     models.RoomShop,
+					X:        x,
+					Y:        y,
+					Width:    width,
+					Height:   height,
+					Explored: false,
+				}
+
+				// Carve out the shop room
+				for ry := 0; ry < height; ry++ {
+					for rx := 0; rx < width; rx++ {
+						floor.Tiles[y+ry][x+rx] = models.Tile{
+							Type:     models.TileFloor,
+							Walkable: true,
+							Explored: false,
+							RoomID:   shopRoom.ID,
+						}
+					}
+				}
+
+				rooms = append(rooms, shopRoom)
+				break
+			}
+		}
+	} else {
+		// For floors other than the first, create a safe room with up stairs
+		// This will be the first room where the player arrives from the floor above
+		safeWidth := 8
+		safeHeight := 8
+
+		// Place it in a random location
+		safeX := 1 + g.rng.Intn(floor.Width-safeWidth-2)
+		safeY := 1 + g.rng.Intn(floor.Height-safeHeight-2)
+
+		// Create the safe room
+		safeRoom := models.Room{
+			ID:       uuid.New().String(),
+			Type:     models.RoomSafe,
+			X:        safeX,
+			Y:        safeY,
+			Width:    safeWidth,
+			Height:   safeHeight,
+			Explored: true, // Safe room starts explored
+		}
+
+		// Carve out the safe room
+		for ry := 0; ry < safeHeight; ry++ {
+			for rx := 0; rx < safeWidth; rx++ {
+				floor.Tiles[safeY+ry][safeX+rx] = models.Tile{
+					Type:     models.TileFloor,
+					Walkable: true,
+					Explored: true, // Safe room tiles start explored
+					RoomID:   safeRoom.ID,
+				}
+			}
+		}
+
+		rooms = append(rooms, safeRoom)
 	}
 
 	// Try to place the rest of the rooms
@@ -188,11 +272,11 @@ func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level in
 			roomType := models.RoomStandard
 
 			// Special rooms
-			if level == 1 && len(rooms) == 0 {
-				// Skip this iteration if we're on the first floor and already created the entrance room
+			if level == 1 && len(rooms) <= 2 {
+				// Skip this iteration if we're on the first floor and already created the entrance and shop rooms
 				continue
-			} else if isFinalFloor && len(rooms) == 0 {
-				// First room on final floor is the boss room
+			} else if isFinalFloor && len(rooms) == 1 {
+				// First room on final floor is the boss room (after the safe room with up stairs)
 				roomType = models.RoomBoss
 			} else if g.rng.Float64() < 0.1 {
 				// 10% chance for treasure room
@@ -200,8 +284,8 @@ func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level in
 			} else if g.rng.Float64() < 0.05 {
 				// 5% chance for safe room
 				roomType = models.RoomSafe
-			} else if g.rng.Float64() < 0.05 && level > 2 {
-				// 5% chance for shop room on deeper floors
+			} else if level > 1 && g.rng.Float64() < 0.05 && level > 2 {
+				// 5% chance for additional shop room on deeper floors
 				roomType = models.RoomShop
 			}
 
@@ -297,35 +381,40 @@ func (g *MapGenerator) placeStairs(floor *models.Floor, rooms []models.Room, lev
 		}
 	}
 
-	// Place up stairs in the first room (except for the first floor)
+	// Place up stairs in the first room (which is a safe room for floors > 1)
 	if level > 1 {
-		room := rooms[0]
-		x := room.X + g.rng.Intn(room.Width)
-		y := room.Y + g.rng.Intn(room.Height)
+		room := rooms[0] // First room is the safe room on floors > 1
+
+		// Place up stairs in a consistent location in the safe room
+		// Center of the room
+		x := room.X + room.Width/2
+		y := room.Y + room.Height/2
 
 		floor.Tiles[y][x] = models.Tile{
 			Type:     models.TileUpStairs,
 			Walkable: true,
-			Explored: false,
+			Explored: true, // Up stairs are always explored
 			RoomID:   room.ID,
 		}
 
 		floor.UpStairs = append(floor.UpStairs, models.Position{X: x, Y: y})
 	}
 
-	// Place down stairs in the entrance room if it's the first floor, otherwise in the last room
-	// (except for the final floor which has no down stairs)
+	// Place down stairs in the entrance room on the first floor,
+	// otherwise in the last room (except for the final floor which has no down stairs)
 	if !isFinalFloor {
 		var room models.Room
 		var x, y int
 
 		if level == 1 && entranceRoom != nil {
+			// On the first floor, always place down stairs in the entrance room
 			room = *entranceRoom
 			// Place down stairs in a consistent location in the entrance room
-			// Bottom right corner, but not at the very edge
-			x = room.X + room.Width - 2
-			y = room.Y + room.Height - 2
+			// Center of the room
+			x = room.X + room.Width/2
+			y = room.Y + room.Height/2
 		} else {
+			// For all other floors, place stairs in the last room
 			room = rooms[len(rooms)-1]
 			// Random position for other rooms
 			x = room.X + g.rng.Intn(room.Width)
@@ -335,7 +424,7 @@ func (g *MapGenerator) placeStairs(floor *models.Floor, rooms []models.Room, lev
 		floor.Tiles[y][x] = models.Tile{
 			Type:     models.TileDownStairs,
 			Walkable: true,
-			Explored: level == 1 && entranceRoom != nil, // Explored if in entrance room
+			Explored: level == 1 && entranceRoom != nil, // Only explored if in entrance room on floor 1
 			RoomID:   room.ID,
 		}
 
@@ -374,8 +463,9 @@ func (g *MapGenerator) placeMobsWithDifficulty(floor *models.Floor, rooms []mode
 
 	// Place mobs in each room
 	for i, room := range rooms {
-		// Skip the first room (where the player starts), safe rooms, and entrance rooms
-		if i == 0 || room.Type == models.RoomSafe || room.Type == models.RoomEntrance {
+		// Skip the first room on floors > 1 (safe room with up stairs)
+		// Skip safe rooms, entrance rooms, and shop rooms (except for shopkeeper)
+		if (level > 1 && i == 0) || room.Type == models.RoomSafe || room.Type == models.RoomEntrance {
 			continue
 		}
 
@@ -388,6 +478,23 @@ func (g *MapGenerator) placeMobsWithDifficulty(floor *models.Floor, rooms []mode
 			}
 
 			mob := models.NewMob(mobType, models.VariantBoss, level)
+
+			// Place in center of room
+			x := room.X + room.Width/2
+			y := room.Y + room.Height/2
+			mob.Position = models.Position{X: x, Y: y}
+
+			// Add to floor
+			floor.Mobs[mob.ID] = mob
+			floor.Tiles[y][x].MobID = mob.ID
+
+			continue
+		}
+
+		// Shop rooms get a shopkeeper
+		if room.Type == models.RoomShop {
+			// Create a shopkeeper
+			mob := models.NewMob(models.MobShopkeeper, models.VariantNormal, level)
 
 			// Place in center of room
 			x := room.X + room.Width/2

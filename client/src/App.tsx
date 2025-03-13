@@ -5,10 +5,12 @@ import CharacterCreation from './pages/CharacterCreation';
 import DungeonSelection from './pages/DungeonSelection';
 import Game from './pages/Game';
 import TestRoom from './pages/TestRoom';
+import ComponentPlayground from './pages/ComponentPlayground';
 import SplashScreen from './components/SplashScreen';
 
 const App: React.FC = () => {
-  const [isInitializing, setIsInitializing] = useState(true);
+  // Set isInitializing to false for immediate rendering during development
+  const [isInitializing, setIsInitializing] = useState(false);
   
   // Simulate initialization process
   useEffect(() => {
@@ -36,6 +38,7 @@ const App: React.FC = () => {
             <Route path="/dungeon-selection" element={<DungeonSelection />} />
             <Route path="/game" element={<Game />} />
             <Route path="/test-room" element={<TestRoom />} />
+            <Route path="/component-playground" element={<ComponentPlayground />} />
           </Routes>
         </Router>
       )}

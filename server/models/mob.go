@@ -8,18 +8,19 @@ import (
 type MobType string
 
 const (
-	MobSkeleton  MobType = "skeleton"
-	MobGoblin    MobType = "goblin"
-	MobTroll     MobType = "troll"
-	MobOrc       MobType = "orc"
-	MobOgre      MobType = "ogre"
-	MobWraith    MobType = "wraith"
-	MobLich      MobType = "lich"
-	MobOoze      MobType = "ooze"
-	MobRatman    MobType = "ratman"
-	MobDrake     MobType = "drake"
-	MobDragon    MobType = "dragon"
-	MobElemental MobType = "elemental"
+	MobSkeleton   MobType = "skeleton"
+	MobGoblin     MobType = "goblin"
+	MobTroll      MobType = "troll"
+	MobOrc        MobType = "orc"
+	MobOgre       MobType = "ogre"
+	MobWraith     MobType = "wraith"
+	MobLich       MobType = "lich"
+	MobOoze       MobType = "ooze"
+	MobRatman     MobType = "ratman"
+	MobDrake      MobType = "drake"
+	MobDragon     MobType = "dragon"
+	MobElemental  MobType = "elemental"
+	MobShopkeeper MobType = "shopkeeper"
 )
 
 // MobVariant represents the difficulty variant of a mob
@@ -157,6 +158,15 @@ func NewMob(mobType MobType, variant MobVariant, floorLevel int) *Mob {
 		baseDexterity = 14
 		symbol = "E"
 		color = "#0000FF" // Blue
+	case MobShopkeeper:
+		baseHP = 10
+		baseDamage = 2
+		baseDefense = 0
+		baseAC = 10
+		baseDexterity = 10
+		baseGoldValue = 5
+		symbol = "S"
+		color = "#FF0000" // Red
 	}
 
 	// Adjust stats based on variant
