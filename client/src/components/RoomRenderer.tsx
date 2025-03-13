@@ -636,7 +636,21 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
             role="grid"
             width="fit-content"
             margin="0 auto"
-            border="1px solid #333"
+            border="1px solid #444"
+            position="relative"
+            _after={{
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundImage: 
+                'linear-gradient(to right, #333 1px, transparent 1px), linear-gradient(to bottom, #333 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+              pointerEvents: 'none',
+              zIndex: 10
+            }}
           >
             {Array(10).fill(0).map((_, y) => 
               Array(10).fill(0).map((_, x) => {
@@ -805,7 +819,21 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
           role="grid"
           width="fit-content"
           margin="0 auto"
-          border="1px solid #333"
+          border="1px solid #444"
+          position="relative"
+          _after={{
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundImage: 
+              'linear-gradient(to right, #333 1px, transparent 1px), linear-gradient(to bottom, #333 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+            pointerEvents: 'none',
+            zIndex: 10
+          }}
         >
           {floor.tiles.flatMap((row, y) => 
             row.map((tile, x) => {
