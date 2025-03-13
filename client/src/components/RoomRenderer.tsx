@@ -636,7 +636,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
             role="grid"
             width="fit-content"
             margin="0 auto"
-            border="1px solid #444"
+            border="1px solid gray.500"
             position="relative"
             _after={{
               content: '""',
@@ -646,7 +646,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
               right: 0,
               bottom: 0,
               backgroundImage: 
-                'linear-gradient(to right, #333 1px, transparent 1px), linear-gradient(to bottom, #333 1px, transparent 1px)',
+                'linear-gradient(to right, gray.600 1px, transparent 1px), linear-gradient(to bottom, gray.600 1px, transparent 1px)',
               backgroundSize: '20px 20px',
               pointerEvents: 'none',
               zIndex: 10
@@ -819,7 +819,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
           role="grid"
           width="fit-content"
           margin="0 auto"
-          border="1px solid #444"
+          border="1px solid gray.500"
           position="relative"
           _after={{
             content: '""',
@@ -829,7 +829,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
             right: 0,
             bottom: 0,
             backgroundImage: 
-              'linear-gradient(to right, #333 1px, transparent 1px), linear-gradient(to bottom, #333 1px, transparent 1px)',
+              'linear-gradient(to right, gray.600 1px, transparent 1px), linear-gradient(to bottom, gray.600 1px, transparent 1px)',
             backgroundSize: '20px 20px',
             pointerEvents: 'none',
             zIndex: 10

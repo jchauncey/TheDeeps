@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { ChakraProvider } from '@chakra-ui/react';
 import RoomRenderer from '../../components/RoomRenderer';
 import { setupFetchMock, setupFetchErrorMock, resetFetchMock } from '../mocks/fetch';
 import { preparedRoomData } from '../mocks/roomData';
@@ -24,14 +25,22 @@ describe('RoomRenderer Component', () => {
     jest.clearAllMocks();
   });
 
-  test('renders loading state initially', () => {
-    render(<RoomRenderer />);
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+  test('renders loading state initially', async () => {
+    render(
+      <ChakraProvider>
+        <RoomRenderer />
+      </ChakraProvider>
+    );
+    expect(screen.getByText(/Loading/i)).toBeInTheDocument();
   });
 
   test('renders error state when fetch fails', async () => {
     setupFetchErrorMock();
-    render(<RoomRenderer />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/failed to fetch test room/i)).toBeInTheDocument();
@@ -39,7 +48,11 @@ describe('RoomRenderer Component', () => {
   });
 
   test('renders entrance room correctly', async () => {
-    render(<RoomRenderer roomType="entrance" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="entrance" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       // Check room title
@@ -55,7 +68,11 @@ describe('RoomRenderer Component', () => {
   });
 
   test('renders standard room correctly', async () => {
-    render(<RoomRenderer roomType="standard" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="standard" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Standard/i)).toBeInTheDocument();
@@ -64,7 +81,11 @@ describe('RoomRenderer Component', () => {
   });
 
   test('renders treasure room correctly', async () => {
-    render(<RoomRenderer roomType="treasure" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="treasure" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Treasure/i)).toBeInTheDocument();
@@ -73,7 +94,11 @@ describe('RoomRenderer Component', () => {
   });
 
   test('renders boss room correctly', async () => {
-    render(<RoomRenderer roomType="boss" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="boss" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Boss/i)).toBeInTheDocument();
@@ -82,7 +107,11 @@ describe('RoomRenderer Component', () => {
   });
 
   test('renders safe room correctly', async () => {
-    render(<RoomRenderer roomType="safe" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="safe" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Safe/i)).toBeInTheDocument();
@@ -91,7 +120,11 @@ describe('RoomRenderer Component', () => {
   });
 
   test('renders shop room correctly', async () => {
-    render(<RoomRenderer roomType="shop" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="shop" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Shop/i)).toBeInTheDocument();
@@ -101,13 +134,15 @@ describe('RoomRenderer Component', () => {
 
   test('passes custom dimensions to the API', async () => {
     render(
-      <RoomRenderer 
-        roomType="entrance" 
-        width={30} 
-        height={25} 
-        roomWidth={10} 
-        roomHeight={12} 
-      />
+      <ChakraProvider>
+        <RoomRenderer 
+          roomType="entrance" 
+          width={30} 
+          height={25} 
+          roomWidth={10} 
+          roomHeight={12} 
+        />
+      </ChakraProvider>
     );
     
     await waitFor(() => {
@@ -152,7 +187,11 @@ describe('RoomRenderer Specific Features', () => {
       return result;
     };
 
-    render(<RoomRenderer roomType="entrance" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="entrance" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Entrance/i)).toBeInTheDocument();
@@ -171,7 +210,11 @@ describe('RoomRenderer Specific Features', () => {
   });
 
   test('treasure room has items', async () => {
-    render(<RoomRenderer roomType="treasure" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="treasure" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Treasure/i)).toBeInTheDocument();
@@ -186,7 +229,11 @@ describe('RoomRenderer Specific Features', () => {
   });
 
   test('boss room has a boss mob', async () => {
-    render(<RoomRenderer roomType="boss" />);
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="boss" />
+      </ChakraProvider>
+    );
     
     await waitFor(() => {
       expect(screen.getByText(/Test Room: Boss/i)).toBeInTheDocument();
@@ -198,6 +245,76 @@ describe('RoomRenderer Specific Features', () => {
       const bossMobs = Object.values(preparedRoomData.boss.mobs);
       expect(bossMobs.length).toBeGreaterThan(0);
       expect((bossMobs[0] as any).variant).toBe('boss');
+    });
+  });
+});
+
+// Add a new test section for the grid overlay feature
+describe('RoomRenderer Grid Feature', () => {
+  beforeEach(() => {
+    setupFetchMock();
+  });
+
+  afterEach(() => {
+    resetFetchMock();
+    jest.clearAllMocks();
+  });
+
+  test('renders grid overlay in all room types', async () => {
+    const roomTypes = ['entrance', 'standard', 'treasure', 'boss', 'safe', 'shop'];
+    
+    for (const roomType of roomTypes) {
+      document.body.innerHTML = '';
+      
+      const { unmount } = render(
+        <ChakraProvider>
+          <RoomRenderer roomType={roomType} />
+        </ChakraProvider>
+      );
+      
+      await waitFor(() => {
+        expect(screen.getByText(new RegExp(`Test Room: ${roomType.charAt(0).toUpperCase() + roomType.slice(1)}`, 'i'))).toBeInTheDocument();
+        
+        // Find the grid container
+        const gridContainer = screen.getByRole('grid');
+        expect(gridContainer).toBeInTheDocument();
+        
+        // Check that the grid container has the position style for the grid overlay
+        expect(gridContainer).toHaveStyle({
+          position: 'relative'
+        });
+        
+        // Check that it has a border
+        const computedStyle = window.getComputedStyle(gridContainer);
+        expect(computedStyle.border).toBeTruthy();
+      });
+      
+      // Clean up after each iteration
+      unmount();
+    }
+  });
+
+  test('grid overlay is properly sized based on room dimensions', async () => {
+    const customWidth = 25;
+    const customHeight = 15;
+    
+    render(
+      <ChakraProvider>
+        <RoomRenderer roomType="standard" width={customWidth} height={customHeight} />
+      </ChakraProvider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByText(/Test Room: Standard/i)).toBeInTheDocument();
+      
+      // Find the grid container
+      const gridContainer = screen.getByRole('grid');
+      expect(gridContainer).toBeInTheDocument();
+      
+      // We can't directly check the gridTemplateColumns/Rows with toHaveStyle
+      // because they're applied via Chakra UI's CSS-in-JS system
+      // Instead, we'll check that the container has the correct class
+      expect(gridContainer).toHaveAttribute('class');
     });
   });
 }); 

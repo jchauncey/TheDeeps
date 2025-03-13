@@ -9,10 +9,27 @@ export const mockFetch = (url: string) => {
   // Get the appropriate room data based on the room type
   const roomData = preparedRoomData[roomType as keyof typeof preparedRoomData] || preparedRoomData.entrance;
   
+  // Create a proper response object with clone method
+  const responseText = JSON.stringify(roomData);
+  
   return Promise.resolve({
     ok: true,
     status: 200,
-    json: () => Promise.resolve(roomData)
+    statusText: 'OK',
+    json: () => Promise.resolve(roomData),
+    text: () => Promise.resolve(responseText),
+    headers: new Headers(),
+    clone: function() {
+      return {
+        ok: this.ok,
+        status: this.status,
+        statusText: this.statusText,
+        json: this.json,
+        text: () => Promise.resolve(responseText),
+        headers: this.headers,
+        clone: this.clone
+      };
+    }
   });
 };
 
@@ -22,7 +39,20 @@ export const mockFetchError = () => {
     ok: false,
     status: 500,
     statusText: 'Internal Server Error',
-    json: () => Promise.reject(new Error('Failed to fetch'))
+    json: () => Promise.reject(new Error('Failed to fetch')),
+    text: () => Promise.resolve('Internal Server Error'),
+    headers: new Headers(),
+    clone: function() {
+      return {
+        ok: this.ok,
+        status: this.status,
+        statusText: this.statusText,
+        json: this.json,
+        text: () => Promise.resolve('Internal Server Error'),
+        headers: this.headers,
+        clone: this.clone
+      };
+    }
   });
 };
 
