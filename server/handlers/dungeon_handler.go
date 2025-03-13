@@ -134,11 +134,25 @@ func (h *DungeonHandler) JoinDungeon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Place character on first floor at the first up stairs
-	if len(floor.UpStairs) > 0 {
+	// Find the entrance room and place the character there
+	var entranceRoom *models.Room
+	for i := range floor.Rooms {
+		if floor.Rooms[i].Type == models.RoomEntrance {
+			entranceRoom = &floor.Rooms[i]
+			break
+		}
+	}
+
+	if entranceRoom != nil {
+		// Place character in the center of the entrance room
+		centerX := entranceRoom.X + entranceRoom.Width/2
+		centerY := entranceRoom.Y + entranceRoom.Height/2
+		character.Position = models.Position{X: centerX, Y: centerY}
+	} else if len(floor.UpStairs) > 0 {
+		// Fallback: Place character on first floor at the first up stairs
 		character.Position = floor.UpStairs[0]
 	} else {
-		// If no up stairs, place at a random walkable tile
+		// Fallback: If no entrance room or up stairs, place at a random walkable tile
 		for y := 0; y < floor.Height; y++ {
 			for x := 0; x < floor.Width; x++ {
 				if floor.Tiles[y][x].Walkable && floor.Tiles[y][x].MobID == "" {
@@ -151,6 +165,9 @@ func (h *DungeonHandler) JoinDungeon(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// Update the tile to mark the character's position
+	floor.Tiles[character.Position.Y][character.Position.X].Character = character.ID
 
 	// Update character
 	character.CurrentFloor = 1
@@ -206,6 +223,181 @@ func (h *DungeonHandler) GetFloor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return floor
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(floor)
+}
+
+// GenerateTestRoom handles GET /test/room
+// This endpoint generates a single room for testing client rendering
+func (h *DungeonHandler) GenerateTestRoom(w http.ResponseWriter, r *http.Request) {
+	// Parse query parameters
+	query := r.URL.Query()
+
+	// Get room type (default to entrance)
+	roomType := models.RoomType(query.Get("type"))
+	if roomType == "" {
+		roomType = models.RoomEntrance
+	}
+
+	// Validate room type
+	validTypes := map[models.RoomType]bool{
+		models.RoomEntrance: true,
+		models.RoomStandard: true,
+		models.RoomTreasure: true,
+		models.RoomBoss:     true,
+		models.RoomSafe:     true,
+		models.RoomShop:     true,
+	}
+
+	if !validTypes[roomType] {
+		http.Error(w, "Invalid room type. Valid types: entrance, standard, treasure, boss, safe, shop", http.StatusBadRequest)
+		return
+	}
+
+	// Get width and height (default to 20x20)
+	width := 20
+	height := 20
+
+	if widthStr := query.Get("width"); widthStr != "" {
+		if w, err := strconv.Atoi(widthStr); err == nil && w > 0 && w <= 100 {
+			width = w
+		}
+	}
+
+	if heightStr := query.Get("height"); heightStr != "" {
+		if h, err := strconv.Atoi(heightStr); err == nil && h > 0 && h <= 100 {
+			height = h
+		}
+	}
+
+	// Get room size (default to 8x8 for entrance, 7x7 for others)
+	roomWidth := 8
+	roomHeight := 8
+
+	if roomType != models.RoomEntrance {
+		roomWidth = 7
+		roomHeight = 7
+	}
+
+	if roomWidthStr := query.Get("roomWidth"); roomWidthStr != "" {
+		if rw, err := strconv.Atoi(roomWidthStr); err == nil && rw > 0 && rw < width {
+			roomWidth = rw
+		}
+	}
+
+	if roomHeightStr := query.Get("roomHeight"); roomHeightStr != "" {
+		if rh, err := strconv.Atoi(roomHeightStr); err == nil && rh > 0 && rh < height {
+			roomHeight = rh
+		}
+	}
+
+	// Create a test floor
+	floor := &models.Floor{
+		Level:      1,
+		Width:      width,
+		Height:     height,
+		Tiles:      make([][]models.Tile, height),
+		UpStairs:   []models.Position{},
+		DownStairs: []models.Position{},
+		Mobs:       make(map[string]*models.Mob),
+		Items:      make(map[string]models.Item),
+	}
+
+	// Initialize tiles with walls
+	for y := 0; y < height; y++ {
+		floor.Tiles[y] = make([]models.Tile, width)
+		for x := 0; x < width; x++ {
+			floor.Tiles[y][x] = models.Tile{
+				Type:     models.TileWall,
+				Walkable: false,
+				Explored: false,
+			}
+		}
+	}
+
+	// Calculate room position (center of the floor)
+	roomX := (width - roomWidth) / 2
+	roomY := (height - roomHeight) / 2
+
+	// Create the room
+	room := models.Room{
+		ID:       "test-room",
+		Type:     roomType,
+		X:        roomX,
+		Y:        roomY,
+		Width:    roomWidth,
+		Height:   roomHeight,
+		Explored: true,
+	}
+
+	// Carve out the room
+	for y := 0; y < roomHeight; y++ {
+		for x := 0; x < roomWidth; x++ {
+			floor.Tiles[roomY+y][roomX+x] = models.Tile{
+				Type:     models.TileFloor,
+				Walkable: true,
+				Explored: true,
+				RoomID:   room.ID,
+			}
+		}
+	}
+
+	floor.Rooms = []models.Room{room}
+
+	// Add stairs if it's an entrance room
+	if roomType == models.RoomEntrance {
+		// Add down stairs in the bottom right corner
+		stairsX := roomX + roomWidth - 2
+		stairsY := roomY + roomHeight - 2
+
+		floor.Tiles[stairsY][stairsX] = models.Tile{
+			Type:     models.TileDownStairs,
+			Walkable: true,
+			Explored: true,
+			RoomID:   room.ID,
+		}
+
+		floor.DownStairs = append(floor.DownStairs, models.Position{X: stairsX, Y: stairsY})
+	}
+
+	// Add a test character in the center of the room
+	characterX := roomX + roomWidth/2
+	characterY := roomY + roomHeight/2
+
+	// Set the character in the tile
+	floor.Tiles[characterY][characterX].Character = "test-character"
+
+	// Add items for treasure rooms
+	if roomType == models.RoomTreasure {
+		// Add some test items
+		for i := 0; i < 3; i++ {
+			itemX := roomX + 2 + i*2
+			itemY := roomY + 2
+
+			itemID := "test-item-" + strconv.Itoa(i)
+			floor.Items[itemID] = models.Item{
+				ID:       itemID,
+				Type:     models.ItemWeapon,
+				Name:     "Test Item " + strconv.Itoa(i),
+				Position: models.Position{X: itemX, Y: itemY},
+			}
+
+			floor.Tiles[itemY][itemX].ItemID = itemID
+		}
+	}
+
+	// Add a boss for boss rooms
+	if roomType == models.RoomBoss {
+		mobID := "test-boss"
+		mob := models.NewMob(models.MobDragon, models.VariantBoss, 10)
+		mob.ID = mobID
+		mob.Position = models.Position{X: characterX + 2, Y: characterY}
+
+		floor.Mobs[mobID] = mob
+		floor.Tiles[characterY][characterX+2].MobID = mobID
+	}
+
+	// Return the floor with the single room
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(floor)
 }

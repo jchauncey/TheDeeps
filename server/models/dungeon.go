@@ -30,6 +30,7 @@ const (
 	RoomPuzzle   RoomType = "puzzle"
 	RoomSafe     RoomType = "safe"
 	RoomShop     RoomType = "shop"
+	RoomEntrance RoomType = "entrance" // New room type for dungeon entrance
 )
 
 // Room represents a room in the dungeon

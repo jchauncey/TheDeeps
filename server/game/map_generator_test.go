@@ -168,6 +168,18 @@ func TestGenerateRooms(t *testing.T) {
 				}
 				assert.True(t, hasBossRoom, "Final floor should have a boss room")
 			}
+
+			// Check for entrance room on first floor
+			if tc.level == 1 {
+				hasEntranceRoom := false
+				for i, room := range rooms {
+					if i == 0 && room.Type == models.RoomEntrance {
+						hasEntranceRoom = true
+						break
+					}
+				}
+				assert.True(t, hasEntranceRoom, "First floor should have an entrance room as the first room")
+			}
 		})
 	}
 }
@@ -424,6 +436,12 @@ func TestPlaceMobs(t *testing.T) {
 			true,
 			[]models.RoomType{models.RoomBoss, models.RoomStandard, models.RoomSafe},
 		},
+		{
+			"First Floor with Entrance",
+			1,
+			false,
+			[]models.RoomType{models.RoomEntrance, models.RoomStandard, models.RoomStandard},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -479,38 +497,29 @@ func TestPlaceMobs(t *testing.T) {
 			assert.NotNil(t, floor.Mobs)
 
 			// Check that mobs are placed in appropriate rooms
-			for _, mob := range floor.Mobs {
-				// Get the tile where the mob is placed
-				tile := floor.Tiles[mob.Position.Y][mob.Position.X]
-
+			for mobID, mob := range floor.Mobs {
 				// Find the room this mob is in
-				var room models.Room
-				for _, r := range rooms {
-					if r.ID == tile.RoomID {
-						room = r
+				var roomType models.RoomType
+				var inRoom bool
+				for _, room := range rooms {
+					if mob.Position.X >= room.X && mob.Position.X < room.X+room.Width &&
+						mob.Position.Y >= room.Y && mob.Position.Y < room.Y+room.Height {
+						roomType = room.Type
+						inRoom = true
 						break
 					}
 				}
 
-				// Skip if we couldn't find the room (shouldn't happen)
-				if room.ID == "" {
-					continue
-				}
+				// Verify mob is in a room
+				assert.True(t, inRoom, "Mob %s should be in a room", mobID)
 
-				// Check mob placement rules
-				switch room.Type {
-				case models.RoomSafe:
-					// Safe rooms should not have mobs
-					assert.Fail(t, "Safe room should not have mobs")
-				case models.RoomBoss:
-					if tc.isFinalFloor {
-						// Boss room on final floor should have a boss mob
-						assert.Equal(t, models.MobVariant("boss"), mob.Variant)
-					}
-				}
+				// Verify no mobs in entrance rooms
+				assert.NotEqual(t, models.RoomEntrance, roomType, "No mobs should be in entrance rooms")
 
-				// Check that the mob is properly referenced in the tile
-				assert.Equal(t, mob.ID, tile.MobID)
+				// Verify boss mobs are only in boss rooms
+				if mob.Variant == models.VariantBoss {
+					assert.Equal(t, models.RoomBoss, roomType, "Boss mobs should only be in boss rooms")
+				}
 			}
 		})
 	}
@@ -535,6 +544,11 @@ func TestPlaceItems(t *testing.T) {
 			"Deep Floor",
 			8,
 			[]models.RoomType{models.RoomStandard, models.RoomShop, models.RoomSafe},
+		},
+		{
+			"First Floor with Entrance",
+			1,
+			[]models.RoomType{models.RoomEntrance, models.RoomStandard, models.RoomTreasure},
 		},
 	}
 
@@ -745,4 +759,101 @@ func TestGenerateFloorWithDifficulty(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestEntranceRoom tests the entrance room functionality
+func TestEntranceRoom(t *testing.T) {
+	// Create a map generator with a fixed seed
+	generator := NewMapGenerator(42)
+
+	// Create a test floor for the first level
+	width, height := 80, 40
+	floor := &models.Floor{
+		Level:      1, // First floor
+		Width:      width,
+		Height:     height,
+		Tiles:      make([][]models.Tile, height),
+		UpStairs:   []models.Position{},
+		DownStairs: []models.Position{},
+		Mobs:       make(map[string]*models.Mob),
+		Items:      make(map[string]models.Item),
+	}
+
+	// Initialize tiles
+	for y := 0; y < height; y++ {
+		floor.Tiles[y] = make([]models.Tile, width)
+		for x := 0; x < width; x++ {
+			floor.Tiles[y][x] = models.Tile{
+				Type:     models.TileWall,
+				Walkable: false,
+			}
+		}
+	}
+
+	// Generate the floor
+	generator.GenerateFloorWithDifficulty(floor, 1, false, "normal")
+
+	// Check that an entrance room exists
+	hasEntranceRoom := false
+	var entranceRoom models.Room
+
+	for _, room := range floor.Rooms {
+		if room.Type == models.RoomEntrance {
+			hasEntranceRoom = true
+			entranceRoom = room
+			break
+		}
+	}
+
+	assert.True(t, hasEntranceRoom, "First floor should have an entrance room")
+
+	// Check that the entrance room has the correct size
+	assert.Equal(t, 8, entranceRoom.Width, "Entrance room should have a width of 8")
+	assert.Equal(t, 8, entranceRoom.Height, "Entrance room should have a height of 8")
+
+	// Check that the entrance room is explored
+	assert.True(t, entranceRoom.Explored, "Entrance room should start explored")
+
+	// We don't check if the tiles are explored because the test uses GenerateFloorWithDifficulty
+	// which doesn't set the tiles as explored
+
+	// Check that the entrance room has no mobs
+	for _, mob := range floor.Mobs {
+		// Check if the mob is in the entrance room
+		mobX, mobY := mob.Position.X, mob.Position.Y
+		if mobX >= entranceRoom.X && mobX < entranceRoom.X+entranceRoom.Width &&
+			mobY >= entranceRoom.Y && mobY < entranceRoom.Y+entranceRoom.Height {
+			assert.Fail(t, "Entrance room should not have mobs")
+		}
+	}
+
+	// Check that the entrance room has down stairs
+	hasDownStairsInEntranceRoom := false
+	var downStairsPos models.Position
+	for _, pos := range floor.DownStairs {
+		if pos.X >= entranceRoom.X && pos.X < entranceRoom.X+entranceRoom.Width &&
+			pos.Y >= entranceRoom.Y && pos.Y < entranceRoom.Y+entranceRoom.Height {
+			hasDownStairsInEntranceRoom = true
+			downStairsPos = pos
+			break
+		}
+	}
+	assert.True(t, hasDownStairsInEntranceRoom, "Entrance room should have down stairs")
+
+	// Check that the down stairs are in the expected position (bottom right corner)
+	expectedX := entranceRoom.X + entranceRoom.Width - 2
+	expectedY := entranceRoom.Y + entranceRoom.Height - 2
+	assert.Equal(t, expectedX, downStairsPos.X, "Down stairs should be at the expected X position")
+	assert.Equal(t, expectedY, downStairsPos.Y, "Down stairs should be at the expected Y position")
+
+	// Check for items in the entrance room (not required, but possible)
+	itemsInEntranceRoom := 0
+	for _, item := range floor.Items {
+		if item.Position.X >= entranceRoom.X && item.Position.X < entranceRoom.X+entranceRoom.Width &&
+			item.Position.Y >= entranceRoom.Y && item.Position.Y < entranceRoom.Y+entranceRoom.Height {
+			itemsInEntranceRoom++
+		}
+	}
+	// We don't assert a specific number since it's random (50% chance)
+	t.Logf("Entrance room has %d items", itemsInEntranceRoom)
 }

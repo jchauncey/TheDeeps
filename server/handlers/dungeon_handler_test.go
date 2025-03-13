@@ -474,3 +474,143 @@ func TestSharedRepositories(t *testing.T) {
 	assert.Equal(t, dungeon.ID, updatedCharacter.CurrentDungeon, "Character should reference dungeon")
 	assert.Equal(t, 1, updatedCharacter.CurrentFloor, "Character should be on floor 1")
 }
+
+func TestGenerateTestRoom(t *testing.T) {
+	// Create repositories
+	dungeonRepo := repositories.NewDungeonRepository()
+	characterRepo := repositories.NewCharacterRepository()
+
+	// Create handler
+	handler := NewDungeonHandler(dungeonRepo, characterRepo)
+
+	// Test cases
+	tests := []struct {
+		name           string
+		queryParams    string
+		expectedStatus int
+		checkFunc      func(*testing.T, *models.Floor)
+	}{
+		{
+			name:           "Default Entrance Room",
+			queryParams:    "",
+			expectedStatus: http.StatusOK,
+			checkFunc: func(t *testing.T, floor *models.Floor) {
+				// Check floor dimensions
+				assert.Equal(t, 20, floor.Width)
+				assert.Equal(t, 20, floor.Height)
+
+				// Check that there's exactly one room
+				assert.Equal(t, 1, len(floor.Rooms))
+
+				// Check room properties
+				room := floor.Rooms[0]
+				assert.Equal(t, models.RoomEntrance, room.Type)
+				assert.Equal(t, 8, room.Width)
+				assert.Equal(t, 8, room.Height)
+				assert.True(t, room.Explored)
+
+				// Check that down stairs exist
+				assert.Equal(t, 1, len(floor.DownStairs))
+
+				// Check that a character is placed
+				characterFound := false
+				for y := 0; y < floor.Height; y++ {
+					for x := 0; x < floor.Width; x++ {
+						if floor.Tiles[y][x].Character != "" {
+							characterFound = true
+							break
+						}
+					}
+					if characterFound {
+						break
+					}
+				}
+				assert.True(t, characterFound, "Character should be placed in the room")
+			},
+		},
+		{
+			name:           "Treasure Room",
+			queryParams:    "?type=treasure",
+			expectedStatus: http.StatusOK,
+			checkFunc: func(t *testing.T, floor *models.Floor) {
+				// Check room type
+				assert.Equal(t, models.RoomTreasure, floor.Rooms[0].Type)
+
+				// Check that items exist
+				assert.Greater(t, len(floor.Items), 0, "Treasure room should have items")
+			},
+		},
+		{
+			name:           "Boss Room",
+			queryParams:    "?type=boss",
+			expectedStatus: http.StatusOK,
+			checkFunc: func(t *testing.T, floor *models.Floor) {
+				// Check room type
+				assert.Equal(t, models.RoomBoss, floor.Rooms[0].Type)
+
+				// Check that a boss mob exists
+				assert.Equal(t, 1, len(floor.Mobs), "Boss room should have a boss mob")
+
+				// Find the boss mob
+				var boss *models.Mob
+				for _, mob := range floor.Mobs {
+					boss = mob
+					break
+				}
+				assert.NotNil(t, boss)
+				assert.Equal(t, models.VariantBoss, boss.Variant)
+			},
+		},
+		{
+			name:           "Custom Size Room",
+			queryParams:    "?width=30&height=25&roomWidth=10&roomHeight=12",
+			expectedStatus: http.StatusOK,
+			checkFunc: func(t *testing.T, floor *models.Floor) {
+				// Check floor dimensions
+				assert.Equal(t, 30, floor.Width)
+				assert.Equal(t, 25, floor.Height)
+
+				// Check room dimensions
+				assert.Equal(t, 10, floor.Rooms[0].Width)
+				assert.Equal(t, 12, floor.Rooms[0].Height)
+			},
+		},
+		{
+			name:           "Invalid Room Type",
+			queryParams:    "?type=invalid",
+			expectedStatus: http.StatusBadRequest,
+			checkFunc:      nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create request
+			req, err := http.NewRequest("GET", "/test/room"+tt.queryParams, nil)
+			assert.NoError(t, err)
+
+			// Create response recorder
+			rr := httptest.NewRecorder()
+
+			// Create router and register handler
+			router := mux.NewRouter()
+			router.HandleFunc("/test/room", handler.GenerateTestRoom).Methods("GET")
+
+			// Serve request
+			router.ServeHTTP(rr, req)
+
+			// Check status code
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+
+			// If we expect success, check the response
+			if tt.expectedStatus == http.StatusOK && tt.checkFunc != nil {
+				var floor models.Floor
+				err := json.Unmarshal(rr.Body.Bytes(), &floor)
+				assert.NoError(t, err)
+
+				// Run the check function
+				tt.checkFunc(t, &floor)
+			}
+		})
+	}
+}
