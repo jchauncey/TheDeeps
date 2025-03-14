@@ -80,7 +80,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
   roomHeight,
   onLoad,
   onError,
-  debug = false,
+  debug = true,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -718,10 +718,15 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
                     {/* Show ASCII in debug mode */}
                     {debug && (
                       <Text 
-                        fontSize="10px" 
+                        fontSize="12px" 
                         color={isPlayer ? 'yellow' : isBoss ? 'red' : isItem ? 'green' : 'white'}
-                        fontWeight={isPlayer || isBoss ? 'bold' : 'normal'}
+                        fontWeight="bold"
                         zIndex={3}
+                        position="absolute"
+                        top="50%"
+                        left="50%"
+                        transform="translate(-50%, -50%)"
+                        textShadow={isPlayer || isBoss ? "0px 0px 2px white" : "none"}
                       >
                         {isWall ? '#' : isBoss ? 'B' : isPlayer ? '@' : isItem ? '$' : isStairs ? '>' : isDoor ? '+' : '.'}
                       </Text>
@@ -901,10 +906,15 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
                   {/* Show ASCII in debug mode */}
                   {debug && (
                     <Text 
-                      fontSize="10px" 
-                      color={validTile.character ? 'yellow' : validTile.mobId ? 'red' : validTile.itemId ? 'green' : 'white'}
-                      fontWeight={validTile.character || validTile.mobId ? 'bold' : 'normal'}
+                      fontSize="12px" 
+                      color={validTile.character ? 'black' : validTile.mobId ? 'red' : validTile.itemId ? 'green' : 'white'}
+                      fontWeight="bold"
                       zIndex={3}
+                      position="absolute"
+                      top="50%"
+                      left="50%"
+                      transform="translate(-50%, -50%)"
+                      textShadow={validTile.character ? "0px 0px 2px white" : "none"}
                     >
                       {tileContent}
                     </Text>

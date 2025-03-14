@@ -29,6 +29,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import CharacterCard from '../components/CharacterCard';
 import RoomRenderer from '../components/RoomRenderer';
+import SymbolRenderer from '../components/SymbolRenderer';
+import RoomSymbolDemo from '../components/RoomSymbolDemo';
 import { ArrowBackIcon, RepeatIcon } from '@chakra-ui/icons';
 import { Character, CharacterClass } from '../types';
 
@@ -105,13 +107,15 @@ const ComponentPlayground: React.FC = () => {
   const [roomDimHeight, setRoomDimHeight] = useState<number>(8);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [isRoomLoading, setIsRoomLoading] = useState<boolean>(false);
-  const [debugMode, setDebugMode] = useState<boolean>(false);
+  const [debugMode, setDebugMode] = useState<boolean>(true);
   const navigate = useNavigate();
 
   // Component options
   const components = [
     { value: 'CharacterCard', label: 'Character Card' },
     { value: 'RoomRenderer', label: 'Room Renderer' },
+    { value: 'SymbolRenderer', label: 'Map Symbols' },
+    { value: 'RoomSymbolDemo', label: 'Room Symbol Demo' },
     // Add more components as needed
   ];
 
@@ -210,7 +214,7 @@ const ComponentPlayground: React.FC = () => {
               
               <HStack>
                 <FormControl display="flex" alignItems="center">
-                  <FormLabel htmlFor="debug-mode" mb={0} fontSize="sm">Debug:</FormLabel>
+                  <FormLabel htmlFor="debug-mode" mb={0} fontSize="sm">Show Symbols:</FormLabel>
                   <Switch 
                     id="debug-mode" 
                     isChecked={debugMode} 
@@ -344,6 +348,46 @@ const ComponentPlayground: React.FC = () => {
   roomWidth={${roomDimWidth}}
   roomHeight={${roomDimHeight}}
 />`}
+                </Code>
+              </Box>
+            )}
+          </VStack>
+        );
+      
+      case 'SymbolRenderer':
+        return (
+          <VStack spacing={6}>
+            <Heading size="md">Map Symbols</Heading>
+            <Text>This component displays all the symbols used in the map rendering system.</Text>
+            
+            <Box width="100%" p={4} bg="gray.700" borderRadius="md">
+              <SymbolRenderer />
+            </Box>
+            
+            {showCode && (
+              <Box mt={6} p={4} bg="gray.700" borderRadius="md" overflowX="auto">
+                <Code colorScheme="gray" whiteSpace="pre">
+{`<SymbolRenderer />`}
+                </Code>
+              </Box>
+            )}
+          </VStack>
+        );
+      
+      case 'RoomSymbolDemo':
+        return (
+          <VStack spacing={6}>
+            <Heading size="md">Room Symbol Demo</Heading>
+            <Text>This component demonstrates the symbols in the context of different room types.</Text>
+            
+            <Box width="100%" p={4} bg="gray.700" borderRadius="md">
+              <RoomSymbolDemo />
+            </Box>
+            
+            {showCode && (
+              <Box mt={6} p={4} bg="gray.700" borderRadius="md" overflowX="auto">
+                <Code colorScheme="gray" whiteSpace="pre">
+{`<RoomSymbolDemo />`}
                 </Code>
               </Box>
             )}
