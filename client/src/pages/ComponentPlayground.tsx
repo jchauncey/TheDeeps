@@ -26,13 +26,24 @@ import {
   HStack,
   Tooltip
 } from '@chakra-ui/react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import CharacterCard from '../components/CharacterCard';
 import RoomRenderer from '../components/RoomRenderer';
 import SymbolRenderer from '../components/SymbolRenderer';
 import RoomSymbolDemo from '../components/RoomSymbolDemo';
+import MovementDemo from '../components/MovementDemo';
 import { ArrowBackIcon, RepeatIcon } from '@chakra-ui/icons';
 import { Character, CharacterClass } from '../types';
+
+// Component options
+const components = [
+  { value: 'CharacterCard', label: 'Character Card' },
+  { value: 'RoomRenderer', label: 'Room Renderer' },
+  { value: 'SymbolRenderer', label: 'Map Symbols' },
+  { value: 'RoomSymbolDemo', label: 'Room Symbol Demo' },
+  { value: 'MovementDemo', label: 'Movement Demo' },
+  // Add more components as needed
+];
 
 // Create mock character data directly in this file
 const mockCharacters: Character[] = [
@@ -98,7 +109,15 @@ const handleSelect = (character: Character) => {
 };
 
 const ComponentPlayground: React.FC = () => {
-  const [selectedComponent, setSelectedComponent] = useState<string>('CharacterCard');
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const componentParam = queryParams.get('component');
+  
+  const [selectedComponent, setSelectedComponent] = useState<string>(
+    componentParam && components.some(c => c.value === componentParam) 
+      ? componentParam 
+      : 'CharacterCard'
+  );
   const [roomType, setRoomType] = useState<string>('entrance');
   const [showCode, setShowCode] = useState<boolean>(false);
   const [roomWidth, setRoomWidth] = useState<number>(20);
@@ -108,16 +127,9 @@ const ComponentPlayground: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [isRoomLoading, setIsRoomLoading] = useState<boolean>(false);
   const [debugMode, setDebugMode] = useState<boolean>(true);
+  const [gridSize, setGridSize] = useState<number>(15);
+  const [wallDensity, setWallDensity] = useState<number>(0.2);
   const navigate = useNavigate();
-
-  // Component options
-  const components = [
-    { value: 'CharacterCard', label: 'Character Card' },
-    { value: 'RoomRenderer', label: 'Room Renderer' },
-    { value: 'SymbolRenderer', label: 'Map Symbols' },
-    { value: 'RoomSymbolDemo', label: 'Room Symbol Demo' },
-    // Add more components as needed
-  ];
 
   // Room type options
   const roomTypes = [
@@ -388,6 +400,73 @@ const ComponentPlayground: React.FC = () => {
               <Box mt={6} p={4} bg="gray.700" borderRadius="md" overflowX="auto">
                 <Code colorScheme="gray" whiteSpace="pre">
 {`<RoomSymbolDemo />`}
+                </Code>
+              </Box>
+            )}
+          </VStack>
+        );
+      
+      case 'MovementDemo':
+        return (
+          <VStack spacing={6}>
+            <Heading size="md">Movement Demo</Heading>
+            <Text>This component demonstrates character movement in a grid-based environment.</Text>
+            
+            <SimpleGrid columns={2} spacing={4} width="100%">
+              <FormControl>
+                <FormLabel htmlFor="grid-size">Grid Size:</FormLabel>
+                <NumberInput 
+                  id="grid-size" 
+                  value={gridSize} 
+                  onChange={(_, val) => setGridSize(val)}
+                  min={10} 
+                  max={30}
+                >
+                  <NumberInputField />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+              </FormControl>
+              
+              <FormControl>
+                <FormLabel htmlFor="wall-density">Wall Density:</FormLabel>
+                <NumberInput 
+                  id="wall-density" 
+                  value={wallDensity} 
+                  onChange={(_, val) => setWallDensity(val)}
+                  min={0.1} 
+                  max={0.4}
+                  step={0.05}
+                  precision={2}
+                >
+                  <NumberInputField />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+              </FormControl>
+            </SimpleGrid>
+            
+            <Box width="100%" p={4} bg="gray.700" borderRadius="md">
+              <MovementDemo 
+                key={`${gridSize}-${wallDensity}`}
+                gridSize={gridSize}
+                wallDensity={wallDensity}
+                debug={debugMode}
+              />
+            </Box>
+            
+            {showCode && (
+              <Box mt={6} p={4} bg="gray.700" borderRadius="md" overflowX="auto">
+                <Code colorScheme="gray" whiteSpace="pre">
+{`<MovementDemo 
+  gridSize={${gridSize}}
+  wallDensity={${wallDensity}}
+  debug={${debugMode}}
+/>`}
                 </Code>
               </Box>
             )}
