@@ -160,3 +160,100 @@ TheDeeps employs comprehensive testing practices to ensure code quality, reliabi
 - Run specific tests with the `-run` flag
 - Use the `-v` flag for verbose output
 - Use breakpoints in your IDE for step-through debugging
+
+## End-to-End Tests
+
+### MovementDemo Component Test Suite
+
+The MovementDemo component has a comprehensive E2E test suite that covers various user interactions and edge cases:
+
+#### Basic Functionality Tests
+- **Page Loading**: Verifies component renders correctly with all required elements
+- **Target Setting**: Tests clicking on cells to set movement targets
+  - Verifies target markers appear
+  - Checks path markers for non-adjacent targets
+  - Handles retries for flaky interactions
+- **Basic Movement**:
+  - Arrow key movement (Up, Down, Left, Right)
+  - WASD key movement
+  - Verifies position changes in expected directions
+  - Handles inverted Y-axis coordinates
+
+#### Advanced Movement Tests
+- **Diagonal Movement**:
+  - Tests QEZC keys for diagonal movement when enabled
+  - Verifies diagonal movement is disabled in normal mode
+  - Checks all diagonal directions (Up-Right, Down-Right, Down-Left, Up-Left)
+- **Pathfinding**:
+  - Tests path finding through obstacles
+  - Verifies path markers appear for reachable targets
+  - Handles unreachable targets gracefully
+
+#### Edge Cases and Error Handling
+- **Rapid Movement**:
+  - Tests quick successive key presses
+  - Verifies player stays within grid bounds
+  - Ensures movement animations complete correctly
+- **Wall Interactions**:
+  - Tests movement attempts into walls
+  - Verifies player position remains unchanged when hitting walls
+  - Ensures clicking on walls doesn't create target markers
+- **Boundary Testing**:
+  - Tests clicks outside grid bounds
+  - Verifies no markers appear for invalid clicks
+  - Ensures player stays within grid boundaries
+
+#### UI Interaction Tests
+- **Multiple Target Handling**:
+  - Tests clicking multiple walkable cells
+  - Verifies only one target marker exists at a time
+  - Checks path markers update with new targets
+- **Toggle Mode Button**:
+  - Tests mode switching functionality
+  - Verifies diagonal movement enables/disables correctly
+  - Checks button state and movement behavior in each mode
+- **Map Generation**:
+  - Tests new map generation
+  - Verifies player character persistence
+  - Checks grid state changes
+
+#### Test Implementation Best Practices
+- Screenshots captured at key interaction points for debugging
+- Detailed logging of player positions and movements
+- Retry logic for potentially flaky interactions
+- Proper timeout handling for animations and state changes
+- Flexible assertions to handle valid movement variations
+- Grid position calculations accounting for layout
+
+### Example Test Structure
+```typescript
+test.describe('MovementDemo Component', () => {
+  test.beforeEach(async ({ page }) => {
+    // Setup and navigation
+    await page.goto('http://localhost:3000/component-playground?component=MovementDemo');
+    await page.waitForSelector('.grid-container');
+    await page.waitForSelector('.player-character');
+  });
+
+  test('should handle movement scenario', async ({ page }) => {
+    // Get initial state
+    const playerElement = await page.locator('.player-character').first();
+    const initialPosition = await playerElement.boundingBox();
+
+    // Perform test actions
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(500);
+
+    // Verify results
+    const newPosition = await playerElement.boundingBox();
+    expect(newPosition.x).toBeGreaterThan(initialPosition.x);
+  });
+});
+```
+
+### Test Debugging Tools
+- Screenshot capture at key points
+- Console logging of positions and states
+- Visual verification of movements
+- Detailed error messages for failures
+- Step-by-step interaction logging
