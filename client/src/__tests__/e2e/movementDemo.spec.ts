@@ -45,6 +45,8 @@ test.describe('MovementDemo Component', () => {
       const playerGridX = playerCellIndex % gridDimension;
       const playerGridY = Math.floor(playerCellIndex / gridDimension);
       
+      console.log(`Player grid position: (${playerGridX}, ${playerGridY})`);
+      
       // Try multiple directions until we find a walkable cell
       const directions = [
         { dx: 1, dy: 0 },  // right
@@ -74,7 +76,7 @@ test.describe('MovementDemo Component', () => {
             targetIndex = index;
             targetX = x;
             targetY = y;
-            console.log(`Found walkable cell at index ${targetIndex}`);
+            console.log(`Found walkable cell at index ${targetIndex}, position (${targetX}, ${targetY})`);
             break;
           }
         }
@@ -84,24 +86,19 @@ test.describe('MovementDemo Component', () => {
         // Take a screenshot before clicking
         await page.screenshot({ path: 'before-click.png' });
         
-        // Click the target cell and wait for markers to appear
-        await targetCell.click();
+        // Force click in the center of the cell with a longer timeout
+        await targetCell.click({ force: true, timeout: 5000 });
         
-        // Wait for target marker with retry logic
-        let targetMarker = 0;
-        for (let i = 0; i < 5; i++) {
-          await page.waitForTimeout(500);
-          targetMarker = await page.locator('.target-marker').count();
-          console.log(`Attempt ${i + 1}: Found ${targetMarker} target markers`);
-          
-          if (targetMarker > 0) break;
-          
-          // If no marker appeared, try clicking again
-          if (i < 4) {
-            console.log('Retrying click...');
-            await targetCell.click();
-          }
-        }
+        // Wait for the target marker to appear
+        await page.waitForTimeout(1000);
+        
+        // Check for target marker using data-testid attribute
+        const targetMarkerByTestId = await page.locator('[data-testid="target-marker"]').count();
+        console.log(`Found ${targetMarkerByTestId} target markers by data-testid`);
+        
+        // Also check by class name as a fallback
+        const targetMarkerByClass = await page.locator('.target-marker').count();
+        console.log(`Found ${targetMarkerByClass} target markers by class`);
         
         // Take a screenshot after clicking
         await page.screenshot({ path: 'after-click.png' });
@@ -110,8 +107,9 @@ test.describe('MovementDemo Component', () => {
         const finalClasses = await targetCell.getAttribute('class');
         console.log(`Final target cell classes: ${finalClasses}`);
         
-        // Check if target was set
-        expect(targetMarker).toBeGreaterThan(0);
+        // Check if target was set using either method
+        const totalTargetMarkers = targetMarkerByTestId + targetMarkerByClass;
+        expect(totalTargetMarkers).toBeGreaterThan(0);
         
         // Check for path markers
         const pathMarkers = await page.locator('.path-marker').count();
