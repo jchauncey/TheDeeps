@@ -32,6 +32,7 @@ import RoomRenderer from '../components/RoomRenderer';
 import SymbolRenderer from '../components/SymbolRenderer';
 import RoomSymbolDemo from '../components/RoomSymbolDemo';
 import MovementDemo from '../components/MovementDemo';
+import DungeonPlayground from '../components/DungeonPlayground';
 import { ArrowBackIcon, RepeatIcon } from '@chakra-ui/icons';
 import { Character, CharacterClass } from '../types';
 
@@ -42,6 +43,7 @@ const components = [
   { value: 'SymbolRenderer', label: 'Map Symbols' },
   { value: 'RoomSymbolDemo', label: 'Room Symbol Demo' },
   { value: 'MovementDemo', label: 'Movement Demo' },
+  { value: 'DungeonPlayground', label: 'Dungeon Playground' },
   // Add more components as needed
 ];
 
@@ -467,6 +469,26 @@ const ComponentPlayground: React.FC = () => {
   wallDensity={${wallDensity}}
   debug={${debugMode}}
 />`}
+                </Code>
+              </Box>
+            )}
+          </VStack>
+        );
+      
+      case 'DungeonPlayground':
+        return (
+          <VStack spacing={6}>
+            <Heading size="md">Dungeon Playground</Heading>
+            <Text>Create and explore dungeons with configurable parameters for testing.</Text>
+            
+            <Box width="100%">
+              <DungeonPlayground showCode={showCode} />
+            </Box>
+            
+            {showCode && (
+              <Box mt={6} p={4} bg="gray.700" borderRadius="md" overflowX="auto">
+                <Code colorScheme="gray" whiteSpace="pre">
+{`<DungeonPlayground showCode={${showCode}} />`}
                 </Code>
               </Box>
             )}

@@ -464,3 +464,53 @@ func (h *DungeonHandler) GenerateTestRoom(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(floor)
 }
+
+// GetFloorByNumber handles GET /api/dungeons/{id}/floors/{floorNumber}
+func (h *DungeonHandler) GetFloorByNumber(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	dungeonID := vars["id"]
+	floorNumberStr := vars["floorNumber"]
+
+	// Parse floor number
+	floorNumber, err := strconv.Atoi(floorNumberStr)
+	if err != nil {
+		http.Error(w, "Invalid floor number", http.StatusBadRequest)
+		return
+	}
+
+	// Get dungeon
+	dungeon, err := h.dungeonRepo.GetByID(dungeonID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Validate floor number
+	if floorNumber < 1 || floorNumber > dungeon.Floors {
+		http.Error(w, "Floor number out of range", http.StatusBadRequest)
+		return
+	}
+
+	// Get floor
+	floor, err := h.dungeonRepo.GetFloor(dungeonID, floorNumber)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// If floor hasn't been generated yet, generate it
+	if len(floor.Rooms) == 0 {
+		h.mapGenerator.GenerateFloorWithDifficulty(floor, floorNumber, floorNumber == dungeon.Floors, dungeon.Difficulty)
+
+		// Save the floor back to the repository
+		err = h.dungeonRepo.SaveFloor(dungeonID, floorNumber, floor)
+		if err != nil {
+			http.Error(w, "Failed to save generated floor", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Return floor data
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(floor)
+}

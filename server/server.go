@@ -73,6 +73,7 @@ func (s *Server) SetupRoutes() {
 	s.router.HandleFunc("/dungeons", s.dungeonHandler.CreateDungeon).Methods("POST")
 	s.router.HandleFunc("/dungeons/{id}/join", s.dungeonHandler.JoinDungeon).Methods("POST")
 	s.router.HandleFunc("/dungeons/{id}/floor/{level}", s.dungeonHandler.GetFloor).Methods("GET")
+	s.router.HandleFunc("/api/dungeons/{id}/floors/{floorNumber}", s.dungeonHandler.GetFloorByNumber).Methods("GET")
 	s.router.HandleFunc("/test/room", s.dungeonHandler.GenerateTestRoom).Methods("GET")
 
 	// Combat routes
