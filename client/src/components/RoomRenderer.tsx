@@ -84,7 +84,6 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [floor, setFloor] = useState<Floor | null>(null);
-  const [rawResponse, setRawResponse] = useState<string>('');
 
   useEffect(() => {
     const fetchTestRoom = async () => {
@@ -105,11 +104,6 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
         // Fetch the test room
         const response = await fetch(url);
         
-        // Clone the response for debugging
-        const responseClone = response.clone();
-        const rawText = await responseClone.text();
-        setRawResponse(rawText);
-        
         console.log(`Response status: ${response.status} ${response.statusText}`);
         
         // Log headers in a way that works with older TypeScript targets
@@ -123,16 +117,9 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
           throw new Error(`Failed to fetch test room: ${response.statusText}`);
         }
         
-        // Parse the JSON from the raw text to avoid double-parsing issues
-        let data;
-        try {
-          data = JSON.parse(rawText);
-          console.log('Parsed room data:', data);
-        } catch (jsonError) {
-          console.error('Failed to parse JSON response:', jsonError);
-          console.error('Raw response text:', rawText);
-          throw new Error(`Failed to parse room data: ${jsonError instanceof Error ? jsonError.message : 'Invalid JSON'}`);
-        }
+        // Parse the JSON from the response
+        const data = await response.json();
+        console.log('Parsed room data:', data);
         
         // Validate the response structure
         if (!data || !data.tiles || !Array.isArray(data.tiles) || data.tiles.length === 0) {
@@ -309,7 +296,7 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
   if (error) {
     return (
       <Center h="100%">
-        <Text color="red.500">{error}</Text>
+        <Text color="red.500">Error: {error}</Text>
       </Center>
     );
   }
@@ -319,198 +306,6 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
       <Center h="100%">
         <Text>No floor data available</Text>
       </Center>
-    );
-  }
-
-  // Check if the tiles array is valid
-  const hasTiles = floor.tiles && Array.isArray(floor.tiles) && floor.tiles.length > 0;
-  
-  // If we don't have valid tiles, render a fallback
-  if (!hasTiles) {
-    return (
-      <Box>
-        <Text fontSize="xl" mb={4}>
-          Test Room: {roomType.charAt(0).toUpperCase() + roomType.slice(1)} (Fallback)
-        </Text>
-        
-        <Box 
-          bg="black" 
-          color="white" 
-          fontFamily="monospace" 
-          p={4} 
-          borderRadius="md"
-          overflow="auto"
-          fontSize="16px"
-          lineHeight="1"
-        >
-          <Box 
-            display="grid" 
-            gridTemplateColumns={`repeat(10, 20px)`}
-            gridTemplateRows={`repeat(10, 20px)`}
-            gap={0}
-            role="grid"
-            width="fit-content"
-            margin="0 auto"
-            border="1px solid gray.500"
-            position="relative"
-            _after={{
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundImage: 
-                'linear-gradient(to right, gray.600 1px, transparent 1px), linear-gradient(to bottom, gray.600 1px, transparent 1px)',
-              backgroundSize: '20px 20px',
-              pointerEvents: 'none',
-              zIndex: 10
-            }}
-          >
-            {Array(10).fill(0).map((_, y) => 
-              Array(10).fill(0).map((_, x) => {
-                // Create a simple room layout
-                const isWall = x === 0 || x === 9 || y === 0 || y === 9;
-                const isBoss = roomType === 'boss' && x === 5 && y === 5;
-                const isPlayer = x === 3 && y === 5; // Player is always at position (3,5)
-                const isItem = roomType === 'treasure' && x === 5 && y === 5;
-                const isStairs = roomType === 'entrance' && x === 5 && y === 5;
-                const isDoor = x === 5 && y === 0;
-                
-                // Determine tile type and entity
-                const tileColor = isWall ? '#555' : isDoor ? '#850' : '#111';
-                
-                // Entity color
-                let entityColor = null;
-                if (isBoss) entityColor = '#F22';
-                if (isPlayer) entityColor = '#FF0';
-                if (isItem) entityColor = '#FF0';
-                
-                return (
-                  <Box 
-                    key={`${x}-${y}`}
-                    bg={tileColor}
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    width="20px"
-                    height="20px"
-                    border={isWall ? '1px solid #666' : 'none'}
-                    position="relative"
-                  >
-                    {/* Entity overlay */}
-                    {entityColor && (
-                      <Box 
-                        position="absolute"
-                        top="3px"
-                        left="3px"
-                        width="14px"
-                        height="14px"
-                        borderRadius="50%"
-                        bg={entityColor}
-                        zIndex={2}
-                      />
-                    )}
-                    
-                    {/* Special tile markers */}
-                    {(isStairs || isDoor) && (
-                      <Box 
-                        position="absolute"
-                        top="0"
-                        left="0"
-                        width="100%"
-                        height="100%"
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                        color={isStairs ? 'red.300' : 'yellow.600'}
-                        fontWeight="bold"
-                        zIndex={1}
-                      >
-                        {isStairs ? '↓' : '+'}
-                      </Box>
-                    )}
-                    
-                    {/* Show ASCII in debug mode */}
-                    {debug && (
-                      <Text 
-                        fontSize="12px" 
-                        color={isPlayer ? 'yellow' : isBoss ? 'red' : isItem ? 'green' : 'white'}
-                        fontWeight="bold"
-                        zIndex={3}
-                        position="absolute"
-                        top="50%"
-                        left="50%"
-                        transform="translate(-50%, -50%)"
-                        textShadow={isPlayer || isBoss ? "0px 0px 2px white" : "none"}
-                      >
-                        {isWall ? '#' : isBoss ? 'B' : isPlayer ? '@' : isItem ? '$' : isStairs ? '>' : isDoor ? '+' : '.'}
-                      </Text>
-                    )}
-                  </Box>
-                );
-              })
-            )}
-          </Box>
-        </Box>
-        
-        {/* Legend */}
-        <Box mt={4} display="flex" flexWrap="wrap" gap={4}>
-          <Box display="flex" alignItems="center">
-            <Box width="20px" height="20px" bg="#555" border="1px solid #666" mr={2} />
-            <Text fontSize="sm">Wall</Text>
-          </Box>
-          <Box display="flex" alignItems="center">
-            <Box width="20px" height="20px" bg="#111" mr={2} />
-            <Text fontSize="sm">Floor</Text>
-          </Box>
-          <Box display="flex" alignItems="center">
-            <Box width="20px" height="20px" bg="#850" mr={2} display="flex" alignItems="center" justifyContent="center">
-              <Text color="yellow.600">+</Text>
-            </Box>
-            <Text fontSize="sm">Door</Text>
-          </Box>
-          <Box display="flex" alignItems="center">
-            <Box width="20px" height="20px" bg="#111" mr={2} display="flex" alignItems="center" justifyContent="center">
-              <Box width="14px" height="14px" borderRadius="50%" bg="#FF0" />
-            </Box>
-            <Text fontSize="sm">Player/Item</Text>
-          </Box>
-          <Box display="flex" alignItems="center">
-            <Box width="20px" height="20px" bg="#111" mr={2} display="flex" alignItems="center" justifyContent="center">
-              <Box width="14px" height="14px" borderRadius="50%" bg="#F22" />
-            </Box>
-            <Text fontSize="sm">Monster</Text>
-          </Box>
-        </Box>
-        
-        <Box mt={4}>
-          <Text>Room Information (Fallback):</Text>
-          <Text>Type: {roomType}, Size: 10x10, Position: (0, 0)</Text>
-        </Box>
-
-        {debug && (
-          <Box mt={4} p={4} bg="gray.700" borderRadius="md" overflowX="auto">
-            <Text color="red.300" mb={2}>WARNING: Using fallback rendering because server data is invalid</Text>
-            <Text color="white" mb={2}>Debug Information:</Text>
-            <Text color="white" mb={2}>Room Type: {roomType}</Text>
-            <Text color="white" mb={2}>Dimensions: {width}x{height}</Text>
-            <Text color="white" mb={2}>Room Dimensions: {roomWidth}x{roomHeight}</Text>
-            <Text color="white" mb={2}>Raw Response:</Text>
-            <Box 
-              as="pre" 
-              p={2} 
-              bg="black" 
-              color="green.300" 
-              fontSize="xs" 
-              maxH="200px" 
-              overflowY="auto"
-            >
-              {rawResponse.length > 1000 ? rawResponse.substring(0, 1000) + '...' : rawResponse}
-            </Box>
-          </Box>
-        )}
-      </Box>
     );
   }
 
@@ -718,19 +513,6 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
               </Box>
             );
           })()}
-          
-          <Text color="white" mb={2} mt={4}>Raw Response:</Text>
-          <Box 
-            as="pre" 
-            p={2} 
-            bg="black" 
-            color="green.300" 
-            fontSize="xs" 
-            maxH="200px" 
-            overflowY="auto"
-          >
-            {rawResponse.length > 1000 ? rawResponse.substring(0, 1000) + '...' : rawResponse}
-          </Box>
         </Box>
       )}
     </Box>

@@ -9,7 +9,7 @@ test.describe('RoomRenderer Component', () => {
     // Select the Room Renderer component
     await page.selectOption('select#component-select', 'RoomRenderer');
     // Wait for the component to load
-    await page.waitForSelector('h2:has-text("Room Renderer")');
+    await page.waitForSelector('text=Test Room:');
   });
 
   test('should render different room types', async ({ page }) => {
@@ -104,5 +104,32 @@ test.describe('RoomRenderer Component', () => {
     
     // Check that the room has loaded
     await expect(page.getByText(/Test Room:/, { exact: false })).toBeVisible();
+  });
+  
+  test('should display error message when API fails', async ({ page }) => {
+    // Intercept requests to the test room endpoint and make them fail
+    await page.route('**/test/room**', route => {
+      route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Test error' })
+      });
+    });
+    
+    // Click the refresh button to trigger a new request
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    
+    // Wait for the error message to appear
+    await page.waitForSelector('text=Error:');
+    
+    // Check that the error message is displayed
+    const errorMessage = await page.getByText(/Error:/);
+    await expect(errorMessage).toBeVisible();
+    
+    // Take a screenshot of the error state
+    await page.screenshot({ 
+      path: `./test-results/room-error-state.png`,
+      fullPage: false 
+    });
   });
 }); 

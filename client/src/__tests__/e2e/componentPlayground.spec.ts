@@ -24,7 +24,7 @@ test.describe('Component Playground', () => {
     await page.selectOption('select#component-select', 'RoomRenderer');
     
     // Check that the Room Renderer component is displayed
-    await expect(page.getByRole('heading', { name: 'Room Renderer' })).toBeVisible();
+    await page.waitForSelector('text=Test Room:');
     
     // Select the Map Symbols component
     await page.selectOption('select#component-select', 'SymbolRenderer');
@@ -44,7 +44,7 @@ test.describe('Component Playground', () => {
     await page.selectOption('select#component-select', 'RoomRenderer');
     
     // Wait for the component to load
-    await page.waitForSelector('h2:has-text("Room Renderer")');
+    await page.waitForSelector('text=Test Room:');
     
     // Find the debug mode switch by looking for the switch near the "Show Symbols" text
     const showSymbolsLabel = page.locator('label:has-text("Show Symbols:")');
@@ -76,6 +76,9 @@ test.describe('Component Playground', () => {
     // Select the Room Renderer component
     await page.selectOption('select#component-select', 'RoomRenderer');
     
+    // Wait for the component to load
+    await page.waitForSelector('text=Test Room:');
+    
     // Check that the default room type is 'entrance'
     await expect(page.locator('select#room-type')).toHaveValue('entrance');
     
@@ -96,8 +99,11 @@ test.describe('Component Playground', () => {
     // Select the Room Symbol Demo component
     await page.selectOption('select#component-select', 'RoomSymbolDemo');
     
-    // Wait for the component to load
-    await page.waitForSelector('h2:has-text("Room Symbol Demo")');
+    // Wait for the component to load with a more specific selector
+    await page.waitForSelector('.chakra-heading:has-text("Room Symbol Demo")');
+    
+    // Wait until the room type selector is visible
+    await page.waitForSelector('select#demo-type');
     
     // Check that the default room type is visible
     await expect(page.locator('label:has-text("Room Type:")')).toBeVisible();
@@ -117,6 +123,9 @@ test.describe('Component Playground', () => {
     
     // Change the room type to 'boss'
     await page.selectOption('select[id="demo-type"]', 'boss');
+    
+    // Wait for the room to update
+    await page.waitForTimeout(500);
     
     // Check that the room heading has changed
     await expect(page.getByRole('heading', { name: 'Boss Room' })).toBeVisible();

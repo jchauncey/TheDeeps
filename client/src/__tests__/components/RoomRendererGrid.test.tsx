@@ -24,7 +24,6 @@ const setupInvalidDataMock = () => {
         statusText: 'OK',
         headers: new Headers({}),
         json: () => Promise.resolve({ level: 1, width: 20, height: 20 }), // Missing tiles array
-        text: () => Promise.resolve(JSON.stringify({ level: 1, width: 20, height: 20 })),
         clone: function() {
           return {
             ok: this.ok,
@@ -32,7 +31,6 @@ const setupInvalidDataMock = () => {
             statusText: this.statusText,
             headers: this.headers,
             json: this.json,
-            text: this.text,
           };
         }
       });
@@ -76,8 +74,8 @@ describe('RoomRenderer Grid Overlay', () => {
     });
   });
 
-  it('fallback renderer shows error message', async () => {
-    // Setup mock for invalid data to trigger fallback renderer
+  it('shows error message when data is invalid', async () => {
+    // Setup mock for invalid data
     setupInvalidDataMock();
     
     render(
@@ -87,12 +85,12 @@ describe('RoomRenderer Grid Overlay', () => {
     );
     
     await waitFor(() => {
-      // Check for the error message that indicates fallback renderer is used
-      expect(screen.getByText(/Invalid room data: missing or empty tiles array/i)).toBeInTheDocument();
+      // Check for the error message
+      expect(screen.getByText(/Error: Invalid room data: missing or empty tiles array/i)).toBeInTheDocument();
     });
   });
 
-  it('grid overlay has correct dimensions in main renderer', async () => {
+  it('grid overlay has correct dimensions', async () => {
     render(
       <ChakraProvider>
         <RoomRenderer roomType="entrance" width={15} height={10} />
@@ -110,23 +108,6 @@ describe('RoomRenderer Grid Overlay', () => {
       // because they're applied via Chakra UI's CSS-in-JS system
       // Instead, we'll check that the container has the correct class
       expect(gridContainer).toHaveAttribute('class');
-    });
-  });
-
-  it('grid overlay has correct dimensions in fallback renderer', async () => {
-    // This test is no longer applicable since we're not checking for a grid in the fallback renderer
-    // Instead, we'll just verify that the error message is shown
-    setupInvalidDataMock();
-    
-    render(
-      <ChakraProvider>
-        <RoomRenderer roomType="entrance" />
-      </ChakraProvider>
-    );
-    
-    await waitFor(() => {
-      // Check for the error message that indicates fallback renderer is used
-      expect(screen.getByText(/Invalid room data: missing or empty tiles array/i)).toBeInTheDocument();
     });
   });
 

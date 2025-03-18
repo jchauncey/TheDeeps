@@ -31,7 +31,10 @@ describe('RoomRenderer Component', () => {
         <RoomRenderer />
       </ChakraProvider>
     );
-    expect(screen.getByText(/Loading/i)).toBeInTheDocument();
+    
+    // Check for the loading spinner
+    const spinner = screen.getByRole('progressbar');
+    expect(spinner).toBeInTheDocument();
   });
 
   test('renders error state when fetch fails', async () => {
@@ -43,7 +46,7 @@ describe('RoomRenderer Component', () => {
     );
     
     await waitFor(() => {
-      expect(screen.getByText(/failed to fetch test room/i)).toBeInTheDocument();
+      expect(screen.getByText(/Error: Failed to fetch test room/i)).toBeInTheDocument();
     });
   });
 
@@ -154,6 +157,41 @@ describe('RoomRenderer Component', () => {
       );
     });
   });
+
+  test('handles loading callback', async () => {
+    const mockOnLoad = jest.fn();
+    
+    render(
+      <ChakraProvider>
+        <RoomRenderer 
+          roomType="entrance"
+          onLoad={mockOnLoad}
+        />
+      </ChakraProvider>
+    );
+    
+    await waitFor(() => {
+      expect(mockOnLoad).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test('handles error callback', async () => {
+    setupFetchErrorMock();
+    const mockOnError = jest.fn();
+    
+    render(
+      <ChakraProvider>
+        <RoomRenderer 
+          roomType="entrance"
+          onError={mockOnError}
+        />
+      </ChakraProvider>
+    );
+    
+    await waitFor(() => {
+      expect(mockOnError).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 // More detailed tests for specific room features
@@ -168,25 +206,6 @@ describe('RoomRenderer Specific Features', () => {
   });
 
   test('entrance room has down stairs', async () => {
-    // We need to modify the DOM structure to add role attributes for testing
-    const originalRender = RoomRenderer.prototype.render;
-    RoomRenderer.prototype.render = function() {
-      const result = originalRender.apply(this);
-      // Add role attributes after rendering
-      setTimeout(() => {
-        const downStairsTiles = document.querySelectorAll('[data-testid="tile-downStairs"]');
-        if (downStairsTiles.length === 0) {
-          const tiles = document.querySelectorAll('[data-testid^="tile-"]');
-          tiles.forEach(tile => {
-            if (tile.textContent === '>') {
-              tile.setAttribute('data-testid', 'tile-downStairs');
-            }
-          });
-        }
-      }, 0);
-      return result;
-    };
-
     render(
       <ChakraProvider>
         <RoomRenderer roomType="entrance" />
@@ -204,9 +223,6 @@ describe('RoomRenderer Specific Features', () => {
       // but we can check that the fetch was called with the correct room type
       expect(global.fetch).toHaveBeenCalledWith(expect.stringMatching(/type=entrance/));
     });
-    
-    // Restore original render method
-    RoomRenderer.prototype.render = originalRender;
   });
 
   test('treasure room has items', async () => {
