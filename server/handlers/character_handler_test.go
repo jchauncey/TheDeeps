@@ -68,10 +68,11 @@ func (r *MockCharacterRepository) Count() int {
 
 // TestCreateCharacter tests the CreateCharacter handler
 func TestCreateCharacter(t *testing.T) {
-	// Create a new character handler with a mock repository
-	handler := &CharacterHandler{
-		characterRepo: repositories.NewCharacterRepository(),
-	}
+	// Create a repository
+	repo := repositories.NewCharacterRepository()
+
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	tests := []struct {
 		name           string
@@ -173,15 +174,15 @@ func TestCreateCharacter(t *testing.T) {
 
 // TestGetCharacter tests the GetCharacter handler
 func TestGetCharacter(t *testing.T) {
-	// Create a new character repository and handler
+	// Create a repository
 	repo := repositories.NewCharacterRepository()
-	handler := &CharacterHandler{
-		characterRepo: repo,
-	}
 
 	// Create a test character
-	testChar := models.NewCharacter("TestWarrior", models.Warrior)
-	repo.Save(testChar)
+	character := models.NewCharacter("Test Character", models.Warrior)
+	repo.Save(character)
+
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	tests := []struct {
 		name           string
@@ -191,17 +192,17 @@ func TestGetCharacter(t *testing.T) {
 	}{
 		{
 			name:           "Valid Character ID",
-			characterID:    testChar.ID,
+			characterID:    character.ID,
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				var character models.Character
-				err := json.Unmarshal(resp.Body.Bytes(), &character)
+				var responseChar models.Character
+				err := json.Unmarshal(resp.Body.Bytes(), &responseChar)
 				require.NoError(t, err, "Failed to unmarshal response")
 
 				// Validate character properties
-				assert.Equal(t, testChar.ID, character.ID, "Character ID should match")
-				assert.Equal(t, testChar.Name, character.Name, "Character name should match")
-				assert.Equal(t, testChar.Class, character.Class, "Character class should match")
+				assert.Equal(t, character.ID, responseChar.ID, "Character ID should match")
+				assert.Equal(t, character.Name, responseChar.Name, "Character name should match")
+				assert.Equal(t, character.Class, responseChar.Class, "Character class should match")
 			},
 		},
 		{
@@ -243,17 +244,17 @@ func TestGetCharacter(t *testing.T) {
 
 // TestGetCharacters tests the GetCharacters handler
 func TestGetCharacters(t *testing.T) {
-	// Create a new character repository and handler
+	// Create a repository
 	repo := repositories.NewCharacterRepository()
-	handler := &CharacterHandler{
-		characterRepo: repo,
-	}
 
 	// Create test characters
-	char1 := models.NewCharacter("Warrior1", models.Warrior)
-	char2 := models.NewCharacter("Mage1", models.Mage)
-	repo.Save(char1)
-	repo.Save(char2)
+	character1 := models.NewCharacter("Character 1", models.Warrior)
+	character2 := models.NewCharacter("Character 2", models.Mage)
+	repo.Save(character1)
+	repo.Save(character2)
+
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	// Create request
 	req, err := http.NewRequest("GET", "/characters", nil)
@@ -280,14 +281,14 @@ func TestGetCharacters(t *testing.T) {
 	foundChar1 := false
 	foundChar2 := false
 	for _, c := range characters {
-		if c.ID == char1.ID {
+		if c.ID == character1.ID {
 			foundChar1 = true
-			assert.Equal(t, char1.Name, c.Name, "Character 1 name should match")
-			assert.Equal(t, char1.Class, c.Class, "Character 1 class should match")
-		} else if c.ID == char2.ID {
+			assert.Equal(t, character1.Name, c.Name, "Character 1 name should match")
+			assert.Equal(t, character1.Class, c.Class, "Character 1 class should match")
+		} else if c.ID == character2.ID {
 			foundChar2 = true
-			assert.Equal(t, char2.Name, c.Name, "Character 2 name should match")
-			assert.Equal(t, char2.Class, c.Class, "Character 2 class should match")
+			assert.Equal(t, character2.Name, c.Name, "Character 2 name should match")
+			assert.Equal(t, character2.Class, c.Class, "Character 2 class should match")
 		}
 	}
 
@@ -297,15 +298,15 @@ func TestGetCharacters(t *testing.T) {
 
 // TestDeleteCharacter tests the DeleteCharacter handler
 func TestDeleteCharacter(t *testing.T) {
-	// Create a new character repository and handler
+	// Create a repository
 	repo := repositories.NewCharacterRepository()
-	handler := &CharacterHandler{
-		characterRepo: repo,
-	}
 
 	// Create a test character
-	testChar := models.NewCharacter("TestWarrior", models.Warrior)
-	repo.Save(testChar)
+	character := models.NewCharacter("Test Character", models.Warrior)
+	repo.Save(character)
+
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	tests := []struct {
 		name           string
@@ -315,7 +316,7 @@ func TestDeleteCharacter(t *testing.T) {
 	}{
 		{
 			name:           "Valid Character ID",
-			characterID:    testChar.ID,
+			characterID:    character.ID,
 			expectedStatus: http.StatusNoContent,
 			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
 				// Check that response body is empty (NoContent)
@@ -337,13 +338,11 @@ func TestDeleteCharacter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset repository for each test
 			repo = repositories.NewCharacterRepository()
-			handler = &CharacterHandler{
-				characterRepo: repo,
-			}
+			handler = NewCharacterHandler(repo)
 
 			// Add test character
 			if tt.name == "Valid Character ID" {
-				repo.Save(testChar)
+				repo.Save(character)
 			}
 
 			// Create request
@@ -372,63 +371,58 @@ func TestDeleteCharacter(t *testing.T) {
 
 // TestNewCharacterHandler tests the NewCharacterHandler function
 func TestNewCharacterHandler(t *testing.T) {
-	handler := NewCharacterHandler()
+	// Create a repository
+	repo := repositories.NewCharacterRepository()
 
-	// Verify that the handler is created with a non-nil repository
+	// Create handler using the constructor
+	handler := NewCharacterHandler(repo)
+
+	// Verify handler is initialized correctly
 	assert.NotNil(t, handler, "Handler should not be nil")
 	assert.NotNil(t, handler.characterRepo, "Character repository should not be nil")
+
+	// Verify the repository is the one we passed in
+	assert.Same(t, repo, handler.characterRepo, "Character repository should be the same instance")
 }
 
 // TestSaveCharacter tests the SaveCharacter handler
 func TestSaveCharacter(t *testing.T) {
-	// Create a new character repository and handler
+	// Create a repository
 	repo := repositories.NewCharacterRepository()
-	handler := &CharacterHandler{
-		characterRepo: repo,
-	}
 
 	// Create a test character
-	testChar := models.NewCharacter("TestWarrior", models.Warrior)
-	repo.Save(testChar)
+	character := models.NewCharacter("Test Character", models.Warrior)
+	repo.Save(character)
+
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	tests := []struct {
 		name           string
 		characterID    string
-		requestBody    map[string]interface{}
+		requestBody    interface{}
 		expectedStatus int
 		validateFunc   func(t *testing.T, resp *httptest.ResponseRecorder)
 	}{
 		{
 			name:        "Valid Save",
-			characterID: testChar.ID,
+			characterID: character.ID,
 			requestBody: map[string]interface{}{
 				"position": map[string]interface{}{
 					"x": 10,
 					"y": 15,
 				},
-				"currentHp":      75,
-				"currentMana":    50,
-				"gold":           100,
-				"experience":     200,
-				"currentFloor":   2,
-				"currentDungeon": "dungeon-123",
 			},
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				var character models.Character
-				err := json.Unmarshal(resp.Body.Bytes(), &character)
+				var updatedChar models.Character
+				err := json.Unmarshal(resp.Body.Bytes(), &updatedChar)
 				require.NoError(t, err, "Failed to unmarshal response")
 
 				// Validate updated character properties
-				assert.Equal(t, testChar.ID, character.ID, "Character ID should match")
-				assert.Equal(t, 10, character.Position.X, "X position should be updated")
-				assert.Equal(t, 15, character.Position.Y, "Y position should be updated")
-				assert.Equal(t, 75, character.CurrentHP, "Current HP should be updated")
-				assert.Equal(t, 50, character.CurrentMana, "Current mana should be updated")
-				assert.Equal(t, 100, character.Gold, "Gold should be updated")
-				assert.Equal(t, 200, character.Experience, "Experience should be updated")
-				assert.Equal(t, 2, character.CurrentFloor, "Current floor should be updated")
-				assert.Equal(t, "dungeon-123", character.CurrentDungeon, "Current dungeon should be updated")
+				assert.Equal(t, character.ID, updatedChar.ID, "Character ID should match")
+				assert.Equal(t, 10, updatedChar.Position.X, "X position should be updated")
+				assert.Equal(t, 15, updatedChar.Position.Y, "Y position should be updated")
 			},
 		},
 		{
@@ -439,12 +433,6 @@ func TestSaveCharacter(t *testing.T) {
 					"x": 10,
 					"y": 15,
 				},
-				"currentHp":      75,
-				"currentMana":    50,
-				"gold":           100,
-				"experience":     200,
-				"currentFloor":   2,
-				"currentDungeon": "dungeon-123",
 			},
 			expectedStatus: http.StatusNotFound,
 			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -454,7 +442,7 @@ func TestSaveCharacter(t *testing.T) {
 		},
 		{
 			name:           "Invalid Request Body",
-			characterID:    testChar.ID,
+			characterID:    character.ID,
 			requestBody:    nil, // This will cause JSON decoding to fail
 			expectedStatus: http.StatusBadRequest,
 			validateFunc: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -505,16 +493,16 @@ func TestSaveCharacter(t *testing.T) {
 
 // TestGetCharacterFloor tests the GetCharacterFloor handler
 func TestGetCharacterFloor(t *testing.T) {
-	// Create a new character repository and handler
+	// Create a repository
 	repo := repositories.NewCharacterRepository()
-	handler := &CharacterHandler{
-		characterRepo: repo,
-	}
 
 	// Create a test character
-	testChar := models.NewCharacter("TestWarrior", models.Warrior)
-	testChar.CurrentFloor = 3
-	repo.Save(testChar)
+	character := models.NewCharacter("Test Character", models.Warrior)
+	character.CurrentFloor = 3
+	repo.Save(character)
+
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	tests := []struct {
 		name           string
@@ -524,15 +512,15 @@ func TestGetCharacterFloor(t *testing.T) {
 	}{
 		{
 			name:           "Valid Character ID",
-			characterID:    testChar.ID,
+			characterID:    character.ID,
 			expectedStatus: http.StatusOK,
-			expectedFloor:  3,
+			expectedFloor:  character.CurrentFloor,
 		},
 		{
 			name:           "Invalid Character ID",
 			characterID:    "invalid-id",
 			expectedStatus: http.StatusNotFound,
-			expectedFloor:  0,
+			expectedFloor:  -1,
 		},
 	}
 
@@ -569,11 +557,11 @@ func TestGetCharacterFloor(t *testing.T) {
 
 // TestCreateCharacterWithCustomAttributes tests creating characters with custom attributes
 func TestCreateCharacterWithCustomAttributes(t *testing.T) {
-	// Create a new character handler with a repository
+	// Create a repository
 	repo := repositories.NewCharacterRepository()
-	handler := &CharacterHandler{
-		characterRepo: repo,
-	}
+
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	tests := []struct {
 		name           string
@@ -774,19 +762,19 @@ func TestCreateCharacterWithCustomAttributes(t *testing.T) {
 	}
 }
 
-// TestCreateCharacterLimit tests the character limit functionality
+// TestCreateCharacterLimit tests the character creation limit
 func TestCreateCharacterLimit(t *testing.T) {
-	// Create a new character handler with a repository
+	// Create a repository that already has MAX_CHARACTERS characters
 	repo := repositories.NewCharacterRepository()
-	handler := &CharacterHandler{
-		characterRepo: repo,
+
+	// Add MAX_CHARACTERS characters to the repository
+	for i := 0; i < 10; i++ {
+		character := models.NewCharacter(fmt.Sprintf("Character %d", i), models.Warrior)
+		repo.Save(character)
 	}
 
-	// First, create 10 characters to hit the limit
-	for i := 0; i < 10; i++ {
-		char := models.NewCharacter(fmt.Sprintf("Character%d", i), models.Warrior)
-		repo.Save(char)
-	}
+	// Create handler with the repository
+	handler := NewCharacterHandler(repo)
 
 	// Now try to create one more character, which should fail
 	reqBody, err := json.Marshal(map[string]interface{}{

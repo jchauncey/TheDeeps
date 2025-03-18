@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Center, Image, Flex, Text, Spinner } from '@chakra-ui/react';
+import { Box, Center, Image, Flex, Text, Spinner, Heading } from '@chakra-ui/react';
 import { keyframes } from '@emotion/react';
 
 interface SplashScreenProps {
@@ -81,11 +81,15 @@ const SplashScreen: React.FC<SplashScreenProps> = ({
             animation={`${pulse} 2s infinite ease-in-out`}
             mb={6}
           >
-            <Image 
-              src="/thedeeps.png" 
-              alt="The Deeps Logo" 
-              maxWidth="500px"
-            />
+            <Heading 
+              as="h1" 
+              size="4xl" 
+              color="cyan.300"
+              textShadow="0 0 10px rgba(0, 255, 255, 0.5)"
+              letterSpacing="wider"
+            >
+              THE DEEPS
+            </Heading>
           </Box>
           <Flex align="center" mt={6}>
             <Spinner 

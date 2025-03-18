@@ -60,4 +60,13 @@ export interface Character {
   position: Position;
   inventory: Item[];
   equipment: Equipment;
+}
+
+export interface Dungeon {
+  id: string;
+  name: string;
+  floors: number;
+  difficulty: string;
+  createdAt: string;
+  playerCount: number;
 } 

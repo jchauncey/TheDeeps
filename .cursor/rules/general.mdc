@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+## General Guidelines
+- Generate typescripe code with ES6+ syntax.
+- Format Responses with clear comments explaining each step.
+
+## File Size Constraints
+- Keep all source code files under 200 lines to optimize
+- Use modularization (e.g., split large functions into smaller files) if a file exceeds 200 lines.
+- Prioritize generating code that adheres to this limit, suggesting refactoring if necessary.
+
+## Quality Requirements
+- All code must pass linting rules
+- All typescript code must pass ESLint rule enforcing max-lines-per-file of 200.
+- All golang code must use golangci-lint filen to enforce max of 200 lines.
+
+## Typescript Requirements
+
+## Golang Requirements
+- Use golangci-lint to enforce code standards
+- All golang tests should be written in a table driven design
+
+
+## Utilities
+- Use Makefiles for entry points into the project

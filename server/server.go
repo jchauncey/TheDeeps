@@ -34,8 +34,8 @@ func NewServer() *Server {
 	gameManager := game.NewGameManager(characterRepo, dungeonRepo)
 
 	// Create handlers
-	characterHandler := handlers.NewCharacterHandler()
-	dungeonHandler := handlers.NewDungeonHandler()
+	characterHandler := handlers.NewCharacterHandler(characterRepo)
+	dungeonHandler := handlers.NewDungeonHandler(dungeonRepo, characterRepo)
 	combatHandler := handlers.NewCombatHandler(characterRepo, dungeonRepo, gameManager)
 	inventoryHandler := handlers.NewInventoryHandler(characterRepo, inventoryRepo)
 
@@ -51,6 +51,9 @@ func NewServer() *Server {
 		combatHandler:    combatHandler,
 		inventoryHandler: inventoryHandler,
 	}
+
+	// Setup routes
+	server.SetupRoutes()
 
 	return server
 }
@@ -70,6 +73,8 @@ func (s *Server) SetupRoutes() {
 	s.router.HandleFunc("/dungeons", s.dungeonHandler.CreateDungeon).Methods("POST")
 	s.router.HandleFunc("/dungeons/{id}/join", s.dungeonHandler.JoinDungeon).Methods("POST")
 	s.router.HandleFunc("/dungeons/{id}/floor/{level}", s.dungeonHandler.GetFloor).Methods("GET")
+	s.router.HandleFunc("/api/dungeons/{id}/floors/{floorNumber}", s.dungeonHandler.GetFloorByNumber).Methods("GET")
+	s.router.HandleFunc("/test/room", s.dungeonHandler.GenerateTestRoom).Methods("GET")
 
 	// Combat routes
 	s.router.HandleFunc("/characters/{id}/combat", s.combatHandler.GetCombatState).Methods("GET")

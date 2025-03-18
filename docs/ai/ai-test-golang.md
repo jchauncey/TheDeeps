@@ -1,4 +1,0 @@
-- use existing make targets when running tests such as server-test-ginkgo
-- prefer stretchr testify/assert framework
-- use table driven tests
-- test coversage is important so include a variety of test cases

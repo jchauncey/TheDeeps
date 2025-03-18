@@ -1,4 +1,4 @@
-.PHONY: build run clean client-install client-start client-build client-test client-test-coverage client-test-coverage-detail client-open-coverage server-test-coverage server-test-coverage-html server-open-coverage server-test-coverage-summary server-test-ginkgo server-test-ginkgo-verbose server-test-ginkgo-focus server-coverage-badge server-test-ginkgo-coverage
+.PHONY: build run clean client-install client-start client-build client-test client-test-coverage client-test-coverage-detail client-open-coverage server-test-coverage server-test-coverage-html server-open-coverage server-test-coverage-summary server-test-ginkgo server-test-ginkgo-verbose server-test-ginkgo-focus server-coverage-badge server-test-ginkgo-coverage client-test-e2e client-test-e2e-ui client-test-e2e-headed client-test-e2e-debug client-test-e2e-with-server client-test-e2e-file-with-server client-test-e2e-headed-with-server client-test-e2e-file
 
 # Build the server
 build:
@@ -103,6 +103,65 @@ client-start:
 
 client-build:
 	cd client && npm run build
+
+# Client e2e test commands
+client-test-e2e:
+	cd client && npm run test:e2e
+
+# Run e2e tests with UI mode
+client-test-e2e-ui:
+	cd client && npm run test:e2e:ui
+
+# Run e2e tests in headed mode (shows browser)
+client-test-e2e-headed:
+	cd client && npm run test:e2e -- --headed
+
+# Run e2e tests for a specific file
+# Usage: make client-test-e2e-file FILE=movementDemo.spec.ts
+client-test-e2e-file:
+	cd client && npm run test:e2e -- $(FILE)
+
+# Run e2e tests with debug mode
+client-test-e2e-debug:
+	cd client && npm run test:e2e -- --debug
+
+# Start the development server and run e2e tests
+# This target starts the server in the background, waits for it to be ready, runs the tests, and then stops the server
+client-test-e2e-with-server:
+	@echo "Starting development server..."
+	cd client && npm run start & \
+	SERVER_PID=$$! && \
+	echo "Waiting for server to be ready..." && \
+	sleep 15 && \
+	echo "Running e2e tests..." && \
+	cd client && npm run test:e2e && \
+	echo "Stopping development server..." && \
+	kill $$SERVER_PID || true
+
+# Start the development server and run a specific e2e test file
+# Usage: make client-test-e2e-file-with-server FILE=movementDemo.spec.ts
+client-test-e2e-file-with-server:
+	@echo "Starting development server..."
+	cd client && npm run start & \
+	SERVER_PID=$$! && \
+	echo "Waiting for server to be ready..." && \
+	sleep 15 && \
+	echo "Running e2e tests for $(FILE)..." && \
+	cd client && npm run test:e2e -- $(FILE) && \
+	echo "Stopping development server..." && \
+	kill $$SERVER_PID || true
+
+# Start the development server and run e2e tests in headed mode
+client-test-e2e-headed-with-server:
+	@echo "Starting development server..."
+	cd client && npm run start & \
+	SERVER_PID=$$! && \
+	echo "Waiting for server to be ready..." && \
+	sleep 15 && \
+	echo "Running e2e tests in headed mode..." && \
+	cd client && npm run test:e2e -- --headed && \
+	echo "Stopping development server..." && \
+	kill $$SERVER_PID || true
 
 # Run both server and client (requires tmux)
 dev-full:

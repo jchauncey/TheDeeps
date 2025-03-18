@@ -1,110 +1,134 @@
-# AI Characters
+# TheDeeps Character System Documentation
 
-## Character Requirements
+## Overview
 
-1. **Basic Attributes**
-   - Characters should have the standard D&D Attributes (Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma)
-   - Each attribute should range from 3-18 for starting characters
-   - Attributes affect various game mechanics (combat, skill checks, etc.)
-   - Characters should have hp, mana, and experience values
-   - HP and mana should scale with level and relevant attributes
+TheDeeps features a robust character system inspired by traditional role-playing games. Characters are defined by their class, attributes, skills, and equipment, providing players with diverse gameplay options and progression paths.
 
-2. **Character Classes**
-   - Warrior: High strength and constitution, melee combat focused
-   - Mage: High intelligence, spell-casting focused
-   - Rogue: High dexterity, stealth and critical hit focused
-   - Cleric: High wisdom, healing and support focused
-   - Druid: Nature-focused spellcaster with shapeshifting abilities
-   - Warlock: Pact-based spellcaster with eldritch abilities
-   - Bard: Charisma-based support class with music and inspiration abilities
-   - Paladin: Holy warrior with combat and divine magic abilities
-   - Ranger: Wilderness expert with tracking and archery skills
-   - Monk: Unarmed combat specialist with mystical abilities
-   - Barbarian: Rage-powered warrior with high damage resistance
-   - Sorcerer: Innate spellcaster with metamagic abilities
-   - Each class should have unique abilities and progression paths
-   - Classes should have different starting equipment and proficiencies
-   - Each class should have a distinct color for visual identification in the UI
+## Character Creation
 
-3. **Equipment System**
-   - Characters can wear armor types based on their class, granting an AC value
-   - Characters can wield weapons based on their class
-   - Equipment should have weight limits based on strength
-   - Equipment can provide stat bonuses or special abilities
-   - Some equipment may have class, level, or attribute requirements
-   - Equipment can be enchanted or upgraded
+### Basic Information
 
-4. **Progression System**
-   - Characters gain experience from defeating enemies and completing objectives
-   - Level progression should follow a balanced curve (harder to level up at higher levels)
-   - Each level provides attribute points, skill points, or new abilities
-   - Maximum character level should be 20
-   - Characters should gain new abilities at specific level milestones
+- **Name**: Player-chosen identifier, must be unique
+- **Class**: Determines starting attributes, skills, and equipment
+- **Appearance**: Visual representation based on class selection
 
-5. **Combat Mechanics**
-   - Attack rolls based on relevant attributes and weapon proficiency
-   - Damage calculation based on weapon type, attributes, and critical hits
-   - Spell damage/effects based on caster level and relevant attributes
-   - Armor Class (AC) determines difficulty to hit a character
-   - Initiative system based on dexterity for turn order
-   - Status effects (poison, stun, etc.) with duration and effect mechanics
+### Character Classes
 
-6. **Skill System**
-   - Characters should have skills like Stealth, Perception, Lockpicking, etc.
-   - Skills are influenced by relevant attributes
-   - Skill checks determine success of non-combat actions
-   - Skills improve through use or by spending skill points
-   - Some skills may be class-specific or have class bonuses
+- **Warrior**: Melee combat specialist with high strength and constitution
+- **Mage**: Spellcaster with high intelligence and arcane abilities
+- **Rogue**: Stealthy character with high dexterity and critical hit potential
+- **Cleric**: Divine spellcaster with healing abilities and high wisdom
+- **Druid**: Nature-focused spellcaster with shapeshifting abilities
+- **Warlock**: Pact-based spellcaster with eldritch abilities
+- **Bard**: Charisma-based support class with music and inspiration abilities
+- **Paladin**: Holy warrior with combat and divine magic abilities
+- **Ranger**: Wilderness expert with tracking and archery skills
+- **Monk**: Unarmed combat specialist with mystical abilities
+- **Barbarian**: Rage-powered warrior with high damage resistance
+- **Sorcerer**: Innate spellcaster with metamagic abilities
 
-7. **Character Customization**
-   - Visual appearance options (hair, skin, face, etc.)
-   - Background selection affecting starting skills or attributes
-   - Specialization paths within each class
-   - Talent or feat system for further customization
-   - Cosmetic options that don't affect gameplay
+### Attribute System
 
-8. **NPC Interaction**
-   - Dialogue options based on attributes (e.g., charisma checks)
-   - Reputation system with different factions
-   - Relationship tracking with key NPCs
-   - Quest availability based on character attributes or choices
-   - Trade and bartering influenced by charisma
+- **Strength (STR)**: Affects melee damage, carrying capacity, and certain skill checks
+- **Dexterity (DEX)**: Affects armor class, initiative, and certain skill checks
+- **Constitution (CON)**: Affects hit points, stamina, and resistance to effects
+- **Intelligence (INT)**: Affects spell power for arcane casters and certain skill checks
+- **Wisdom (WIS)**: Affects spell power for divine casters and certain skill checks
+- **Charisma (CHA)**: Affects social interactions and certain skill checks
 
-9. **Character State Management**
-   - Save/load character data
-   - Tracking of quest progress and key decisions
-   - Inventory management with capacity limits
-   - Status effect tracking and duration
-   - Cooldown tracking for abilities
-   - Character deletion with confirmation to prevent accidental loss
-   - Maximum of 10 characters per account
+### Attribute Allocation
 
-10. **Balance Requirements**
-    - Classes should be balanced in combat effectiveness
-    - Different play styles should be equally viable
-    - Attribute distribution should offer meaningful choices
-    - Equipment progression should scale with dungeon difficulty
-    - Skills should provide meaningful advantages without being mandatory
+- **Base Values**: Each class has predetermined base attribute values
+- **Customization Points**: Players receive 5 points to distribute among attributes
+- **Modifiers**: Attributes generate modifiers that affect various game mechanics
+  - 3-4: -3 modifier
+  - 5-6: -2 modifier
+  - 7-8: -1 modifier
+  - 9-12: 0 modifier
+  - 13-14: +1 modifier
+  - 15-16: +2 modifier
+  - 17-18: +3 modifier
+  - 19-20: +4 modifier
 
-## Character Management
+## Character Progression
 
-1. **Character Creation**
-   - Characters are created with a name, class, and initial attributes
-   - Initial attributes are determined by class with some customization points
-   - Character creation is handled through REST API calls
-   - Duplicate character creation is prevented through proper client-side handling
-   - Created characters are immediately available for selection
+### Experience and Leveling
 
-2. **Character Selection**
-   - Characters are displayed in a grid layout with visual class indicators
-   - Characters can be selected for gameplay
-   - Characters can be deleted when no longer needed
-   - Character deletion requires confirmation to prevent accidents
-   - Character selection is handled through REST API calls
+- **Experience Points (XP)**: Gained from defeating enemies and completing objectives
+- **Level Progression**: Characters advance through levels as they gain XP
+- **Level Benefits**: Each level provides increased stats and potentially new abilities
+- **Maximum Level**: Characters can reach level 20
 
-3. **Character Persistence**
-   - Character data is stored on the server
-   - Characters persist between game sessions
-   - Character state is updated when saving the game
-   - Character position and status are tracked per dungeon
-   - Character deletion properly cleans up all associated resources
+### Health and Mana
+
+- **Hit Points (HP)**: Represents character health, determined by class and CON modifier
+- **Mana Points (MP)**: Represents magical energy, determined by class and primary spellcasting attribute
+- **Regeneration**: HP and MP regenerate over time or through items and abilities
+
+### Skills and Abilities
+
+- **Skill System**: Characters have skills like Melee, Stealth, Perception, and Arcana
+- **Skill Checks**: Skills are tested against difficulty values for success
+- **Skill Advancement**: Skills improve through use and level advancement
+- **Class Abilities**: Special powers and techniques unique to each class
+
+## Equipment System
+
+### Equipment Types
+
+- **Weapons**: Melee and ranged options with varying damage and properties
+- **Armor**: Body protection that affects armor class and defense
+- **Accessories**: Items that provide special bonuses or abilities
+- **Consumables**: One-use items like potions and scrolls
+
+### Equipment Properties
+
+- **Weight**: Affects carrying capacity and movement
+- **Value**: Gold cost for buying and selling
+- **Durability**: Some items may degrade with use
+- **Magical Properties**: Special effects or bonuses
+- **Class Restrictions**: Some items can only be used by certain classes
+
+### Inventory Management
+
+- **Carrying Capacity**: Limited by strength attribute
+- **Weight System**: Items have weight values that accumulate
+- **Organization**: Grid-based inventory interface
+- **Equipment Slots**: Specific positions for equipped items (weapon, armor, etc.)
+
+## Combat Mechanics
+
+### Attack System
+
+- **Hit Chance**: Calculated based on attacker's skill vs. defender's armor class
+- **Damage Calculation**: Based on weapon, attributes, and critical hits
+- **Critical Hits**: Chance to deal increased damage based on weapon and skills
+- **Miss Chance**: Possibility of attacks failing to connect
+
+### Defense System
+
+- **Armor Class (AC)**: Determines difficulty to hit the character
+- **Damage Reduction**: Some armor reduces incoming damage
+- **Saving Throws**: Chances to resist or reduce certain effects
+- **Evasion**: Some classes have abilities to avoid damage entirely
+
+## Character State Management
+
+- **Persistence**: Character data is stored on the server
+- **Dungeon State**: Characters track their position and progress in dungeons
+- **Multiple Characters**: Players can create up to 10 characters per account
+- **Character Deletion**: Players can permanently remove characters they no longer want
+
+## Technical Implementation
+
+- **Data Structure**: Characters are represented as objects with properties and methods
+- **Serialization**: Character data can be saved and loaded for game persistence
+- **Client-Server Model**: Character logic runs on the server with state updates sent to clients
+- **Validation**: Server-side validation prevents cheating and ensures data integrity
+
+## Visual Representation
+
+- **Class-Based Styling**: Each class has a distinct visual style and color scheme
+- **Equipment Visualization**: Equipped items affect character appearance
+- **Status Indicators**: Visual cues for character health, mana, and status effects
+- **Animation**: Visual feedback for character actions and state changes

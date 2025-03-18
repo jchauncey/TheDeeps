@@ -58,6 +58,45 @@ func (g *MapGenerator) GenerateFloor(floor *models.Floor, level int, isFinalFloo
 	g.placeItems(floor, rooms, level)
 }
 
+// GenerateFloorWithDifficulty generates a complete floor for a dungeon with the specified difficulty
+func (g *MapGenerator) GenerateFloorWithDifficulty(floor *models.Floor, level int, isFinalFloor bool, difficulty string) {
+	// Initialize the floor with walls
+	for y := 0; y < floor.Height; y++ {
+		for x := 0; x < floor.Width; x++ {
+			floor.Tiles[y][x] = models.Tile{
+				Type:     models.TileWall,
+				Walkable: false,
+				Explored: false,
+			}
+		}
+	}
+
+	// Determine number of rooms based on floor level
+	minRooms := 5
+	maxRooms := 10 + level
+	if maxRooms > 20 {
+		maxRooms = 20
+	}
+
+	numRooms := minRooms + g.rng.Intn(maxRooms-minRooms+1)
+
+	// Generate rooms
+	rooms := g.generateRooms(floor, numRooms, level, isFinalFloor)
+	floor.Rooms = rooms
+
+	// Connect rooms with corridors
+	g.connectRooms(floor, rooms)
+
+	// Place stairs
+	g.placeStairs(floor, rooms, level, isFinalFloor)
+
+	// Place mobs with difficulty
+	g.placeMobsWithDifficulty(floor, rooms, level, isFinalFloor, difficulty)
+
+	// Place items
+	g.placeItems(floor, rooms, level)
+}
+
 // generateRooms creates a set of rooms for the floor
 func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level int, isFinalFloor bool) []models.Room {
 	rooms := make([]models.Room, 0, numRooms)
@@ -66,7 +105,149 @@ func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level in
 	minRoomSize := 5
 	maxRoomSize := 10
 
-	// Try to place rooms
+	// First, create the entrance room on the first floor with a consistent size
+	if level == 1 {
+		// Entrance room has a consistent size of 8x8
+		entranceWidth := 8
+		entranceHeight := 8
+
+		// Place the entrance room in a more central location
+		// Calculate a position near the center of the map
+		centerX := floor.Width / 2
+		centerY := floor.Height / 2
+
+		// Add some randomness but keep it near the center
+		offsetX := -4 + g.rng.Intn(9) // -4 to +4
+		offsetY := -4 + g.rng.Intn(9) // -4 to +4
+
+		entranceX := centerX + offsetX - entranceWidth/2
+		entranceY := centerY + offsetY - entranceHeight/2
+
+		// Ensure the room is within bounds
+		if entranceX < 1 {
+			entranceX = 1
+		}
+		if entranceY < 1 {
+			entranceY = 1
+		}
+		if entranceX+entranceWidth >= floor.Width-1 {
+			entranceX = floor.Width - entranceWidth - 2
+		}
+		if entranceY+entranceHeight >= floor.Height-1 {
+			entranceY = floor.Height - entranceHeight - 2
+		}
+
+		// Create the entrance room
+		entranceRoom := models.Room{
+			ID:       uuid.New().String(),
+			Type:     models.RoomEntrance,
+			X:        entranceX,
+			Y:        entranceY,
+			Width:    entranceWidth,
+			Height:   entranceHeight,
+			Explored: true, // Entrance room starts explored
+		}
+
+		// Carve out the entrance room
+		for ry := 0; ry < entranceHeight; ry++ {
+			for rx := 0; rx < entranceWidth; rx++ {
+				floor.Tiles[entranceY+ry][entranceX+rx] = models.Tile{
+					Type:     models.TileFloor,
+					Walkable: true,
+					Explored: true, // Entrance room tiles start explored
+					RoomID:   entranceRoom.ID,
+				}
+			}
+		}
+
+		rooms = append(rooms, entranceRoom)
+
+		// Always add a shop room on the first floor
+		// Try to place the shop room
+		for i := 0; i < 50; i++ { // Try up to 50 times to place the shop
+			// Random room size
+			width := minRoomSize + g.rng.Intn(maxRoomSize-minRoomSize+1)
+			height := minRoomSize + g.rng.Intn(maxRoomSize-minRoomSize+1)
+
+			// Random position (leaving a 1-tile border)
+			x := 1 + g.rng.Intn(floor.Width-width-2)
+			y := 1 + g.rng.Intn(floor.Height-height-2)
+
+			// Check if the room overlaps with existing rooms
+			overlaps := false
+			for _, room := range rooms {
+				if x+width > room.X-2 && x < room.X+room.Width+2 &&
+					y+height > room.Y-2 && y < room.Y+room.Height+2 {
+					overlaps = true
+					break
+				}
+			}
+
+			if !overlaps {
+				// Create the shop room
+				shopRoom := models.Room{
+					ID:       uuid.New().String(),
+					Type:     models.RoomShop,
+					X:        x,
+					Y:        y,
+					Width:    width,
+					Height:   height,
+					Explored: false,
+				}
+
+				// Carve out the shop room
+				for ry := 0; ry < height; ry++ {
+					for rx := 0; rx < width; rx++ {
+						floor.Tiles[y+ry][x+rx] = models.Tile{
+							Type:     models.TileFloor,
+							Walkable: true,
+							Explored: false,
+							RoomID:   shopRoom.ID,
+						}
+					}
+				}
+
+				rooms = append(rooms, shopRoom)
+				break
+			}
+		}
+	} else {
+		// For floors other than the first, create a safe room with up stairs
+		// This will be the first room where the player arrives from the floor above
+		safeWidth := 8
+		safeHeight := 8
+
+		// Place it in a random location
+		safeX := 1 + g.rng.Intn(floor.Width-safeWidth-2)
+		safeY := 1 + g.rng.Intn(floor.Height-safeHeight-2)
+
+		// Create the safe room
+		safeRoom := models.Room{
+			ID:       uuid.New().String(),
+			Type:     models.RoomSafe,
+			X:        safeX,
+			Y:        safeY,
+			Width:    safeWidth,
+			Height:   safeHeight,
+			Explored: true, // Safe room starts explored
+		}
+
+		// Carve out the safe room
+		for ry := 0; ry < safeHeight; ry++ {
+			for rx := 0; rx < safeWidth; rx++ {
+				floor.Tiles[safeY+ry][safeX+rx] = models.Tile{
+					Type:     models.TileFloor,
+					Walkable: true,
+					Explored: true, // Safe room tiles start explored
+					RoomID:   safeRoom.ID,
+				}
+			}
+		}
+
+		rooms = append(rooms, safeRoom)
+	}
+
+	// Try to place the rest of the rooms
 	for i := 0; i < numRooms*3 && len(rooms) < numRooms; i++ {
 		// Random room size
 		width := minRoomSize + g.rng.Intn(maxRoomSize-minRoomSize+1)
@@ -91,8 +272,11 @@ func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level in
 			roomType := models.RoomStandard
 
 			// Special rooms
-			if isFinalFloor && len(rooms) == 0 {
-				// First room on final floor is the boss room
+			if level == 1 && len(rooms) <= 2 {
+				// Skip this iteration if we're on the first floor and already created the entrance and shop rooms
+				continue
+			} else if isFinalFloor && len(rooms) == 1 {
+				// First room on final floor is the boss room (after the safe room with up stairs)
 				roomType = models.RoomBoss
 			} else if g.rng.Float64() < 0.1 {
 				// 10% chance for treasure room
@@ -100,8 +284,8 @@ func (g *MapGenerator) generateRooms(floor *models.Floor, numRooms int, level in
 			} else if g.rng.Float64() < 0.05 {
 				// 5% chance for safe room
 				roomType = models.RoomSafe
-			} else if g.rng.Float64() < 0.05 && level > 2 {
-				// 5% chance for shop room on deeper floors
+			} else if level > 1 && g.rng.Float64() < 0.05 && level > 2 {
+				// 5% chance for additional shop room on deeper floors
 				roomType = models.RoomShop
 			}
 
@@ -186,32 +370,61 @@ func (g *MapGenerator) createVerticalCorridor(floor *models.Floor, y1, y2, x int
 
 // placeStairs places up and down stairs on the floor
 func (g *MapGenerator) placeStairs(floor *models.Floor, rooms []models.Room, level int, isFinalFloor bool) {
-	// Place up stairs in the first room (except for the first floor)
+	// Find entrance room for first floor
+	var entranceRoom *models.Room
+	if level == 1 {
+		for i := range rooms {
+			if rooms[i].Type == models.RoomEntrance {
+				entranceRoom = &rooms[i]
+				break
+			}
+		}
+	}
+
+	// Place up stairs in the first room (which is a safe room for floors > 1)
 	if level > 1 {
-		room := rooms[0]
-		x := room.X + g.rng.Intn(room.Width)
-		y := room.Y + g.rng.Intn(room.Height)
+		room := rooms[0] // First room is the safe room on floors > 1
+
+		// Place up stairs in a consistent location in the safe room
+		// Center of the room
+		x := room.X + room.Width/2
+		y := room.Y + room.Height/2
 
 		floor.Tiles[y][x] = models.Tile{
 			Type:     models.TileUpStairs,
 			Walkable: true,
-			Explored: false,
+			Explored: true, // Up stairs are always explored
 			RoomID:   room.ID,
 		}
 
 		floor.UpStairs = append(floor.UpStairs, models.Position{X: x, Y: y})
 	}
 
-	// Place down stairs in the last room (except for the final floor)
+	// Place down stairs in the entrance room on the first floor,
+	// otherwise in the last room (except for the final floor which has no down stairs)
 	if !isFinalFloor {
-		room := rooms[len(rooms)-1]
-		x := room.X + g.rng.Intn(room.Width)
-		y := room.Y + g.rng.Intn(room.Height)
+		var room models.Room
+		var x, y int
+
+		if level == 1 && entranceRoom != nil {
+			// On the first floor, always place down stairs in the entrance room
+			room = *entranceRoom
+			// Place down stairs in a consistent location in the entrance room
+			// Center of the room
+			x = room.X + room.Width/2
+			y = room.Y + room.Height/2
+		} else {
+			// For all other floors, place stairs in the last room
+			room = rooms[len(rooms)-1]
+			// Random position for other rooms
+			x = room.X + g.rng.Intn(room.Width)
+			y = room.Y + g.rng.Intn(room.Height)
+		}
 
 		floor.Tiles[y][x] = models.Tile{
 			Type:     models.TileDownStairs,
 			Walkable: true,
-			Explored: false,
+			Explored: level == 1 && entranceRoom != nil, // Only explored if in entrance room on floor 1
 			RoomID:   room.ID,
 		}
 
@@ -221,6 +434,12 @@ func (g *MapGenerator) placeStairs(floor *models.Floor, rooms []models.Room, lev
 
 // placeMobs places mobs on the floor
 func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level int, isFinalFloor bool) {
+	// Default to normal difficulty
+	g.placeMobsWithDifficulty(floor, rooms, level, isFinalFloor, "normal")
+}
+
+// placeMobsWithDifficulty places mobs on the floor with the specified difficulty
+func (g *MapGenerator) placeMobsWithDifficulty(floor *models.Floor, rooms []models.Room, level int, isFinalFloor bool, difficulty string) {
 	floor.Mobs = make(map[string]*models.Mob)
 
 	// Determine mob types based on floor level
@@ -244,8 +463,9 @@ func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level
 
 	// Place mobs in each room
 	for i, room := range rooms {
-		// Skip the first room (where the player starts) and safe rooms
-		if i == 0 || room.Type == models.RoomSafe {
+		// Skip the first room on floors > 1 (safe room with up stairs)
+		// Skip safe rooms, entrance rooms, and shop rooms (except for shopkeeper)
+		if (level > 1 && i == 0) || room.Type == models.RoomSafe || room.Type == models.RoomEntrance {
 			continue
 		}
 
@@ -258,6 +478,23 @@ func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level
 			}
 
 			mob := models.NewMob(mobType, models.VariantBoss, level)
+
+			// Place in center of room
+			x := room.X + room.Width/2
+			y := room.Y + room.Height/2
+			mob.Position = models.Position{X: x, Y: y}
+
+			// Add to floor
+			floor.Mobs[mob.ID] = mob
+			floor.Tiles[y][x].MobID = mob.ID
+
+			continue
+		}
+
+		// Shop rooms get a shopkeeper
+		if room.Type == models.RoomShop {
+			// Create a shopkeeper
+			mob := models.NewMob(models.MobShopkeeper, models.VariantNormal, level)
 
 			// Place in center of room
 			x := room.X + room.Width/2
@@ -285,6 +522,13 @@ func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level
 		// Adjust based on floor level
 		numMobs += level / 3
 
+		// Adjust based on difficulty
+		if difficulty == "hard" {
+			numMobs += 1
+		} else if difficulty == "easy" {
+			numMobs = max(1, numMobs-1)
+		}
+
 		// Cap at reasonable number
 		if numMobs > 8 {
 			numMobs = 8
@@ -294,16 +538,42 @@ func (g *MapGenerator) placeMobs(floor *models.Floor, rooms []models.Room, level
 			// Pick a random mob type
 			mobType := mobTypes[g.rng.Intn(len(mobTypes))]
 
-			// Determine variant
+			// Determine variant based on difficulty
 			variant := models.VariantNormal
 			variantRoll := g.rng.Float64()
 
-			if variantRoll < 0.6 {
-				variant = models.VariantEasy
-			} else if variantRoll < 0.9 {
-				variant = models.VariantNormal
-			} else {
-				variant = models.VariantHard
+			switch difficulty {
+			case "easy":
+				if variantRoll < 0.8 {
+					variant = models.VariantEasy
+				} else {
+					variant = models.VariantNormal
+				}
+			case "normal":
+				if variantRoll < 0.6 {
+					variant = models.VariantEasy
+				} else if variantRoll < 0.9 {
+					variant = models.VariantNormal
+				} else {
+					variant = models.VariantHard
+				}
+			case "hard":
+				if variantRoll < 0.3 {
+					variant = models.VariantEasy
+				} else if variantRoll < 0.7 {
+					variant = models.VariantNormal
+				} else {
+					variant = models.VariantHard
+				}
+			default:
+				// Default to normal difficulty distribution
+				if variantRoll < 0.6 {
+					variant = models.VariantEasy
+				} else if variantRoll < 0.9 {
+					variant = models.VariantNormal
+				} else {
+					variant = models.VariantHard
+				}
 			}
 
 			// Create the mob
@@ -350,6 +620,13 @@ func (g *MapGenerator) placeItems(floor *models.Floor, rooms []models.Room, leve
 			}
 		case models.RoomBoss:
 			numItems = 2 + g.rng.Intn(3) // 2-4 items
+		case models.RoomEntrance:
+			if level == 1 {
+				// First floor entrance might have a starter item
+				if g.rng.Float64() < 0.5 { // 50% chance for a starter item
+					numItems = 1
+				}
+			}
 		}
 
 		// Skip if no items

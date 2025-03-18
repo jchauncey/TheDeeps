@@ -1,158 +1,182 @@
-# TheDeeps UI
+# TheDeeps UI Documentation
 
-## UI Requirements
+## Overview
 
-1. **Technical Foundation**
-   - ✅ React and TypeScript front-end architecture
-   - ✅ WebSocket connection to backend API server
-   - ✅ Responsive design with minimum resolution support of 1280x720
-   - ✅ Cross-browser compatibility (Chrome, Firefox, Safari, Edge)
-   - Mobile-friendly layout with touch controls where appropriate
-   - Optimized asset loading for faster initial render
+TheDeeps features a modern, responsive user interface that combines classic roguelike aesthetics with contemporary web design principles. The UI is designed to be intuitive, accessible, and visually engaging while maintaining the traditional roguelike feel.
 
-2. **General UI Principles**
-   - ✅ Map window anchored to the left of the browser window
-   - ✅ Simplified character status panel anchored to the right
-   - Main browser window should avoid heights that add scroll bars
-   - ✅ Consistent color scheme and typography throughout the application
-   - Accessible design with proper contrast ratios and screen reader support
-   - Dark mode support with automatic detection of system preferences
-   - ✅ Consistent padding and margins throughout the interface
-   - ✅ Text colors should have sufficient contrast with background colors
-   - ✅ Full-screen layouts for character selection and dungeon selection screens
+## Core UI Components
 
-3. **Notification System**
-   - ✅ Toast banners should be clickable to dismiss
-   - Toast banners should automatically disappear after 5 seconds unless clicked
-   - ✅ Different notification types (info, warning, error, success) with appropriate styling
-   - Notification queue system for handling multiple notifications
-   - Critical notifications should remain until dismissed
-   - ✅ Notifications should not obstruct gameplay elements
-   - ✅ Floor transition notifications should display the floor number being entered
+### Game Display
 
-4. **Input Controls**
-   - ✅ Modal window that displays all available hotkeys
-   - ✅ Avoid hotkeys that interfere with the movement keys (WASD)
-   - ✅ Do not use arrow keys as movement keys
-   - ✅ Avoid F1-F12 keys as hotkeys
-   - ✅ Common actions should have single key hotkeys
-   - Complex hotkeys (Ctrl+key) reserved for less frequently used actions
-   - Customizable keybindings with reset to default option
-   - ✅ Mouse controls for all actions with appropriate tooltips
-   - ✅ 'C' key hotkey to open character profile modal
-   - ✅ Specific hotkeys for ascending ('u' key) and descending ('d' key) stairs
+- **Main Game Canvas**: Central display area showing the dungeon map using ASCII/Unicode characters
+- **Viewport**: Dynamic viewport that follows the player character
+- **Tile Rendering**: Each tile is represented by a specific character with color coding
+  - Floor tiles: `.` (period)
+  - Wall tiles: `#` (hash)
+  - Up stairs: `<` (less than)
+  - Down stairs: `>` (greater than)
+  - Player character: `@` (at symbol)
+  - Monsters: Various letters (e.g., `g` for goblin, `D` for dragon)
+  - Items: Various symbols (e.g., `!` for potion, `/` for weapon)
+- **Color System**: 
+  - Background colors indicate tile types and special areas
+  - Foreground colors indicate entity types and states
+  - Color intensity can indicate depth or importance
 
-5. **Loading Screen**
-   - ✅ Display The Deeps logo (stored at client/public/logo.png)
-   - ✅ New Game and Load Game buttons positioned side by side
-   - ✅ New Game button navigates to Character Creation screen
-   - ✅ Load Game button (to be implemented in future)
-   - Loading progress indicator for initial asset loading
-   - ✅ Background artwork that sets the game's tone
-   - Version number and developer credits
-   - Tips or lore snippets during loading
+### Character Panel
 
-6. **Character Creation Screen**
-   - ✅ User-friendly name input field
-   - Random Name generator with thematic options
-   - ✅ Class selection dropdown featuring all D&D-based classes
-   - ✅ Visual representation of selected character class
-   - ✅ Attributes allocation area with intuitive controls
-   - ✅ Automatic attribute allocation based on class with 5 remaining points for user customization
-   - ✅ Clear indication of primary attributes for selected class
-   - ✅ Display of modifier values for each attribute
-   - ✅ Preview of starting equipment and abilities
-   - ✅ Confirmation button with validation for required fields
-   - ✅ Proper API integration to avoid duplicate character creation
+- **Character Stats**: Displays core character attributes
+  - Health/Mana: Numerical and bar representation
+  - Level and Experience: Current level and progress to next level
+  - Core Attributes: STR, DEX, CON, INT, WIS, CHA
+- **Equipment**: Visual representation of equipped items
+- **Status Effects**: Icons and timers for active effects
+- **Class Information**: Class-specific resources and abilities
 
-7. **Character Selection Screen**
-   - ✅ Grid layout displaying all available characters
-   - ✅ Character cards showing name, class, and class-colored badge
-   - ✅ Selection mechanism by clicking on character cards
-   - ✅ Delete button on each character card with confirmation modal
-   - ✅ Full-screen layout with fixed positioning
-   - ✅ Maximum of 10 characters allowed per account
-   - ✅ Create New Character button when below character limit
-   - ✅ Back button to return to title screen
-   - ✅ Select Character button to proceed with selected character
-   - ✅ Proper error handling and user feedback for character deletion
+### Inventory System
 
-8. **Dungeon Selection Screen**
-   - ✅ Full-screen layout with fixed positioning
-   - ✅ List of available dungeons with details (name, floors, creation date, player count)
-   - ✅ Dungeon creation form with name and floor count inputs
-   - ✅ Selection mechanism for choosing a dungeon
-   - ✅ Join Selected Dungeon button to enter the dungeon
-   - ✅ Back button to return to character selection
-   - ✅ Consistent styling with other screens
-   - ✅ REST API integration for dungeon creation and joining
-   - ✅ Loading indicators for async operations
-   - ✅ Error handling and user feedback
+- **Grid Layout**: Items displayed in a grid with icons and tooltips
+- **Categories**: Items organized by type (weapons, armor, consumables, etc.)
+- **Item Details**: Detailed view showing item properties and description
+- **Comparison**: Side-by-side comparison with equipped items
+- **Actions**: Use, equip, drop, and examine options
 
-9. **Character Status Panel**
-   - ✅ Anchored to the right of the browser window
-   - ✅ Simplified design showing only essential information
-   - ✅ Character name and level at the top
-   - ✅ Health bar with current/maximum values
-   - ✅ Mana bar with current/maximum values
-   - Experience bar with progress to next level
-   - ✅ Profile button with class-specific icon
-   - ✅ Class-specific styling and colors
-   - ✅ Responsive design that works well on smaller screens
-   - ✅ Current floor indicator showing which floor the player is on
+### Combat Interface
 
-10. **Character Profile Modal**
-    - ✅ Accessible via 'C' hotkey or Profile button in status panel
-    - ✅ Overlays the game map when opened
-    - ✅ Detailed character information in a scrollable modal
-    - ✅ Class-specific icon displayed in a square container
-    - ✅ Thematic icons for each character class (warrior, mage, rogue, etc.)
-    - ✅ Character name, level, and class prominently displayed
-    - ✅ Text colors with sufficient contrast against background colors
-    - ✅ Attributes section with modifier values
-    - Class abilities section with visual indicators
-    - Equipment section showing equipped items
-    - Inventory section with grid-based layout
-    - Gold and potion counters with appropriate icons
-    - ✅ Close button to return to gameplay
-    - ✅ Display of current floor and total dungeon depth
+- **Action Log**: Scrollable log of recent combat events
+- **Target Selection**: Highlighting of potential targets
+- **Damage Indicators**: Visual feedback for damage dealt and received
+- **Critical Hit Effects**: Special visual effects for critical hits
+- **Health Changes**: Animated health bars for player and enemies
 
-11. **Dungeon Window**
-    - ✅ Renders map in a nethack or rogue-style ASCII/tile-based format
-    - ✅ Character represented by a stylized @ symbol with class-specific colors
-    - ✅ No fog of war implementation
-    - ✅ Clear visual distinction between different terrain types
-    - ✅ Animated transitions between map areas
-    - Zoom functionality for map view
-    - Mini-map in corner for larger dungeons
-    - ✅ Visual indicators for interactive objects (doors, chests, etc.)
-    - ✅ Enemy representations with distinct symbols/colors
-    - Turn counter or game clock display
-    - ✅ Distinct visual representation for up stairs (< symbol) and down stairs (> symbol)
-    - ✅ Smooth transition animations when changing floors
+### Navigation and Controls
 
-12. **Combat Interface**
-    - ✅ Visual feedback for attacks and damage
-    - ✅ Health/mana bars for player and visible enemies
-    - Combat log showing recent actions
-    - Quick-access bar for common combat abilities
-    - Initiative order display for turn-based combat
-    - ✅ Target selection mechanism
-    - Status effect icons with duration indicators
-    - Critical hit and miss animations/indicators
+- **Keyboard Controls**: 
+  - Arrow keys or WASD for movement
+  - Number keys for quick actions
+  - Customizable keybindings
+- **Mouse Support**: 
+  - Click to move or interact
+  - Hover for information
+  - Context menus for actions
+- **Touch Support**: 
+  - Swipe to move
+  - Tap to interact
+  - Pinch to zoom
 
-13. **Menu System**
-    - ✅ Easily accessible main menu via hotkey or button
-    - Settings menu with audio, video, and gameplay options
-    - ✅ Save/Load game functionality
-    - ✅ Help section with game mechanics explanation and hotkey reference
-    - ✅ Exit game confirmation dialog
-    - ✅ Controls reference section explaining floor navigation mechanics
+### Menu System
 
-14. **Floor Navigation**
-    - ✅ Visual indication when player is standing on stairs
-    - ✅ Tooltip or prompt showing available actions when standing on stairs
-    - ✅ Feedback message when attempting to ascend from the top floor or descend from the bottom floor
-    - ✅ Floor transition animation when moving between floors
-    - ✅ Floor number indicator that updates when changing floors
-    - ✅ Action buttons for ascending and descending when standing on appropriate stairs
+- **Main Menu**: Game start, character selection, options, and exit
+- **In-Game Menu**: Pause, save, load, options, and return to main menu
+- **Context Menus**: Right-click or long-press for contextual actions
+- **Modal Dialogs**: For important decisions and confirmations
+
+## Special UI Features
+
+### Accessibility Features
+
+- **Screen Reader Support**: Text alternatives for visual elements
+- **Keyboard Navigation**: Complete keyboard control
+- **High Contrast Mode**: Enhanced visibility option
+- **Text Scaling**: Adjustable text size
+- **Color Blindness Options**: Alternative color schemes
+
+### Responsive Design
+
+- **Desktop Optimization**: Full keyboard and mouse support with expanded layouts
+- **Tablet Support**: Touch-friendly controls with appropriately sized elements
+- **Mobile Adaptation**: Simplified layout with touch-optimized controls
+- **Layout Switching**: Automatic or manual switching between layouts
+
+### Customization Options
+
+- **UI Themes**: Light, dark, and classic terminal themes
+- **Font Selection**: Multiple monospace font options
+- **Color Schemes**: Customizable color palettes
+- **Layout Options**: Adjustable panel positions and sizes
+- **Control Customization**: Rebindable keys and control preferences
+
+## Technical Implementation
+
+### Frontend Framework
+
+- **React**: Component-based UI architecture
+- **TypeScript**: Type-safe development
+- **CSS Modules**: Scoped styling for components
+- **Responsive Grid**: Flexible layout system
+
+### Rendering Technology
+
+- **HTML5 Canvas**: For efficient game map rendering
+- **WebGL**: For advanced visual effects (optional)
+- **SVG**: For UI elements requiring vector graphics
+- **CSS Animations**: For smooth transitions and effects
+
+### State Management
+
+- **Redux**: Centralized state management
+- **Context API**: For component-specific state
+- **Local Storage**: For persistent user preferences
+- **Session Storage**: For temporary session data
+
+### Performance Optimization
+
+- **Virtualized Lists**: For efficient rendering of large inventories
+- **Memoization**: To prevent unnecessary re-renders
+- **Asset Preloading**: For smooth transitions between screens
+- **Lazy Loading**: For non-critical UI components
+- **Web Workers**: For offloading complex calculations
+
+## UI/UX Design Principles
+
+### Visual Hierarchy
+
+- **Focus on Gameplay**: Main game display takes priority
+- **Information Accessibility**: Critical information always visible
+- **Progressive Disclosure**: Complex details available on demand
+- **Consistent Styling**: Unified visual language throughout
+
+### Feedback Systems
+
+- **Visual Feedback**: Highlighting, animations, and color changes
+- **Audio Cues**: Sound effects for actions and events
+- **Haptic Feedback**: Vibration for mobile devices (where supported)
+- **Tooltips and Hints**: Contextual help for UI elements
+
+### User Flow
+
+- **Intuitive Navigation**: Clear pathways between different sections
+- **Minimal Clicks**: Efficient access to common actions
+- **Consistent Patterns**: Similar actions work similarly across the UI
+- **Undo/Redo**: Support for reversing accidental actions
+
+## UI Components Reference
+
+### Core Components
+
+- **GameCanvas**: Main rendering component for the game world
+- **CharacterSheet**: Displays character information and stats
+- **InventoryPanel**: Manages and displays inventory items
+- **ActionBar**: Quick access to common actions and abilities
+- **MessageLog**: Displays game events and messages
+- **MiniMap**: Provides overview of explored areas
+
+### Utility Components
+
+- **Tooltip**: Contextual information on hover
+- **Modal**: Focused interaction dialogs
+- **Notification**: Temporary information display
+- **ProgressBar**: Visual representation of numeric values
+- **IconButton**: Consistent styled action buttons
+- **Dropdown**: Selection from multiple options
+
+## Best Practices for UI Extensions
+
+1. **Maintain Aesthetic Consistency**: Follow established color schemes and visual styles
+2. **Prioritize Usability**: Focus on intuitive interactions and clear information hierarchy
+3. **Consider Accessibility**: Ensure new elements work with existing accessibility features
+4. **Test Responsiveness**: Verify behavior across different screen sizes and devices
+5. **Optimize Performance**: Minimize impact on rendering and update cycles
+6. **Document Components**: Provide clear documentation for new UI elements
+7. **Support Keyboard Navigation**: Ensure all new elements are keyboard accessible
+8. **Implement Proper Focus Management**: Maintain logical tab order and focus indicators
