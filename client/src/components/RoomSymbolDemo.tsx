@@ -156,290 +156,247 @@ const RoomSymbolDemo: React.FC = () => {
 
   // Function to get tile content (for ASCII mode or debug)
   const getTileContent = (tile: Tile, mobs: { [key: string]: Mob }, items: { [key: string]: Item }): string => {
-    if (!tile.explored) return ' ';
-    
-    if (tile.character) return '@'; // Player character
-    if (tile.mobId && mobs && mobs[tile.mobId]) {
+    if (tile.character) return '@';
+    if (tile.mobId) {
       const mob = mobs[tile.mobId];
+      if (!mob) return 'M';
+      
       switch (mob.type) {
-        case 'dragon':
-          return 'D';
-        case 'ogre':
-          return 'O';
-        case 'boss':
-          return 'B';
+        case 'rat':
+          return 'r';
         case 'goblin':
           return 'g';
-        case 'skeleton':
-          return 's';
+        case 'orc':
+          return 'o';
+        case 'troll':
+          return 'T';
+        case 'dragon':
+          return 'D';
         case 'shopkeeper':
-          return 'S';
+          return '$';
+        case 'boss':
+          return 'B';
         default:
-          return 'M'; // Generic mob
+          return 'M';
       }
     }
-    if (tile.itemId && items && items[tile.itemId]) {
+    
+    if (tile.itemId) {
       const item = items[tile.itemId];
+      if (!item) return 'i';
+      
       switch (item.type) {
+        case 'weapon':
+          return 'w';
+        case 'armor':
+          return 'a';
+        case 'potion':
+          return 'p';
         case 'gold':
           return '$';
-        case 'potion':
-          return '!';
-        case 'weapon':
-          return '/';
-        case 'armor':
-          return '[';
+        case 'scroll':
+          return '?';
         default:
-          return 'i'; // Generic item
+          return 'i';
       }
     }
     
     switch (tile.type) {
       case 'wall':
         return '#';
-      case 'floor':
-        return '.';
+      case 'door':
+        return '+';
       case 'upStairs':
         return '<';
       case 'downStairs':
         return '>';
-      case 'door':
-        return '+';
-      case 'corridor':
-        return '·'; // Middle dot for corridors
+      case 'floor':
+        return '.';
       default:
         return ' ';
     }
   };
 
-  // Generate a demo room based on the selected type
-  const generateDemoRoom = () => {
-    const width = 10;
-    const height = 10;
-    const tiles: Tile[][] = [];
-    const mobs: { [key: string]: Mob } = {};
-    const items: { [key: string]: Item } = {};
-    
-    // Initialize tiles with walls around the edges and floor in the middle
-    for (let y = 0; y < height; y++) {
-      tiles[y] = [];
-      for (let x = 0; x < width; x++) {
-        const isWall = x === 0 || x === width - 1 || y === 0 || y === height - 1;
-        tiles[y][x] = {
-          type: isWall ? 'wall' : 'floor',
-          walkable: !isWall,
-          explored: true,
-        };
-      }
-    }
-    
-    // Add a door at the top
-    tiles[0][width / 2] = {
-      type: 'door',
-      walkable: true,
-      explored: true,
+  // Mock tile, mob, and item data for demo
+  const mockTiles: Tile[][] = [
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'door', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: demoType === 'entrance' ? 'downStairs' : demoType === 'safe' ? 'upStairs' : 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true, character: demoType === 'entrance' ? 'player1' : undefined },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'floor', walkable: true, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+    [
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+      { type: 'wall', walkable: false, explored: true },
+    ],
+  ];
+
+  // Mock mob and item data based on demo type
+  const mockMobs: { [key: string]: Mob } = {};
+  const mockItems: { [key: string]: Item } = {};
+
+  if (demoType === 'shop') {
+    mockMobs['shopkeeper-1'] = {
+      id: 'shopkeeper-1',
+      type: 'shopkeeper',
+      name: 'Shopkeeper',
+      health: 50,
+      maxHealth: 50,
+      position: { x: 5, y: 5 },
     };
-    
-    // Add room-specific features
-    switch (demoType) {
-      case 'entrance':
-        // Add down stairs in the center
-        tiles[height / 2][width / 2] = {
-          type: 'downStairs',
-          walkable: true,
-          explored: true,
-        };
-        // Add player character
-        tiles[height / 2 + 2][width / 2] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          character: 'player1',
-        };
-        break;
-        
-      case 'boss':
-        // Add boss in the center
-        const bossId = 'boss1';
-        mobs[bossId] = {
-          id: bossId,
-          type: 'boss',
-          name: 'Dragon Boss',
-          health: 100,
-          maxHealth: 100,
-          position: { x: width / 2, y: height / 2 },
-        };
-        tiles[height / 2][width / 2] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          mobId: bossId,
-        };
-        break;
-        
-      case 'treasure':
-        // Add various items
-        for (let i = 0; i < 3; i++) {
-          const itemId = `item${i}`;
-          const itemX = width / 2 - 1 + i;
-          const itemY = height / 2;
-          const itemType = i === 0 ? 'gold' : i === 1 ? 'weapon' : 'armor';
-          
-          items[itemId] = {
-            id: itemId,
-            type: itemType,
-            name: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} Item`,
-            position: { x: itemX, y: itemY },
-          };
-          
-          tiles[itemY][itemX] = {
-            type: 'floor',
-            walkable: true,
-            explored: true,
-            itemId: itemId,
-          };
-        }
-        break;
-        
-      case 'shop':
-        // Add shopkeeper
-        const shopkeeperId = 'shopkeeper1';
-        mobs[shopkeeperId] = {
-          id: shopkeeperId,
-          type: 'shopkeeper',
-          name: 'Shopkeeper',
-          health: 50,
-          maxHealth: 50,
-          position: { x: width / 2, y: height / 2 - 1 },
-        };
-        tiles[height / 2 - 1][width / 2] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          mobId: shopkeeperId,
-        };
-        
-        // Add shop items
-        for (let i = 0; i < 3; i++) {
-          const itemId = `shop${i}`;
-          const itemX = width / 2 - 1 + i;
-          const itemY = height / 2 + 1;
-          const itemType = i === 0 ? 'potion' : i === 1 ? 'weapon' : 'armor';
-          
-          items[itemId] = {
-            id: itemId,
-            type: itemType,
-            name: `Shop ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}`,
-            position: { x: itemX, y: itemY },
-          };
-          
-          tiles[itemY][itemX] = {
-            type: 'floor',
-            walkable: true,
-            explored: true,
-            itemId: itemId,
-          };
-        }
-        break;
-        
-      case 'mixed':
-        // Add a variety of entities
-        
-        // Player
-        tiles[3][3] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          character: 'player1',
-        };
-        
-        // Monsters
-        const monsterTypes = ['dragon', 'ogre', 'goblin', 'skeleton'];
-        for (let i = 0; i < monsterTypes.length; i++) {
-          const mobId = `mob${i}`;
-          const mobType = monsterTypes[i];
-          const mobX = 3 + i;
-          const mobY = 5;
-          
-          mobs[mobId] = {
-            id: mobId,
-            type: mobType,
-            name: `${mobType.charAt(0).toUpperCase() + mobType.slice(1)}`,
-            health: 50,
-            maxHealth: 50,
-            position: { x: mobX, y: mobY },
-          };
-          
-          tiles[mobY][mobX] = {
-            type: 'floor',
-            walkable: true,
-            explored: true,
-            mobId: mobId,
-          };
-        }
-        
-        // Items
-        const itemTypes = ['gold', 'potion', 'weapon', 'armor'];
-        for (let i = 0; i < itemTypes.length; i++) {
-          const itemId = `item${i}`;
-          const itemType = itemTypes[i];
-          const itemX = 3 + i;
-          const itemY = 7;
-          
-          items[itemId] = {
-            id: itemId,
-            type: itemType,
-            name: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)}`,
-            position: { x: itemX, y: itemY },
-          };
-          
-          tiles[itemY][itemX] = {
-            type: 'floor',
-            walkable: true,
-            explored: true,
-            itemId: itemId,
-          };
-        }
-        
-        // Special tiles
-        tiles[2][7] = {
-          type: 'upStairs',
-          walkable: true,
-          explored: true,
-        };
-        
-        tiles[7][2] = {
-          type: 'downStairs',
-          walkable: true,
-          explored: true,
-        };
-        break;
-        
-      default: // standard room
-        // Add a few random monsters
-        const mobId = 'mob1';
-        mobs[mobId] = {
-          id: mobId,
-          type: 'goblin',
-          name: 'Goblin',
-          health: 20,
-          maxHealth: 20,
-          position: { x: width / 2, y: height / 2 },
-        };
-        tiles[height / 2][width / 2] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          mobId: mobId,
-        };
-        break;
-    }
-    
-    return { tiles, mobs, items };
-  };
-  
-  const { tiles, mobs, items } = generateDemoRoom();
-  
+    mockTiles[5][5] = {
+      ...mockTiles[5][5],
+      mobId: 'shopkeeper-1',
+    };
+  } else if (demoType === 'boss') {
+    mockMobs['boss-1'] = {
+      id: 'boss-1',
+      type: 'boss',
+      name: 'Dungeon Boss',
+      health: 100,
+      maxHealth: 100,
+      position: { x: 5, y: 5 },
+    };
+    mockTiles[5][5] = {
+      ...mockTiles[5][5],
+      mobId: 'boss-1',
+    };
+  } else if (demoType === 'treasure') {
+    mockItems['gold-1'] = {
+      id: 'gold-1',
+      type: 'gold',
+      name: 'Gold Pile',
+      position: { x: 5, y: 5 },
+    };
+    mockTiles[5][5] = {
+      ...mockTiles[5][5],
+      itemId: 'gold-1',
+    };
+  } else if (demoType === 'standard') {
+    mockMobs['mob-1'] = {
+      id: 'mob-1',
+      type: 'goblin',
+      name: 'Goblin',
+      health: 20,
+      maxHealth: 20,
+      position: { x: 5, y: 5 },
+    };
+    mockTiles[5][5] = {
+      ...mockTiles[5][5],
+      mobId: 'mob-1',
+    };
+  }
+
   return (
     <VStack spacing={4} align="stretch">
       <Text>
@@ -493,8 +450,8 @@ const RoomSymbolDemo: React.FC = () => {
         >
           <Box 
             display="grid" 
-            gridTemplateColumns={`repeat(${tiles[0].length}, 20px)`}
-            gridTemplateRows={`repeat(${tiles.length}, 20px)`}
+            gridTemplateColumns={`repeat(${mockTiles[0].length}, 20px)`}
+            gridTemplateRows={`repeat(${mockTiles.length}, 20px)`}
             gap={0}
             width="fit-content"
             margin="0 auto"
@@ -514,11 +471,11 @@ const RoomSymbolDemo: React.FC = () => {
               zIndex: 10
             }}
           >
-            {tiles.flatMap((row, y) => 
+            {mockTiles.flatMap((row, y) => 
               row.map((tile, x) => {
                 const tileColor = getTileColor(tile);
-                const entityColor = getEntityColor(tile, mobs, items);
-                const tileContent = getTileContent(tile, mobs, items);
+                const entityColor = getEntityColor(tile, mockMobs, mockItems);
+                const tileContent = getTileContent(tile, mockMobs, mockItems);
                 
                 // Determine if this is a special tile (stairs, door)
                 const isSpecialTile = tile.type === 'upStairs' || tile.type === 'downStairs' || tile.type === 'door';
@@ -534,7 +491,7 @@ const RoomSymbolDemo: React.FC = () => {
                     height="20px"
                     border={tile.type === 'wall' ? '1px solid #666' : 'none'}
                     position="relative"
-                    title={`${tile.type}${tile.mobId ? ' - ' + (mobs?.[tile.mobId]?.name || 'Monster') : ''}${tile.itemId ? ' - ' + (items?.[tile.itemId]?.name || 'Item') : ''}`}
+                    title={`${tile.type}${tile.mobId ? ' - ' + (mockMobs?.[tile.mobId]?.name || 'Monster') : ''}${tile.itemId ? ' - ' + (mockItems?.[tile.itemId]?.name || 'Item') : ''}`}
                   >
                     {/* Entity overlay (mob, item, player) */}
                     {entityColor && (

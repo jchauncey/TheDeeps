@@ -58,7 +58,6 @@ interface Floor {
   downStairs: Position[];
   mobs: { [key: string]: Mob };
   items: { [key: string]: Item };
-  isGeneratedRoom: boolean;
 }
 
 interface RoomRendererProps {
@@ -153,12 +152,8 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
               if (index < data.tiles.length) {
                 row.push(data.tiles[index]);
               } else {
-                // Fill with empty floor tiles if needed
-                row.push({ 
-                  type: 'floor', 
-                  walkable: true, 
-                  explored: true 
-                });
+                // Fill with default tile if out of bounds
+                row.push({ type: 'wall', walkable: false, explored: true });
               }
             }
             tilesArray.push(row);
@@ -166,298 +161,19 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
           data.tiles = tilesArray;
         }
         
-        // Check if the room has proper walls
-        const hasProperWalls = checkRoomHasWalls(data);
-        let isGeneratedRoom = false;
-        
-        if (!hasProperWalls) {
-          console.log('Room does not have proper walls, generating complete room');
-          data = generateCompleteRoom(data, roomType || 'standard');
-          isGeneratedRoom = true;
-        }
-        
-        // Add a flag to indicate if this is a generated room
-        data.isGeneratedRoom = isGeneratedRoom;
-        
         setFloor(data);
         setLoading(false);
-        if (onLoad) onLoad();
+        onLoad?.();
       } catch (err) {
-        console.error('Failed to fetch test room:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        console.error('Error fetching test room:', err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
         setLoading(false);
-        if (onError) onError();
+        onError?.();
       }
     };
     
     fetchTestRoom();
-  }, [roomType, width, height, roomWidth, roomHeight, onLoad, onError]);
-
-  // Function to check if a room has proper walls
-  const checkRoomHasWalls = (floor: Floor): boolean => {
-    if (!floor.tiles || !Array.isArray(floor.tiles) || floor.tiles.length === 0) {
-      return false;
-    }
-    
-    // Check if the room has walls on the perimeter
-    const height = floor.tiles.length;
-    const width = floor.tiles[0].length;
-    
-    // Check top and bottom rows
-    for (let x = 0; x < width; x++) {
-      if (floor.tiles[0][x]?.type !== 'wall' && floor.tiles[height-1][x]?.type !== 'wall') {
-        return false;
-      }
-    }
-    
-    // Check left and right columns
-    for (let y = 0; y < height; y++) {
-      if (floor.tiles[y][0]?.type !== 'wall' && floor.tiles[y][width-1]?.type !== 'wall') {
-        return false;
-      }
-    }
-    
-    // Count the number of wall tiles
-    let wallCount = 0;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (floor.tiles[y][x]?.type === 'wall') {
-          wallCount++;
-        }
-      }
-    }
-    
-    // If there are very few wall tiles, consider it incomplete
-    const totalTiles = width * height;
-    const wallPercentage = (wallCount / totalTiles) * 100;
-    return wallPercentage >= 10; // At least 10% of tiles should be walls
-  };
-
-  // Function to generate a complete room
-  const generateCompleteRoom = (partialFloor: Floor, roomType: string): Floor => {
-    const width = partialFloor.width || 20;
-    const height = partialFloor.height || 20;
-    const roomWidth = Math.min(width - 2, 8);
-    const roomHeight = Math.min(height - 2, 8);
-    
-    // Calculate room position (centered)
-    const roomX = Math.floor((width - roomWidth) / 2);
-    const roomY = Math.floor((height - roomHeight) / 2);
-    
-    // Create a new floor with all walls
-    const tiles: Tile[][] = [];
-    for (let y = 0; y < height; y++) {
-      const row: Tile[] = [];
-      for (let x = 0; x < width; x++) {
-        // Default to wall
-        row.push({
-          type: 'wall',
-          walkable: false,
-          explored: true
-        });
-      }
-      tiles.push(row);
-    }
-    
-    // Carve out the room
-    for (let y = roomY; y < roomY + roomHeight; y++) {
-      for (let x = roomX; x < roomX + roomWidth; x++) {
-        tiles[y][x] = {
-          type: 'floor',
-          walkable: true,
-          explored: true
-        };
-      }
-    }
-    
-    // Add a door on one of the walls
-    const doorSide = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
-    let doorX = roomX;
-    let doorY = roomY;
-    
-    switch (doorSide) {
-      case 0: // top
-        doorX = roomX + Math.floor(roomWidth / 2);
-        doorY = roomY - 1;
-        break;
-      case 1: // right
-        doorX = roomX + roomWidth;
-        doorY = roomY + Math.floor(roomHeight / 2);
-        break;
-      case 2: // bottom
-        doorX = roomX + Math.floor(roomWidth / 2);
-        doorY = roomY + roomHeight;
-        break;
-      case 3: // left
-        doorX = roomX - 1;
-        doorY = roomY + Math.floor(roomHeight / 2);
-        break;
-    }
-    
-    // Make sure the door is within bounds
-    if (doorX >= 0 && doorX < width && doorY >= 0 && doorY < height) {
-      tiles[doorY][doorX] = {
-        type: 'door',
-        walkable: true,
-        explored: true
-      };
-    }
-    
-    // Add room-specific features
-    const centerX = roomX + Math.floor(roomWidth / 2);
-    const centerY = roomY + Math.floor(roomHeight / 2);
-    
-    // Add mobs and items based on room type
-    const mobs: { [key: string]: Mob } = {};
-    const items: { [key: string]: Item } = {};
-    
-    // Calculate player position (slightly offset from center)
-    const playerX = centerX - 1;
-    const playerY = centerY;
-    
-    // Add player character to all room types
-    if (playerX >= roomX && playerX < roomX + roomWidth && 
-        playerY >= roomY && playerY < roomY + roomHeight) {
-      tiles[playerY][playerX] = {
-        type: 'floor',
-        walkable: true,
-        explored: true,
-        character: 'player'
-      };
-    }
-    
-    switch (roomType) {
-      case 'entrance':
-        // Add down stairs in the center of the room
-        tiles[centerY][centerX] = {
-          type: 'downStairs',
-          walkable: true,
-          explored: true
-        };
-        break;
-        
-      case 'safe':
-        // For floors > 1, add up stairs in the center of the room
-        if (partialFloor.level > 1) {
-          tiles[centerY][centerX] = {
-            type: 'upStairs',
-            walkable: true,
-            explored: true
-          };
-        }
-        break;
-        
-      case 'shop':
-        // Add shopkeeper
-        const shopkeeperId = 'shopkeeper-1';
-        mobs[shopkeeperId] = {
-          id: shopkeeperId,
-          type: 'shopkeeper',
-          name: 'Shopkeeper',
-          health: 50,
-          maxHealth: 50,
-          position: { x: centerX, y: centerY }
-        };
-        tiles[centerY][centerX] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          mobId: shopkeeperId
-        };
-        break;
-        
-      case 'boss':
-        // Add boss mob
-        const bossId = 'boss-1';
-        mobs[bossId] = {
-          id: bossId,
-          type: 'boss',
-          name: 'Dungeon Boss',
-          health: 100,
-          maxHealth: 100,
-          position: { x: centerX + 1, y: centerY }
-        };
-        tiles[centerY][centerX + 1] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          mobId: bossId
-        };
-        break;
-        
-      case 'treasure':
-        // Add treasure items
-        const goldId = 'gold-1';
-        items[goldId] = {
-          id: goldId,
-          type: 'gold',
-          name: 'Gold Pile',
-          position: { x: centerX, y: centerY }
-        };
-        tiles[centerY][centerX] = {
-          type: 'floor',
-          walkable: true,
-          explored: true,
-          itemId: goldId
-        };
-        break;
-        
-      default:
-        // Standard room with a mob
-        if (Math.random() > 0.5) {
-          const mobId = 'mob-1';
-          mobs[mobId] = {
-            id: mobId,
-            type: 'goblin',
-            name: 'Goblin',
-            health: 20,
-            maxHealth: 20,
-            position: { x: centerX + 1, y: centerY }
-          };
-          tiles[centerY][centerX + 1] = {
-            type: 'floor',
-            walkable: true,
-            explored: true,
-            mobId: mobId
-          };
-        }
-    }
-    
-    // Create a room object
-    const room: Room = {
-      id: 'room-1',
-      type: roomType,
-      x: roomX,
-      y: roomY,
-      width: roomWidth,
-      height: roomHeight,
-      explored: true
-    };
-    
-    // Determine stairs based on room type and floor level
-    let upStairs: Position[] = [];
-    let downStairs: Position[] = [];
-    
-    if (roomType === 'entrance') {
-      // Entrance rooms on floor 1 always have down stairs
-      downStairs = [{ x: centerX, y: centerY }];
-    } else if (roomType === 'safe' && partialFloor.level > 1) {
-      // Safe rooms on floors > 1 always have up stairs
-      upStairs = [{ x: centerX, y: centerY }];
-    }
-    
-    // Return the complete floor
-    return {
-      ...partialFloor,
-      tiles,
-      rooms: [room],
-      mobs,
-      items,
-      upStairs,
-      downStairs,
-      isGeneratedRoom: false
-    };
-  };
+  }, [width, height, roomWidth, roomHeight, roomType, onLoad, onError]);
 
   // Function to get tile color based on tile type
   const getTileColor = (tile: Tile): string => {
@@ -974,9 +690,6 @@ const RoomRenderer: React.FC<RoomRendererProps> = ({
       {debug && (
         <Box mt={4} p={4} bg="gray.700" borderRadius="md" overflowX="auto">
           <Text color="white" mb={2}>Debug Information:</Text>
-          {floor.isGeneratedRoom && (
-            <Text color="orange.300" mb={2}>NOTE: Using generated room because server data was incomplete or invalid</Text>
-          )}
           <Text color="white" mb={2}>Room Type: {roomType}</Text>
           <Text color="white" mb={2}>Dimensions: {width}x{height}</Text>
           <Text color="white" mb={2}>Room Dimensions: {roomWidth}x{roomHeight}</Text>
